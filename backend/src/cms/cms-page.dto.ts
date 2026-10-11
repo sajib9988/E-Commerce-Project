@@ -1,8 +1,22 @@
 import { Type } from 'class-transformer';
 import {
-  IsArray, IsBoolean, IsDateString, IsEnum, IsInt, IsObject,
-  IsOptional, IsString, IsNotEmpty, Matches, MaxLength, ValidateNested,
+  IsArray,
+  IsBoolean,
+  IsDateString,
+  IsEnum,
+  IsInt,
+  IsObject,
+  IsOptional,
+  IsString,
+  IsNotEmpty,
+  Matches,
+  MaxLength,
+  ValidateNested,
 } from 'class-validator';
+import {
+  CmsBlockType,
+  CmsPageStatus,
+} from '../../generated/prisma/client';
 
 
 export class CmsBlockDto {
@@ -45,7 +59,7 @@ export class UpdateCmsPageDto {
   @IsOptional() @IsString() @IsNotEmpty() name?: string;
   @IsOptional() @Matches(SLUG) slug?: string;
   @IsOptional() @IsString() description?: string;
-  @IsOptional() @IsEnum(CmsPageStatu) status?: CmsPageStatus;
+  @IsOptional() @IsEnum(CmsPageStatus) status?: CmsPageStatus;
   @IsOptional() @IsString() @MaxLength(70) seoTitle?: string;
   @IsOptional() @IsString() @MaxLength(160) seoDescription?: string;
   @IsOptional() @IsString() ogImage?: string;
