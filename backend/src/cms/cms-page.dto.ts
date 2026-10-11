@@ -45,7 +45,7 @@ export class UpdateCmsPageDto {
   @IsOptional() @IsString() @IsNotEmpty() name?: string;
   @IsOptional() @Matches(SLUG) slug?: string;
   @IsOptional() @IsString() description?: string;
-  @IsOptional() @IsEnum(CmsPageStatus) status?: CmsPageStatus;
+  @IsOptional() @IsEnum(CmsPageStatu) status?: CmsPageStatus;
   @IsOptional() @IsString() @MaxLength(70) seoTitle?: string;
   @IsOptional() @IsString() @MaxLength(160) seoDescription?: string;
   @IsOptional() @IsString() ogImage?: string;
