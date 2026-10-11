@@ -1,82 +1,142 @@
+
 "use client";
-import { useState } from "react";
+
+import { useEffect, useState } from "react";
 import { BlockEditor } from "./block-editor";
 import { CmsSection } from "@/type/cms";
 import { createSection, normalizeOrder } from "@/lib/cms-utils";
+
 type SectionEditorProps = {
   sections: CmsSection[];
   onChange: (sections: CmsSection[]) => void;
 };
-export function SectionEditor({ sections, onChange }: SectionEditorProps) {
+
+export function SectionEditor({
+  sections,
+  onChange,
+}: SectionEditorProps) {
   const [expandedId, setExpandedId] = useState<string | null>(
     sections[0]?.id ?? null,
   );
+
+  useEffect(() => {
+    if (sections.length === 0) {
+      setExpandedId(null);
+      return;
+    }
+
+    if (
+      !expandedId ||
+      !sections.some((section) => section.id === expandedId)
+    ) {
+      setExpandedId(sections[0].id);
+    }
+  }, [sections, expandedId]);
+
   const addSection = () => {
     const section = createSection(
       `Section ${sections.length + 1}`,
       sections.length,
     );
+
     onChange(normalizeOrder([...sections, section]));
     setExpandedId(section.id);
   };
-  const updateSection = (id: string, updates: Partial<CmsSection>) => {
+
+  const updateSection = (
+    id: string,
+    updates: Partial<CmsSection>,
+  ) => {
     onChange(
       sections.map((section) =>
-        section.id === id ? { ...section, ...updates } : section,
+        section.id === id
+          ? { ...section, ...updates }
+          : section,
       ),
     );
   };
-  const moveSection = (index: number, direction: -1 | 1) => {
+
+  const moveSection = (
+    index: number,
+    direction: -1 | 1,
+  ) => {
     const nextIndex = index + direction;
-    if (nextIndex < 0 || nextIndex >= sections.length) return;
+
+    if (
+      nextIndex < 0 ||
+      nextIndex >= sections.length
+    ) {
+      return;
+    }
+
     const next = [...sections];
-    [next[index], next[nextIndex]] = [next[nextIndex], next[index]];
+
+    [next[index], next[nextIndex]] = [
+      next[nextIndex],
+      next[index],
+    ];
+
     onChange(normalizeOrder(next));
   };
+
   const deleteSection = (id: string) => {
-    onChange(normalizeOrder(sections.filter((section) => section.id !== id)));
-    if (expandedId === id) setExpandedId(null);
+    const nextSections = normalizeOrder(
+      sections.filter((section) => section.id !== id),
+    );
+
+    onChange(nextSections);
+
+    if (expandedId === id) {
+      setExpandedId(nextSections[0]?.id ?? null);
+    }
   };
+
   return (
     <div className="space-y-4">
-      {" "}
       <div className="flex items-center justify-between gap-3">
-        {" "}
-        <h2 className="text-lg font-semibold">Page Sections</h2>{" "}
+        <h2 className="text-lg font-semibold">
+          Page Sections
+        </h2>
+
         <button
           type="button"
           onClick={addSection}
           className="rounded-md bg-black px-4 py-2 text-sm text-white"
         >
-          {" "}
-          + Add Section{" "}
-        </button>{" "}
-      </div>{" "}
+          + Add Section
+        </button>
+      </div>
+
       {sections.length === 0 && (
         <p className="rounded-md border border-dashed p-6 text-center text-sm text-gray-500">
-          {" "}
-          No sections yet. Click Add Section to get started.{" "}
+          No sections yet. Click Add Section to get started.
         </p>
-      )}{" "}
+      )}
+
       {sections.map((section, index) => {
         const expanded = expandedId === section.id;
+
         return (
           <div key={section.id} className="rounded-lg border">
-            {" "}
             <div className="flex flex-wrap items-center gap-2 p-3">
-              {" "}
               <button
                 type="button"
-                onClick={() => setExpandedId(expanded ? null : section.id)}
+                onClick={() =>
+                  setExpandedId(
+                    expanded ? null : section.id,
+                  )
+                }
                 className="min-w-0 flex-1 text-left font-medium"
+                aria-expanded={expanded}
               >
-                {" "}
-                {expanded ? "⌄" : "›"} {section.name || `Section ${index + 1}`}{" "}
+                {expanded ? "⌄" : "›"}{" "}
+                {section.name || `Section ${index + 1}`}
+
                 <span className="ml-2 text-xs text-gray-500">
-                  {" "}
-                  ({section.blocks.length} blocks){" "}
-                </span>{" "}
-              </button>{" "}
+                  ({(section.blocks ?? []).length} blocks)
+                </span>
+              </button>
+
               <button
                 type="button"
                 disabled={index === 0}
@@ -84,9 +144,9 @@ export function SectionEditor({ sections, onChange }: SectionEditorProps) {
                 className="rounded border px-2 py-1 disabled:opacity-40"
                 aria-label="Move section up"
               >
-                {" "}
-                ↑{" "}
-              </button>{" "}
+                ↑
+              </button>
+
               <button
                 type="button"
                 disabled={index === sections.length - 1}
@@ -94,73 +154,79 @@ export function SectionEditor({ sections, onChange }: SectionEditorProps) {
                 className="rounded border px-2 py-1 disabled:opacity-40"
                 aria-label="Move section down"
               >
-                {" "}
-                ↓{" "}
-              </button>{" "}
+                ↓
+              </button>
+
               <button
                 type="button"
                 onClick={() => deleteSection(section.id)}
                 className="rounded border border-red-300 px-2 py-1 text-sm text-red-600"
               >
-                {" "}
-                Delete{" "}
-              </button>{" "}
-            </div>{" "}
+                Delete
+              </button>
+            </div>
+
             {expanded && (
               <div className="space-y-4 border-t p-4">
-                {" "}
                 <label className="block space-y-1 text-sm">
-                  {" "}
-                  <span>Section name</span>{" "}
+                  <span>Section name</span>
+
                   <input
-                    value={section.name}
+                    value={section.name ?? ""}
                     onChange={(event) =>
-                      updateSection(section.id, { name: event.target.value })
+                      updateSection(section.id, {
+                        name: event.target.value,
+                      })
                     }
                     className="w-full rounded-md border p-2"
-                  />{" "}
-                </label>{" "}
+                  />
+                </label>
+
                 <label className="flex items-center gap-2 text-sm">
-                  {" "}
                   <input
                     type="checkbox"
-                    checked={section.isVisible}
+                    checked={Boolean(section.isVisible)}
                     onChange={(event) =>
                       updateSection(section.id, {
                         isVisible: event.target.checked,
                       })
                     }
-                  />{" "}
-                  Show section on page{" "}
-                </label>{" "}
+                  />
+                  Show section on page
+                </label>
+
                 <div className="grid gap-3 sm:grid-cols-3">
-                  {" "}
                   <label className="text-sm">
-                    {" "}
-                    Columns{" "}
+                    Columns
+
                     <select
                       value={section.settings.columns ?? 1}
                       onChange={(event) =>
                         updateSection(section.id, {
                           settings: {
                             ...section.settings,
-                            columns: Number(event.target.value) as 1 | 2 | 3,
+                            columns: Number(
+                              event.target.value,
+                            ) as 1 | 2 | 3,
                           },
                         })
                       }
                       className="mt-1 w-full rounded-md border p-2"
                     >
-                      {" "}
-                      <option value={1}>1 Column</option>{" "}
-                      <option value={2}>2 Columns</option>{" "}
-                      <option value={3}>3 Columns</option>{" "}
-                    </select>{" "}
-                  </label>{" "}
+                      <option value={1}>1 Column</option>
+                      <option value={2}>2 Columns</option>
+                      <option value={3}>3 Columns</option>
+                    </select>
+                  </label>
+
                   <label className="text-sm">
-                    {" "}
-                    Background{" "}
+                    Background
+
                     <input
-                      value={section.settings.background ?? "transparent"}
+                      value={
+                        section.settings.background ??
+                        "transparent"
+                      }
                       onChange={(event) =>
                         updateSection(section.id, {
                           settings: {
@@ -171,11 +237,12 @@ export function SectionEditor({ sections, onChange }: SectionEditorProps) {
                       }
                       className="mt-1 w-full rounded-md border p-2"
                       placeholder="transparent or #f5f5f5"
-                    />{" "}
-                  </label>{" "}
+                    />
+                  </label>
+
                   <label className="text-sm">
-                    {" "}
-                    Padding{" "}
+                    Padding
+
                     <select
                       value={section.settings.padding ?? "medium"}
                       onChange={(event) =>
@@ -192,23 +259,25 @@ export function SectionEditor({ sections, onChange }: SectionEditorProps) {
                       }
                       className="mt-1 w-full rounded-md border p-2"
                     >
-                      {" "}
-                      <option value="none">None</option>{" "}
-                      <option value="small">Small</option>{" "}
-                      <option value="medium">Medium</option>{" "}
-                      <option value="large">Large</option>{" "}
-                    </select>{" "}
-                  </label>{" "}
-                </div>{" "}
+                      <option value="none">None</option>
+                      <option value="small">Small</option>
+                      <option value="medium">Medium</option>
+                      <option value="large">Large</option>
+                    </select>
+                  </label>
+                </div>
+
                 <BlockEditor
-                  blocks={section.blocks}
-                  onChange={(blocks) => updateSection(section.id, { blocks })}
-                />{" "}
+                  blocks={section.blocks ?? []}
+                  onChange={(blocks) =>
+                    updateSection(section.id, { blocks })
+                  }
+                />
               </div>
-            )}{" "}
+            )}
           </div>
         );
-      })}{" "}
+      })}
     </div>
   );
 }

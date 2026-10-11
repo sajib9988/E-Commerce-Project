@@ -1,27 +1,31 @@
-enum ProjectCategory {
-  WEB_DEVELOPMENT
-  DIGITAL_MARKETING
-  SEO
-  SOCIAL_MEDIA_MARKETING
-  BRANDING
-  GRAPHIC_DESIGN
-  E_COMMERCE
-  OTHER
-}
 
-enum ContactStatus {
-  NEW
-  READ
-  REPLIED
-  ARCHIVED
-}
 
-// Explicitly requested by the developer, overriding CLAUDE.md section 16's
-// default "no UserRole enum" — public registration creates USER accounts;
-// only a SUPER_ADMIN can promote a USER to ADMIN; only ADMIN/SUPER_ADMIN can
-// reach the admin dashboard.
 enum UserRole {
   SUPER_ADMIN
   ADMIN
   USER
 }
+
+enum CmsPageStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum CmsBlockType {
+  RICH_TEXT
+  BULLET_LIST
+  CHECKLIST
+  BUTTONS
+  IMAGE
+  GALLERY
+  VIDEO
+  SPACER
+  ACCORDION
+}
+
+enum MediaType {
+  IMAGE
+  VIDEO
+}
+

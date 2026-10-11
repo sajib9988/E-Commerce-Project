@@ -44,7 +44,13 @@ export function createBlock(
           plainText: "",
         },
       };
-
+case "ACCORDION":
+  return {
+    ...base,
+    content: {
+      items: [{ id: makeId("acc"), label: "Question", value: "Answer" }],
+    },
+  };
     case "BULLET_LIST":
     case "CHECKLIST":
       return {

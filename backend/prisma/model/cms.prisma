@@ -1,0 +1,62 @@
+model CmsPage {
+  id             String        @id @default(cuid())
+  name           String
+  slug           String        @unique
+  description    String        @default("")
+  status         CmsPageStatus @default(DRAFT)
+  seoTitle       String?
+  seoDescription String?
+  ogImage        String?
+  publishAt      DateTime?
+  publishedAt    DateTime?
+  sections       CmsSection[]
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@index([status, publishAt])
+  @@map("cms_pages")
+}
+
+model CmsSection {
+  id        String     @id @default(cuid())
+  pageId    String
+  page      CmsPage    @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  name      String
+  settings  Json       @default("{}")
+  sortOrder Int        @default(0)
+  isVisible Boolean    @default(true)
+  blocks    CmsBlock[]
+
+  @@index([pageId, sortOrder])
+  @@map("cms_sections")
+}
+
+model CmsBlock {
+  id        String       @id @default(cuid())
+  sectionId String
+  section   CmsSection   @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  type      CmsBlockType
+  content   Json         @default("{}")
+  settings  Json         @default("{}")
+  sortOrder Int          @default(0)
+  isVisible Boolean      @default(true)
+
+  @@index([sectionId, sortOrder])
+  @@map("cms_blocks")
+}
+
+model MediaAsset {
+  id        String    @id @default(cuid())
+  type      MediaType
+  name      String
+  url       String
+  publicId  String?   // Cloudinary/S3 key, delete-er jonno
+  mimeType  String?
+  altText   String?
+  width     Int?
+  height    Int?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@map("media_assets")
+}

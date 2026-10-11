@@ -9,7 +9,8 @@ export type BlockType =
   | "IMAGE"
   | "GALLERY"
   | "VIDEO"
-  | "SPACER";
+  | "SPACER"
+  | "ACCORDION";
 
 export type MediaType = "IMAGE" | "VIDEO";
 
@@ -37,6 +38,15 @@ export interface MediaAsset {
 }
 
 // Block content types
+export interface AccordionItem {
+  id: string;
+  label: string;
+  value: string;
+}
+
+export interface AccordionContent {
+  items: AccordionItem[];
+}
 
 export interface RichTextContent {
   editorState: string | null;
@@ -196,6 +206,7 @@ export const BLOCK_LABELS: Record<BlockType, string> = {
   GALLERY: "Gallery",
   VIDEO: "Video",
   SPACER: "Spacer",
+  ACCORDION: "Accordion / FAQ",
 };
 
 export const BLOCK_TYPES = Object.keys(BLOCK_LABELS) as BlockType[];
