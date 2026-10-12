@@ -1,12 +1,16 @@
 "use server";
 
-import { CmsPage, CmsPageListItem, UpdatePageInput } from "@/type/cms";
+
 import { parseResponse, safeFetch } from "@/utils/api-helpers";
-
+import type {
+  CmsPage,
+  CmsSection,
+  UpdatePageInput,
+} from "@/type/cms";
 const PAGE_ENDPOINT = "/cms/pages";
-
+const SECTION_ENDPOINT = "/cms/sections";
 export async function getAllPages() {
-  return parseResponse<CmsPageListItem[]>(await safeFetch(PAGE_ENDPOINT));
+  return parseResponse<CmsPage[]>(await safeFetch(PAGE_ENDPOINT));
 }
 
 export async function getPageById(id: string) {
