@@ -1,61 +1,84 @@
-import { CmsPage, CmsSection, ContentBlock } from "@/type/cms";
+import {
+  AccordionItem,
+  CmsPage,
+  CmsSection,
+  ContentBlock,
+} from "@/type/cms";
 
+type Props = { page: CmsPage };
 
-type Props = {
-  page: CmsPage;
-};
+const ALIGN = {
+  left: "text-left",
+  center: "text-center",
+  right: "text-right",
+} as const;
+
+const WIDTH = {
+  narrow: "max-w-2xl",
+  wide: "max-w-6xl",
+  full: "max-w-none",
+} as const;
+
+const PADDING = {
+  none: "py-0",
+  small: "py-4",
+  medium: "py-8",
+  large: "py-16",
+} as const;
+
+function getPlainText(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (
+    value &&
+    typeof value === "object" &&
+    "plainText" in value &&
+    typeof value.plainText === "string"
+  ) {
+    return value.plainText;
+  }
+  return "";
+}
+
+function isAccordionItem(value: unknown): value is AccordionItem {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "label" in value &&
+    typeof value.label === "string" &&
+    "value" in value &&
+    typeof value.value === "string"
+  );
+}
 
 function BlockRenderer({ block }: { block: ContentBlock }) {
   if (!block.isVisible) return null;
 
   const content = block.content;
-  const alignment = block.settings.alignment ?? "left";
-  const width = block.settings.width ?? "full";
-
-  const widthClass =
-    width === "narrow"
-      ? "max-w-2xl"
-      : width === "wide"
-        ? "max-w-6xl"
-        : "max-w-none";
-
-  const wrapperClass =
-    `mx-auto w-full ${widthClass} ` +
-    `text-${alignment}`;
+  const wrapperClass = `mx-auto w-full ${
+    WIDTH[block.settings.width ?? "full"]
+  } ${ALIGN[block.settings.alignment ?? "left"]}`;
 
   switch (block.type) {
-    case "RICH_TEXT": {
-      const text =
-        typeof content.plainText === "string"
-          ? content.plainText
-          : "";
-
+    case "RICH_TEXT":
       return (
         <div className={wrapperClass}>
-          <p className="whitespace-pre-wrap">{text}</p>
+          <p className="whitespace-pre-wrap">{getPlainText(content.plainText)}</p>
         </div>
       );
-    }
 
     case "BULLET_LIST":
     case "CHECKLIST": {
       const items = Array.isArray(content.items)
         ? content.items.filter(
-            (item): item is string =>
-              typeof item === "string" && item.length > 0,
+            (item): item is string => typeof item === "string" && item.length > 0,
           )
         : [];
 
-      const ListTag =
-        block.type === "BULLET_LIST" ? "ul" : "ul";
-
       return (
-        <ListTag
-          className={
-            block.type === "BULLET_LIST"
-              ? "list-disc space-y-2 pl-6"
-              : "space-y-2"
-          }
+        <ul
+          className={`${wrapperClass} ${
+            block.type === "BULLET_LIST" ? "list-disc space-y-2 pl-6" : "space-y-2"
+          }`}
         >
           {items.map((item, index) => (
             <li key={`${index}-${item}`}>
@@ -63,15 +86,12 @@ function BlockRenderer({ block }: { block: ContentBlock }) {
               {item}
             </li>
           ))}
-        </ListTag>
+        </ul>
       );
     }
 
     case "BUTTONS": {
-      const items = Array.isArray(content.items)
-        ? content.items
-        : [];
-
+      const items = Array.isArray(content.items) ? content.items : [];
       return (
         <div className="flex flex-wrap gap-3">
           {items.map((value, index) => {
@@ -85,7 +105,6 @@ function BlockRenderer({ block }: { block: ContentBlock }) {
             ) {
               return null;
             }
-
             return (
               <a
                 key={index}
@@ -108,8 +127,9 @@ function BlockRenderer({ block }: { block: ContentBlock }) {
         "url" in media &&
         typeof media.url === "string"
           ? media.url
-          : "";
-
+          : typeof media === "string"
+            ? media
+            : "";
       if (!url) return null;
 
       return (
@@ -117,11 +137,7 @@ function BlockRenderer({ block }: { block: ContentBlock }) {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={url}
-            alt={
-              typeof content.altText === "string"
-                ? content.altText
-                : ""
-            }
+            alt={typeof content.altText === "string" ? content.altText : ""}
             className="h-auto w-full rounded-lg object-cover"
           />
         </figure>
@@ -129,28 +145,28 @@ function BlockRenderer({ block }: { block: ContentBlock }) {
     }
 
     case "GALLERY": {
-      const media = Array.isArray(content.media)
-        ? content.media
-        : [];
-
+      const media = Array.isArray(content.media) ? content.media : [];
       return (
         <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
           {media.map((item, index) => {
-            if (
-              typeof item !== "object" ||
-              item === null ||
-              !("url" in item) ||
-              typeof item.url !== "string"
-            ) {
-              return null;
-            }
-
+            const url =
+              typeof item === "string"
+                ? item
+                : typeof item === "object" &&
+                    item !== null &&
+                    "url" in item &&
+                    typeof item.url === "string"
+                  ? item.url
+                  : "";
+            if (!url) return null;
             return (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 key={index}
-                src={item.url}
+                src={url}
                 alt={
+                  typeof item === "object" &&
+                  item !== null &&
                   "altText" in item &&
                   typeof item.altText === "string"
                     ? item.altText
@@ -165,25 +181,30 @@ function BlockRenderer({ block }: { block: ContentBlock }) {
     }
 
     case "VIDEO": {
-      const url =
-        typeof content.url === "string"
-          ? content.url
-          : "";
-
+      const url = typeof content.url === "string" ? content.url : "";
       if (!url) return null;
-
       return (
         <div className={wrapperClass}>
-          <p className="mb-2">
-            {typeof content.caption === "string"
-              ? content.caption
-              : ""}
-          </p>
-          <video
-            controls
-            className="w-full rounded-lg"
-            src={url}
-          />
+          {typeof content.caption === "string" && content.caption && (
+            <p className="mb-2">{content.caption}</p>
+          )}
+          <video controls className="w-full rounded-lg" src={url} />
+        </div>
+      );
+    }
+
+    case "ACCORDION": {
+      const items = Array.isArray(content.items)
+        ? content.items.filter(isAccordionItem)
+        : [];
+      return (
+        <div className={`${wrapperClass} space-y-2`}>
+          {items.map((item) => (
+            <details key={item.id} className="rounded-lg border p-4">
+              <summary className="cursor-pointer font-medium">{item.label}</summary>
+              <p className="mt-2 whitespace-pre-wrap">{item.value}</p>
+            </details>
+          ))}
         </div>
       );
     }
@@ -193,7 +214,6 @@ function BlockRenderer({ block }: { block: ContentBlock }) {
         typeof content.height === "number"
           ? Math.min(Math.max(content.height, 0), 500)
           : 32;
-
       return <div aria-hidden="true" style={{ height }} />;
     }
 
@@ -202,23 +222,24 @@ function BlockRenderer({ block }: { block: ContentBlock }) {
   }
 }
 
-function SectionRenderer({
-  section,
-}: {
-  section: CmsSection;
-}) {
+function SectionRenderer({ section }: { section: CmsSection }) {
   if (!section.isVisible) return null;
 
   const columns = section.settings.columns ?? 1;
+  const background = section.settings.background;
 
   return (
-    <section className="px-4 py-8 md:px-8">
+    <section
+      className={`px-4 md:px-8 ${PADDING[section.settings.padding ?? "medium"]}`}
+      style={
+        background && background !== "transparent"
+          ? { backgroundColor: background }
+          : undefined
+      }
+    >
       <div
         className="mx-auto grid max-w-7xl gap-6"
-        style={{
-          gridTemplateColumns:
-            `repeat(${columns}, minmax(0, 1fr))`,
-        }}
+        style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
       >
         {[...section.blocks]
           .sort((a, b) => a.sortOrder - b.sortOrder)
@@ -233,17 +254,11 @@ function SectionRenderer({
 }
 
 export default function PublicPageRenderer({ page }: Props) {
-  const sections = [...page.sections].sort(
-    (a, b) => a.sortOrder - b.sortOrder,
-  );
-
+  const sections = [...page.sections].sort((a, b) => a.sortOrder - b.sortOrder);
   return (
     <main>
       {sections.map((section) => (
-        <SectionRenderer
-          key={section.id}
-          section={section}
-        />
+        <SectionRenderer key={section.id} section={section} />
       ))}
     </main>
   );

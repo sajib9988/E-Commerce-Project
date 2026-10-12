@@ -10,7 +10,7 @@ type PageEditorProps = {
     description: string;
     status: CmsPage["status"];
     sections: CmsSection[];
-  }) => Promise<void>;
+  }) => Promise<CmsPage | void>;
 };
 export function PageEditor({ page, onSave }: PageEditorProps) {
   const [name, setName] = useState(page.name);
@@ -21,6 +21,9 @@ export function PageEditor({ page, onSave }: PageEditorProps) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+
+
+  
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError("");

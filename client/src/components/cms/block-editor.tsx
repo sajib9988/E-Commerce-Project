@@ -3,6 +3,7 @@
 
 import { useState } from "react";
 import {
+  AccordionItem,
   BLOCK_LABELS,
   BLOCK_TYPES,
   ButtonItem,
@@ -11,7 +12,7 @@ import {
 } from "@/type/cms";
 import { createBlock, normalizeOrder } from "@/lib/cms-utils";
 import { RichTextEditor } from "@/components/cms/rich-text-editor";
-
+import { MediaPickerButton } from "@/components/cms/media-picker-button";
 type BlockEditorProps = {
   blocks: ContentBlock[];
   onChange: (blocks: ContentBlock[]) => void;
@@ -126,7 +127,12 @@ export function BlockEditor({
       items,
     });
   };
-
+function getAccordionItems(block: ContentBlock): AccordionItem[] {
+  if (!Array.isArray(block.content.items)) return [];
+  return block.content.items.filter(
+    (item): item is AccordionItem => Boolean(item && typeof item === "object"),
+  );
+}
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-2">
@@ -224,27 +230,22 @@ export function BlockEditor({
             Show on page
           </label>
 
-    {block.type === "RICH_TEXT" && (
+{block.type === "RICH_TEXT" && (
   <div className="space-y-2">
-    <label className="text-sm font-medium">
-      Text content
-    </label>
-
+    <label className="text-sm font-medium">Text content</label>
     <RichTextEditor
-      value={
-        block.content.plainText &&
-        typeof block.content.plainText === "object"
-          ? block.content.plainText as RichTextContent
-          : {
-              editorState: "",
-              plainText: String(block.content.plainText ?? ""),
-            }
-      }
+      value={{
+        editorState:
+          typeof block.content.editorState === "string"
+            ? block.content.editorState
+            : null,
+        plainText:
+          typeof block.content.plainText === "string"
+            ? block.content.plainText
+            : "",
+      }}
       onChange={(value: RichTextContent) =>
-        updateContent(block, {
-          ...block.content,
-          plainText: value,
-        })
+        updateContent(block, { ...block.content, ...value })
       }
     />
   </div>
@@ -363,72 +364,89 @@ export function BlockEditor({
             </div>
           )}
 
-          {block.type === "IMAGE" && (
-            <div className="space-y-2">
-              <label className="text-sm font-medium">
-                Image URL
-              </label>
+   {block.type === "IMAGE" && (
+  <div className="space-y-2">
+    <label className="text-sm font-medium">Image</label>
 
-              <input
-                value={getMediaUrl(block.content.media)}
-                onChange={(event) =>
-                  updateContent(block, {
-                    ...block.content,
-                    media: event.target.value
-                      ? { url: event.target.value }
-                      : null,
-                  })
-                }
-                className="w-full rounded-md border p-2"
-                placeholder="https://example.com/image.jpg"
-              />
+    {getMediaUrl(block.content.media) && (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={getMediaUrl(block.content.media)}
+        alt=""
+        className="h-32 rounded-md border object-contain"
+      />
+    )}
 
-              <input
-                value={String(block.content.altText ?? "")}
-                onChange={(event) =>
-                  updateContent(block, {
-                    ...block.content,
-                    altText: event.target.value,
-                  })
-                }
-                className="w-full rounded-md border p-2"
-                placeholder="Image alt text"
-              />
-            </div>
-          )}
+    <MediaPickerButton
+      label={
+        getMediaUrl(block.content.media)
+          ? "Change image"
+          : "Choose from library"
+      }
+      onSelect={(asset) =>
+        updateContent(block, {
+          ...block.content,
+          media: { id: asset.id, url: asset.url },
+          altText:
+            String(block.content.altText ?? "") || asset.altText || "",
+        })
+      }
+    />
 
-          {block.type === "GALLERY" && (
-            <div className="space-y-2">
-              <label className="text-sm font-medium">
-                Image URLs (one per line)
-              </label>
+    <input
+      value={getMediaUrl(block.content.media)}
+      onChange={(event) =>
+        updateContent(block, {
+          ...block.content,
+          media: event.target.value ? { url: event.target.value } : null,
+        })
+      }
+      className="w-full rounded-md border p-2"
+      placeholder="or paste an external image URL"
+    />
 
-              <textarea
-                value={
-                  Array.isArray(block.content.media)
-                    ? block.content.media
-                        .map(getMediaUrl)
-                        .join("\n")
-                    : ""
-                }
-                onChange={(event) =>
-                  updateContent(block, {
-                    ...block.content,
-                    media: event.target.value
-                      .split("\n")
-                      .map((url) => url.trim())
-                      .filter(Boolean)
-                      .map((url) => ({ url })),
-                  })
-                }
-                rows={3}
-                className="w-full rounded-md border p-3"
-                placeholder={
-                  "https://example.com/image-1.jpg\nhttps://example.com/image-2.jpg"
-                }
-              />
-            </div>
-          )}
+    <input
+      value={String(block.content.altText ?? "")}
+      onChange={(event) =>
+        updateContent(block, {
+          ...block.content,
+          altText: event.target.value,
+        })
+      }
+      className="w-full rounded-md border p-2"
+      placeholder="Image alt text"
+    />
+  </div>
+)}
+
+{block.type === "VIDEO" && (
+  <div className="space-y-2">
+    <MediaPickerButton
+      label="Choose video from library"
+      onSelect={(asset) =>
+        updateContent(block, { ...block.content, url: asset.url })
+      }
+    />
+
+    <input
+      value={String(block.content.url ?? "")}
+      onChange={(event) =>
+        updateContent(block, { ...block.content, url: event.target.value })
+      }
+      className="w-full rounded-md border p-2"
+      placeholder="or paste a video URL"
+    />
+
+    <input
+      value={String(block.content.caption ?? "")}
+      onChange={(event) =>
+        updateContent(block, { ...block.content, caption: event.target.value })
+      }
+      className="w-full rounded-md border p-2"
+      placeholder="Video caption"
+    />
+  </div>
+)}
 
           {block.type === "VIDEO" && (
             <div className="space-y-2">
@@ -457,7 +475,22 @@ export function BlockEditor({
               />
             </div>
           )}
+type GalleryItem = { id?: string; url: string };
 
+function getGalleryItems(block: ContentBlock): GalleryItem[] {
+  if (!Array.isArray(block.content.media)) return [];
+
+  return block.content.media
+    .map((value): GalleryItem => {
+      const id =
+        value && typeof value === "object" && "id" in value
+          ? String((value as { id?: unknown }).id ?? "")
+          : "";
+
+      return { id: id || undefined, url: getMediaUrl(value) };
+    })
+    .filter((item) => item.url.length > 0);
+}
           {block.type === "SPACER" && (
             <label className="block space-y-2 text-sm">
               <span>Height (px)</span>
@@ -483,7 +516,62 @@ export function BlockEditor({
               />
             </label>
           )}
+{block.type === "ACCORDION" && (
+  <div className="space-y-3">
+    {getAccordionItems(block).map((item, i) => {
+      const setItems = (items: AccordionItem[]) =>
+        updateContent(block, { ...block.content, items });
+      const patch = (changes: Partial<AccordionItem>) =>
+        setItems(
+          getAccordionItems(block).map((c, idx) =>
+            idx === i ? { ...c, ...changes } : c,
+          ),
+        );
 
+      return (
+        <div key={item.id || i} className="space-y-2 rounded-md border p-3">
+          <input
+            value={item.label ?? ""}
+            onChange={(e) => patch({ label: e.target.value })}
+            className="w-full rounded-md border p-2"
+            placeholder="Question"
+          />
+          <textarea
+            value={item.value ?? ""}
+            onChange={(e) => patch({ value: e.target.value })}
+            rows={3}
+            className="w-full rounded-md border p-2"
+            placeholder="Answer"
+          />
+          <button
+            type="button"
+            onClick={() =>
+              setItems(getAccordionItems(block).filter((_, idx) => idx !== i))
+            }
+            className="rounded border border-red-300 px-3 py-1 text-sm text-red-600"
+          >
+            Remove
+          </button>
+        </div>
+      );
+    })}
+    <button
+      type="button"
+      onClick={() =>
+        updateContent(block, {
+          ...block.content,
+          items: [
+            ...getAccordionItems(block),
+            { id: crypto.randomUUID(), label: "Question", value: "Answer" },
+          ],
+        })
+      }
+      className="rounded-md border px-3 py-2 text-sm"
+    >
+      Add Item
+    </button>
+  </div>
+)}
           <div className="grid gap-2 sm:grid-cols-3">
             <label className="text-sm">
               Alignment

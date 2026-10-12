@@ -13,6 +13,7 @@ import { HealthModule } from './health/health.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 import { CmsModule } from './cms/cms.module';
+import { MediaModule } from './media/media.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { CmsModule } from './cms/cms.module';
     UsersModule,
     CmsModule,
     HealthModule,
+    MediaModule,
   ],
   controllers: [AppController],
   providers: [
