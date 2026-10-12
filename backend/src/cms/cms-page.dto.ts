@@ -64,6 +64,7 @@ export class UpdateCmsPageDto {
   @IsOptional() @IsString() @MaxLength(160) seoDescription?: string;
   @IsOptional() @IsString() ogImage?: string;
   @IsOptional() @IsDateString() publishAt?: string;
+  @IsOptional() @IsDateString() publishedAt?: string;
 
   @IsOptional()
   @IsArray()

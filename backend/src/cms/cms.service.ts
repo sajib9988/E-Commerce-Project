@@ -64,36 +64,48 @@ export class CmsService {
     );
   }
 
-  async update(id: string, dto: UpdateCmsPageDto) {
-    await this.findOne(id);
-    const { sections, publishAt, ...fields } = dto;
+async update(id: string, dto: UpdateCmsPageDto) {
+  const existing = await this.prisma.cmsPage.findUnique({
+    where: { id },
+    select: { id: true, publishedAt: true },
+  });
+  if (!existing) throw new NotFoundException(`Page ${id} not found`);
 
-    return this.withSlugConflict(() =>
-      this.prisma.$transaction(async (tx) => {
-        // Tree replace: purano section/block cascade-e delete, notun create
-        if (sections) await tx.cmsSection.deleteMany({ where: { pageId: id } });
+  const { sections, publishAt, ...fields } = dto;
 
-        return tx.cmsPage.update({
-          where: { id },
-          data: {
-            ...fields,
-            ...(publishAt !== undefined && { publishAt: new Date(publishAt) }),
-            ...(fields.status === 'PUBLISHED' && { publishedAt: new Date() }),
-            ...(sections && { sections: { create: this.buildTree(sections) } }),
-          },
-          include: fullTree,
-        });
-      }),
-    );
-  }
+  return this.withSlugConflict(() =>
+    this.prisma.$transaction(async (tx) => {
+      if (sections) await tx.cmsSection.deleteMany({ where: { pageId: id } });
 
-  async publish(id: string) {
-    await this.findOne(id);
-    return this.prisma.cmsPage.update({
-      where: { id },
-      data: { status: 'PUBLISHED', publishedAt: new Date() },
-    });
-  }
+      return tx.cmsPage.update({
+        where: { id },
+        data: {
+          ...fields,
+          ...(publishAt !== undefined && {
+            publishAt: publishAt === null ? null : new Date(publishAt),
+          }),
+          ...(fields.status === 'PUBLISHED' &&
+            !existing.publishedAt && { publishedAt: new Date() }),
+          ...(sections && { sections: { create: this.buildTree(sections) } }),
+        },
+        include: fullTree,
+      });
+    }),
+  );
+}
+
+async publish(id: string) {
+  const page = await this.prisma.cmsPage.findUnique({
+    where: { id },
+    select: { publishedAt: true },
+  });
+  if (!page) throw new NotFoundException(`Page ${id} not found`);
+
+  return this.prisma.cmsPage.update({
+    where: { id },
+    data: { status: 'PUBLISHED', publishedAt: page.publishedAt ?? new Date() },
+  });
+}
 
   async remove(id: string) {
     await this.findOne(id);

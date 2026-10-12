@@ -131,6 +131,11 @@ export interface CmsPage {
   description: string;
   status: PageStatus;
   sections: CmsSection[];
+  seoTitle?: string | null;
+  seoDescription?: string | null;
+  ogImage?: string | null;
+  publishAt?: string | null;
+  publishedAt?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -148,6 +153,23 @@ export interface UpdatePageInput {
   slug?: string;
   description?: string;
   status?: PageStatus;
+  seoTitle?: string;
+  seoDescription?: string;
+  ogImage?: string;
+  publishAt?: string | null;
+  sections?: Array<{
+    id?: string;
+    name: string;
+    isVisible?: boolean;
+    settings?: SectionSettings;
+    blocks: Array<{
+      id?: string;
+      type: BlockType;
+      content: Record<string, unknown>;
+      settings?: BlockSettings;
+      isVisible?: boolean;
+    }>;
+  }>;
 }
 
 // Section API inputs
