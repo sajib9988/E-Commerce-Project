@@ -16,26 +16,14 @@ import { toast } from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormMessage,
-} from "@/components/ui/form";
 
-import {
-  LoginFormData,
-  loginSchema,
-  verifyEmailSchema,
-  VerifyEmailFormData,
-} from "@/lib/validation";
 
-import {
-  loginUser,
-  verifyEmail,
-  resendVerification,
-} from "@/service/auth";
+
+
+
+import { LoginFormData, loginSchema, VerifyEmailFormData, verifyEmailSchema } from "@/lib/validation";
+import { loginUser, resendVerification, verifyEmail } from "@/service/auth.service";
+import { Form, FormControl, FormField, FormItem, FormMessage } from "../ui/form";
 
 export default function LoginForm() {
   const router = useRouter();

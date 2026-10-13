@@ -1,7 +1,8 @@
 "use client";
 import React from 'react';
-import LoginForm from '@/components/auth/loginForm';
+
 import { motion } from 'framer-motion';
+import LoginForm from '@/components/form/loginForm';
 
 const LoginPage = () => {
   // Fixed bubble configurations (deterministic)

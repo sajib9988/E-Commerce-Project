@@ -1,7 +1,8 @@
 "use client";
 
-import FloatingBubbles from '@/components/auth/FloatingBubbles';
-import RegisterForm from '@/components/auth/registerForm';
+
+
+import RegisterForm from '@/components/form/registerForm';
 import { motion } from 'framer-motion';
 
 const RegisterPage = () => {
@@ -10,7 +11,7 @@ const RegisterPage = () => {
       className="min-h-screen w-full flex items-center justify-center bg-[#091921] overflow-hidden relative"
       suppressHydrationWarning   // ← এটা যোগ করো (extra safety)
     >
-      <FloatingBubbles />
+
 
       <motion.div 
         initial={{ opacity: 0, y: 20 }}

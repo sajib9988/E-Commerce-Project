@@ -11,15 +11,9 @@ import { toast } from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormMessage,
-} from "@/components/ui/form";
 
-import Turnstile from "@/components/ui/turnstile";
+
+
 
 import {
   registerSchema,
@@ -28,11 +22,17 @@ import {
   VerifyEmailFormData,
 } from "@/lib/validation";
 
+
 import {
-  registerUser,
-  verifyEmail,
-  resendVerification,
-} from "@/service/auth";
+  FormField,
+  FormItem,
+  FormControl,
+  FormMessage,
+  Form,
+} from "@/components/ui/form";
+import Turnstile from "@/lib/turnstile";
+import { registerUser, resendVerification, verifyEmail } from "@/service/auth.service";
+
 
 export default function RegisterForm() {
   const router = useRouter();
