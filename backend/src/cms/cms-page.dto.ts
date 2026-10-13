@@ -52,7 +52,7 @@ export class CreateCmsPageDto {
   @IsOptional() @IsString() @MaxLength(70) seoTitle?: string;
   @IsOptional() @IsString() @MaxLength(160) seoDescription?: string;
   @IsOptional() @IsString() ogImage?: string;
-  @IsOptional() @IsDateString() publishAt?: string;
+  @IsOptional() @IsDateString() publishAt?: string | null;
 }
 
 export class UpdateCmsPageDto {
@@ -63,7 +63,7 @@ export class UpdateCmsPageDto {
   @IsOptional() @IsString() @MaxLength(70) seoTitle?: string;
   @IsOptional() @IsString() @MaxLength(160) seoDescription?: string;
   @IsOptional() @IsString() ogImage?: string;
-  @IsOptional() @IsDateString() publishAt?: string;
+  @IsOptional() @IsDateString() publishAt?: string | null;
   @IsOptional() @IsDateString() publishedAt?: string;
 
   @IsOptional()

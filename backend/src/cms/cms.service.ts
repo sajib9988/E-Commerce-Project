@@ -2,6 +2,9 @@ import { ConflictException, Injectable, NotFoundException } from '@nestjs/common
 import { Prisma } from '../../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CmsSectionDto, CreateCmsPageDto, UpdateCmsPageDto } from './cms-page.dto';
+import { assertSafeBlockContent } from '../common/utils/cms-block-content.validator';
+
+;
 
 
 const fullTree = {
@@ -120,15 +123,22 @@ async publish(id: string) {
       sortOrder: i,
       isVisible: s.isVisible ?? true,
       settings: (s.settings ?? {}) as Json,
-      blocks: {
-        create: s.blocks.map((b, j) => ({
-          type: b.type,
-          content: b.content as Json,
-          settings: (b.settings ?? {}) as Json,
-          sortOrder: j,
-          isVisible: b.isVisible ?? true,
-        })),
-      },
+   
+blocks: {
+  create: s.blocks.map((b, j) => {
+    // Database-এ save করার আগে URL নিরাপদ কি না যাচাই
+    assertSafeBlockContent(b.type, b.content);
+
+    return {
+      type: b.type,
+      content: b.content as Json,
+      settings: (b.settings ?? {}) as Json,
+      sortOrder: j,
+      isVisible: b.isVisible ?? true,
+    };
+  }),
+},
+
     }));
   }
 

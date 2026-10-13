@@ -1,3 +1,4 @@
+
 import {
   AccordionItem,
   CmsPage,
@@ -5,7 +6,12 @@ import {
   ContentBlock,
 } from "@/type/cms";
 
-type Props = { page: CmsPage };
+import { safeLinkUrl, safeMediaUrl } from "@/lib/safe-url";
+import { renderLexical } from "./lexical-renderer";
+
+type Props = {
+  page: CmsPage;
+};
 
 const ALIGN = {
   left: "text-left",
@@ -27,7 +33,10 @@ const PADDING = {
 } as const;
 
 function getPlainText(value: unknown): string {
-  if (typeof value === "string") return value;
+  if (typeof value === "string") {
+    return value;
+  }
+
   if (
     value &&
     typeof value === "object" &&
@@ -36,6 +45,7 @@ function getPlainText(value: unknown): string {
   ) {
     return value.plainText;
   }
+
   return "";
 }
 
@@ -51,33 +61,56 @@ function isAccordionItem(value: unknown): value is AccordionItem {
 }
 
 function BlockRenderer({ block }: { block: ContentBlock }) {
-  if (!block.isVisible) return null;
+  if (!block.isVisible) {
+    return null;
+  }
 
   const content = block.content;
+
+  const width = block.settings.width ?? "full";
+  const alignment = block.settings.alignment ?? "left";
+
   const wrapperClass = `mx-auto w-full ${
-    WIDTH[block.settings.width ?? "full"]
-  } ${ALIGN[block.settings.alignment ?? "left"]}`;
+    WIDTH[width]
+  } ${ALIGN[alignment]}`;
 
   switch (block.type) {
-    case "RICH_TEXT":
+    case "RICH_TEXT": {
+      const editorState =
+        typeof content.editorState === "string"
+          ? content.editorState
+          : "";
+
+      const richContent = editorState
+        ? renderLexical(editorState)
+        : null;
+
       return (
         <div className={wrapperClass}>
-          <p className="whitespace-pre-wrap">{getPlainText(content.plainText)}</p>
+          {richContent ?? (
+            <p className="whitespace-pre-wrap">
+              {getPlainText(content.plainText)}
+            </p>
+          )}
         </div>
       );
+    }
 
     case "BULLET_LIST":
     case "CHECKLIST": {
       const items = Array.isArray(content.items)
         ? content.items.filter(
-            (item): item is string => typeof item === "string" && item.length > 0,
+            (item): item is string =>
+              typeof item === "string" && item.length > 0,
           )
         : [];
 
       return (
         <ul
           className={`${wrapperClass} ${
-            block.type === "BULLET_LIST" ? "list-disc space-y-2 pl-6" : "space-y-2"
+            block.type === "BULLET_LIST"
+              ? "list-disc space-y-2 pl-6"
+              : "space-y-2"
           }`}
         >
           {items.map((item, index) => (
@@ -91,7 +124,10 @@ function BlockRenderer({ block }: { block: ContentBlock }) {
     }
 
     case "BUTTONS": {
-      const items = Array.isArray(content.items) ? content.items : [];
+      const items = Array.isArray(content.items)
+        ? content.items
+        : [];
+
       return (
         <div className="flex flex-wrap gap-3">
           {items.map((value, index) => {
@@ -105,11 +141,28 @@ function BlockRenderer({ block }: { block: ContentBlock }) {
             ) {
               return null;
             }
+
+            const safeUrl = safeLinkUrl(value.url);
+
+            if (!safeUrl) {
+              return null;
+            }
+
             return (
               <a
                 key={index}
-                href={value.url}
+                href={safeUrl}
                 className="inline-flex rounded-md bg-primary px-4 py-2 text-primary-foreground"
+                target={
+                  /^https?:\/\//i.test(safeUrl)
+                    ? "_blank"
+                    : undefined
+                }
+                rel={
+                  /^https?:\/\//i.test(safeUrl)
+                    ? "noopener noreferrer"
+                    : undefined
+                }
               >
                 {value.label}
               </a>
@@ -121,7 +174,8 @@ function BlockRenderer({ block }: { block: ContentBlock }) {
 
     case "IMAGE": {
       const media = content.media;
-      const url =
+
+      const rawUrl =
         typeof media === "object" &&
         media !== null &&
         "url" in media &&
@@ -130,14 +184,24 @@ function BlockRenderer({ block }: { block: ContentBlock }) {
           : typeof media === "string"
             ? media
             : "";
-      if (!url) return null;
+
+      const url = safeMediaUrl(rawUrl);
+
+      if (!url) {
+        return null;
+      }
 
       return (
         <figure className={wrapperClass}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={url}
-            alt={typeof content.altText === "string" ? content.altText : ""}
+            alt={
+              typeof content.altText === "string"
+                ? content.altText
+                : ""
+            }
+            loading="lazy"
             className="h-auto w-full rounded-lg object-cover"
           />
         </figure>
@@ -145,11 +209,14 @@ function BlockRenderer({ block }: { block: ContentBlock }) {
     }
 
     case "GALLERY": {
-      const media = Array.isArray(content.media) ? content.media : [];
+      const media = Array.isArray(content.media)
+        ? content.media
+        : [];
+
       return (
         <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
           {media.map((item, index) => {
-            const url =
+            const rawUrl =
               typeof item === "string"
                 ? item
                 : typeof item === "object" &&
@@ -158,20 +225,28 @@ function BlockRenderer({ block }: { block: ContentBlock }) {
                     typeof item.url === "string"
                   ? item.url
                   : "";
-            if (!url) return null;
+
+            const url = safeMediaUrl(rawUrl);
+
+            if (!url) {
+              return null;
+            }
+
+            const altText =
+              typeof item === "object" &&
+              item !== null &&
+              "altText" in item &&
+              typeof item.altText === "string"
+                ? item.altText
+                : "";
+
             return (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 key={index}
                 src={url}
-                alt={
-                  typeof item === "object" &&
-                  item !== null &&
-                  "altText" in item &&
-                  typeof item.altText === "string"
-                    ? item.altText
-                    : ""
-                }
+                alt={altText}
+                loading="lazy"
                 className="h-48 w-full rounded-lg object-cover"
               />
             );
@@ -181,14 +256,30 @@ function BlockRenderer({ block }: { block: ContentBlock }) {
     }
 
     case "VIDEO": {
-      const url = typeof content.url === "string" ? content.url : "";
-      if (!url) return null;
+      const rawUrl =
+        typeof content.url === "string"
+          ? content.url
+          : "";
+
+      const url = safeMediaUrl(rawUrl);
+
+      if (!url) {
+        return null;
+      }
+
       return (
         <div className={wrapperClass}>
-          {typeof content.caption === "string" && content.caption && (
-            <p className="mb-2">{content.caption}</p>
-          )}
-          <video controls className="w-full rounded-lg" src={url} />
+          {typeof content.caption === "string" &&
+            content.caption && (
+              <p className="mb-2">{content.caption}</p>
+            )}
+
+          <video
+            controls
+            preload="metadata"
+            className="w-full rounded-lg"
+            src={url}
+          />
         </div>
       );
     }
@@ -197,12 +288,21 @@ function BlockRenderer({ block }: { block: ContentBlock }) {
       const items = Array.isArray(content.items)
         ? content.items.filter(isAccordionItem)
         : [];
+
       return (
         <div className={`${wrapperClass} space-y-2`}>
           {items.map((item) => (
-            <details key={item.id} className="rounded-lg border p-4">
-              <summary className="cursor-pointer font-medium">{item.label}</summary>
-              <p className="mt-2 whitespace-pre-wrap">{item.value}</p>
+            <details
+              key={item.id}
+              className="rounded-lg border p-4"
+            >
+              <summary className="cursor-pointer font-medium">
+                {item.label}
+              </summary>
+
+              <p className="mt-2 whitespace-pre-wrap">
+                {item.value}
+              </p>
             </details>
           ))}
         </div>
@@ -210,11 +310,23 @@ function BlockRenderer({ block }: { block: ContentBlock }) {
     }
 
     case "SPACER": {
-      const height =
-        typeof content.height === "number"
-          ? Math.min(Math.max(content.height, 0), 500)
+      const rawHeight =
+        typeof content.height === "number" &&
+        Number.isFinite(content.height)
+          ? content.height
           : 32;
-      return <div aria-hidden="true" style={{ height }} />;
+
+      const height = Math.min(
+        Math.max(rawHeight, 0),
+        500,
+      );
+
+      return (
+        <div
+          aria-hidden="true"
+          style={{ height }}
+        />
+      );
     }
 
     default:
@@ -222,15 +334,31 @@ function BlockRenderer({ block }: { block: ContentBlock }) {
   }
 }
 
-function SectionRenderer({ section }: { section: CmsSection }) {
-  if (!section.isVisible) return null;
+function SectionRenderer({
+  section,
+}: {
+  section: CmsSection;
+}) {
+  if (!section.isVisible) {
+    return null;
+  }
 
-  const columns = section.settings.columns ?? 1;
+  const rawColumns = section.settings.columns ?? 1;
+
+  const columns =
+    typeof rawColumns === "number" &&
+    Number.isFinite(rawColumns)
+      ? Math.min(Math.max(Math.floor(rawColumns), 1), 4)
+      : 1;
+
+  const padding =
+    PADDING[section.settings.padding ?? "medium"];
+
   const background = section.settings.background;
 
   return (
     <section
-      className={`px-4 md:px-8 ${PADDING[section.settings.padding ?? "medium"]}`}
+      className={`px-4 md:px-8 ${padding}`}
       style={
         background && background !== "transparent"
           ? { backgroundColor: background }
@@ -239,7 +367,9 @@ function SectionRenderer({ section }: { section: CmsSection }) {
     >
       <div
         className="mx-auto grid max-w-7xl gap-6"
-        style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
+        style={{
+          gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
+        }}
       >
         {[...section.blocks]
           .sort((a, b) => a.sortOrder - b.sortOrder)
@@ -253,12 +383,20 @@ function SectionRenderer({ section }: { section: CmsSection }) {
   );
 }
 
-export default function PublicPageRenderer({ page }: Props) {
-  const sections = [...page.sections].sort((a, b) => a.sortOrder - b.sortOrder);
+export default function PublicPageRenderer({
+  page,
+}: Props) {
+  const sections = [...page.sections].sort(
+    (a, b) => a.sortOrder - b.sortOrder,
+  );
+
   return (
     <main>
       {sections.map((section) => (
-        <SectionRenderer key={section.id} section={section} />
+        <SectionRenderer
+          key={section.id}
+          section={section}
+        />
       ))}
     </main>
   );

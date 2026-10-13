@@ -39,6 +39,8 @@ import {
 import type { HeadingTagType } from "@lexical/rich-text";
 import { RichTextContent } from "@/type/cms";
 
+import { safeLinkUrl } from "@/lib/safe-url";
+
 
 type RichTextEditorProps = {
   value: RichTextContent;
@@ -167,17 +169,33 @@ function ToolbarPlugin() {
     });
   };
 
-  const insertLink = () => {
-    const url = window.prompt("Enter URL");
 
-    if (!url) return;
+const insertLink = () => {
+  const input = window.prompt("Enter URL")?.trim();
+  if (!input) return;
 
-    editor.dispatchCommand(TOGGLE_LINK_COMMAND, {
-      url,
-      target: "_blank",
-      rel: "noopener noreferrer",
-    });
-  };
+  const withScheme =
+    /^[a-z][a-z0-9+.-]*:/i.test(input) ||
+    /^[/#]/.test(input)
+      ? input
+      : `https://${input}`;
+
+  const url = safeLinkUrl(withScheme);
+
+  if (!url) {
+    window.alert(
+      "Only http(s), mailto, tel or relative links are allowed.",
+    );
+    return;
+  }
+
+  editor.dispatchCommand(TOGGLE_LINK_COMMAND, {
+    url,
+    target: "_blank",
+    rel: "noopener noreferrer",
+  });
+};
+
 
   return (
     <div className="flex flex-wrap gap-1 border-b p-2">
