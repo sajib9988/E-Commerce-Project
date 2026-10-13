@@ -33,6 +33,7 @@
     "class-validator": "^0.15.1",
     "cloudinary": "^2.11.0",
     "dotenv": "^17.4.2",
+    "http-status": "^2.1.0",
     "nodemailer": "^9.0.5",
     "pg": "^8.23.0",
     "reflect-metadata": "^0.2.2",
