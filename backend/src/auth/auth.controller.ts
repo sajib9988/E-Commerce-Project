@@ -10,7 +10,6 @@ import {
   Query,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
-import { UserRole } from '../../generated/prisma/enums';
 import { Public } from '../common/decorators/public.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -25,6 +24,8 @@ import { VerifyEmailDto } from './dto/verify-email.dto';
 import { ResendVerificationDto } from './dto/resend-verification.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { ForgetPasswordDto } from './dto/forget-password.dto';
+import { UpdateUserRoleDto } from './dto/update-user-role.dto';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 
@@ -86,7 +87,7 @@ export class AuthController {
   @Throttle(AUTH_THROTTLE)
   @HttpCode(200)
   @Post('auth/forget-password')
-  forgetPassword(@Body() body: { email: string; turnstileToken?: string }) {
+  forgetPassword(@Body() body: ForgetPasswordDto) {
     return this.authService.forgetPassword(body.email);
   }
 
@@ -153,7 +154,7 @@ export class AuthController {
 
   @Roles('SUPER_ADMIN')
   @Patch('users/:id/role')
-  updateUserRole(@Param('id') id: string, @Body() body: { role: UserRole }) {
+  updateUserRole(@Param('id') id: string, @Body() body: UpdateUserRoleDto) {
     return this.authService.updateUserRole(id, body.role);
   }
 
