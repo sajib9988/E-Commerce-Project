@@ -1,7 +1,7 @@
 "use server";
 
 import { cookies } from "next/headers";
-import type { CmsPage, UpdatePageInput } from "@/type/cms";
+import type { CmsPage, CmsPageListItem, UpdatePageInput } from "@/type/cms";
 
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL;
 const PAGE_ENDPOINT = "/cms/pages";
@@ -80,7 +80,9 @@ async function request<T>(
 }
 
 export async function getAllPages() {
-  return request<CmsPage[]>(PAGE_ENDPOINT);
+  // Backend list intentionally returns a lightweight summary with _count,
+  // while getPageById/create/update return the full page tree.
+  return request<CmsPageListItem[]>(PAGE_ENDPOINT);
 }
 
 export async function getPageById(id: string) {
