@@ -23,8 +23,8 @@ import type { VerifyEmailDto } from './dto/verify-email.dto';
 import type { ResendVerificationDto } from './dto/resend-verification.dto';
 import type { ResetPasswordDto } from './dto/reset-password.dto';
 import type { ChangePasswordDto } from './dto/change-password.dto';
-import type { CreateUserDto } from '../users/dto/create-user.dto';
-import type { UpdateUserDto } from '../users/dto/update-user.dto';
+import type { CreateUserDto } from './dto/create-user.dto';
+import type { UpdateUserDto } from './dto/update-user.dto';
 
 export const ACCESS_TOKEN_TTL_SECONDS = 30 * 60;
 export const REFRESH_TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60;
