@@ -1,7 +1,7 @@
 "use server";
 
 import { cookies } from "next/headers";
-import type { MediaAsset } from "@/type/cms";
+import type { MediaAsset, MediaUsage } from "@/type/cms";
 
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL;
 const MEDIA_ENDPOINT = "/cms/media";
@@ -86,6 +86,13 @@ export async function getAllMedia() {
 export async function getMediaById(id: string) {
   return request<MediaAsset>(
     `${MEDIA_ENDPOINT}/${encodeURIComponent(id)}`,
+  );
+}
+
+// Backend reports CMS pages that reference this media asset.
+export async function getMediaUsage(id: string) {
+  return request<MediaUsage>(
+    `${MEDIA_ENDPOINT}/${encodeURIComponent(id)}/usage`,
   );
 }
 
