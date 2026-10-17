@@ -88,7 +88,7 @@ export class AuthController {
   @HttpCode(200)
   @Post('auth/forget-password')
   forgetPassword(@Body() body: ForgetPasswordDto) {
-    return this.authService.forgetPassword(body.email);
+    return this.authService.forgetPassword(body.email, body.turnstileToken);
   }
 
   @Public()
