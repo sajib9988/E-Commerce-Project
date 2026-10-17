@@ -37,6 +37,11 @@ export interface MediaAsset {
   updatedAt?: string;
 }
 
+export interface MediaUsage {
+  asset: MediaAsset;
+  pages: Array<{ id: string; name: string; slug: string }>;
+}
+
 // Block content types
 export interface AccordionItem {
   id: string;
