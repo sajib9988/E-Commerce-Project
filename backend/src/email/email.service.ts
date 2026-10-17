@@ -48,9 +48,18 @@ export class EmailService {
     }
   }
 
-  async sendOtp(email: string, code: string): Promise<void> {
-    const subject = 'Your admin sign-in code';
-    const text = `Your sign-in code is ${code}. It expires in 5 minutes.`;
+  async sendOtp(email: string, code: string, purpose: 'verify-email' | 'login' | 'reset-password' = 'login'): Promise<void> {
+    const subject = purpose === 'verify-email'
+      ? 'Verify your email address'
+      : purpose === 'reset-password'
+        ? 'Your password reset code'
+        : 'Your admin sign-in code';
+    const action = purpose === 'verify-email'
+      ? 'verify your email address'
+      : purpose === 'reset-password'
+        ? 'reset your password'
+        : 'sign in';
+    const text = `Your code to ${action} is ${code}. It expires in 5 minutes.`;
 
     if (!this.transporter) {
       // No email provider configured — fall back to logging so local
