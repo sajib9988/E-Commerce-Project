@@ -124,6 +124,10 @@ export interface CmsSection {
 
 // CMS page
 
+export type CmsPageListItem = Omit<CmsPage, "sections"> & {
+  _count: { sections: number };
+};
+
 export interface CmsPage {
   id: string;
   name: string;
