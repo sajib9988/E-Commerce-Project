@@ -13,6 +13,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../email/email.service';
 import { comparePassword, hashPassword } from '../common/utils/password.util';
 import { compareOtp, generateOtp, hashOtp } from '../common/utils/otp.util';
+import { verifyTurnstileToken } from '../common/utils/turnstile.util';
 import type { AuthTokenPayload } from '../common/types/auth-token-payload';
 import type { LoginDto } from './dto/login.dto';
 import type { RegisterDto } from './dto/register.dto';
@@ -166,7 +167,9 @@ export class AuthService {
     return this.issueSessionTokens(user);
   }
 
-  async forgetPassword(emailInput: string) {
+  async forgetPassword(emailInput: string, turnstileToken?: string) {
+    const isTurnstileValid = await verifyTurnstileToken(turnstileToken ?? '');
+    if (!isTurnstileValid) throw new BadRequestException('Turnstile verification failed');
     const email = emailInput.trim().toLowerCase();
     const user = await this.prisma.user.findUnique({ where: { email } });
     if (user) {
