@@ -49,45 +49,65 @@ export const registerUser = async (userData: FieldValues) => {
 
 
 
+const saveSessionCookies = async (payload: any) => {
+  const session = payload?.data ?? payload;
+  if (!session?.accessToken || !session?.refreshToken) return;
+  const cookieStore = await cookies();
+  const options = {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax" as const,
+    path: "/",
+  };
+  cookieStore.set("accessToken", session.accessToken, options);
+  cookieStore.set("refreshToken", session.refreshToken, options);
+};
+
 export const loginUser = async (userData: FieldValues) => {
   const res = await fetch(`${BASE_URL}/auth/login`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(userData),
     cache: "no-store",
   });
 
-  const data = await res.json();
-
-  // console.log("LOGIN RESPONSE:", data);
-
-  // backend যদি token return করে
-  if (data?.data?.accessToken) {
-    const cookieStore = await cookies();
-
-    cookieStore.set("accessToken", data.data.accessToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      path: "/",
-    });
-
-    cookieStore.set("refreshToken", data.data.refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      path: "/",
-    });
-  }
-
-  return {
-    ok: res.ok,
-    data,
-  };
+  const data = await safeJson(res);
+  // USER login returns tokens directly; ADMIN/SUPER_ADMIN return challengeToken.
+  await saveSessionCookies(data);
+  return { ok: res.ok, data };
 };
 
+export const verifyLoginOtp = async (challengeToken: string, code: string) => {
+  try {
+    const res = await fetch(`${BASE_URL}/auth/verify-otp`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ challengeToken, code }),
+      cache: "no-store",
+    });
+    const data = await safeJson(res);
+    if (res.ok) await saveSessionCookies(data);
+    return { ok: res.ok, data };
+  } catch (error) {
+    console.error("Error verifying login code:", error);
+    return { ok: false, data: { success: false, message: "Failed to verify login code" } };
+  }
+};
+
+export const resendLoginOtp = async (challengeToken: string) => {
+  try {
+    const res = await fetch(`${BASE_URL}/auth/resend-otp`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ challengeToken }),
+      cache: "no-store",
+    });
+    return await safeJson(res);
+  } catch (error) {
+    console.error("Error resending login code:", error);
+    return { success: false, message: "Failed to resend login code" };
+  }
+};
 
 export const logoutUser = async () => {
   const cookieStore = await cookies();
