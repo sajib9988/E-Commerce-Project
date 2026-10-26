@@ -13,6 +13,10 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 import { CmsModule } from './cms/cms.module';
 import { MediaModule } from './media/media.module';
+import { ProductsModule } from './products/products.module';
+import { OrdersModule } from './orders/orders.module';
+import { ApliiqModule } from './apliiq/apliiq.module';
+import { PaymentsModule } from './payments/payments.module';
 
 @Module({
   imports: [
@@ -23,6 +27,10 @@ import { MediaModule } from './media/media.module';
     CmsModule,
     HealthModule,
     MediaModule,
+    ProductsModule,
+    OrdersModule,
+    ApliiqModule,
+    PaymentsModule,
   ],
   controllers: [AppController],
   providers: [
