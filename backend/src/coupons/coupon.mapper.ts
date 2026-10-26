@@ -1,4 +1,4 @@
-import { Prisma } from '../../generated/prisma/client';
+import { Prisma } from '@prisma/client';
 
 type CouponRecord = {
   id: string;
