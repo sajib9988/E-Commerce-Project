@@ -6,8 +6,6 @@ import { AppService } from './app.service';
 import { PrismaModule } from './prisma/prisma.module';
 import { EmailModule } from './email/email.module';
 import { AuthModule } from './auth/auth.module';
-
-
 import { HealthModule } from './health/health.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
@@ -17,6 +15,7 @@ import { ProductsModule } from './products/products.module';
 import { OrdersModule } from './orders/orders.module';
 import { ApliiqModule } from './apliiq/apliiq.module';
 import { PaymentsModule } from './payments/payments.module';
+import { CouponsModule } from './coupons/coupons.module';
 
 @Module({
   imports: [
@@ -31,6 +30,7 @@ import { PaymentsModule } from './payments/payments.module';
     OrdersModule,
     ApliiqModule,
     PaymentsModule,
+    CouponsModule,
   ],
   controllers: [AppController],
   providers: [
