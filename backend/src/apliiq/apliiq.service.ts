@@ -1,5 +1,6 @@
 import {
   Injectable,
+  BadRequestException,
   NotFoundException,
   ConflictException,
 } from '@nestjs/common';
@@ -82,7 +83,7 @@ export class ApliiqService {
 
   async processFulfillmentWebhook(body: unknown) {
     if (!body || typeof body !== 'object' || Array.isArray(body)) {
-      throw new ConflictException('Invalid Apliiq fulfillment payload');
+      throw new BadRequestException('Invalid Apliiq fulfillment payload');
     }
 
     const root = body as Record<string, unknown>;
@@ -92,7 +93,7 @@ export class ApliiqService {
       typeof rawFulfillment !== 'object' ||
       Array.isArray(rawFulfillment)
     ) {
-      throw new ConflictException('Missing Apliiq fulfillment object');
+      throw new BadRequestException('Missing Apliiq fulfillment object');
     }
 
     const payload = rawFulfillment as Record<string, unknown>;
@@ -105,18 +106,18 @@ export class ApliiqService {
       typeof payload.status === 'string' ? payload.status.trim() : '';
 
     if (!externalOrderId || externalOrderId.length > 200 || !providerStatus || providerStatus.length > 100) {
-      throw new ConflictException('Apliiq fulfillment order_id/status is invalid');
+      throw new BadRequestException('Apliiq fulfillment order_id/status is invalid');
     }
 
     const readStringArray = (key: string): string[] | undefined => {
       const value = payload[key];
       if (value === undefined || value === null) return undefined;
       if (!Array.isArray(value) || value.length > 50) {
-        throw new ConflictException(`Apliiq ${key} must be an array of strings`);
+        throw new BadRequestException(`Apliiq ${key} must be an array of strings`);
       }
       return value.map((entry) => {
         if (typeof entry !== 'string' || entry.length > 1000) {
-          throw new ConflictException(`Apliiq ${key} contains an invalid value`);
+          throw new BadRequestException(`Apliiq ${key} contains an invalid value`);
         }
         return entry.trim();
       });
@@ -127,7 +128,7 @@ export class ApliiqService {
         ? undefined
         : typeof payload.tracking_company === 'string'
           ? payload.tracking_company.trim().slice(0, 200)
-          : (() => { throw new ConflictException('Invalid tracking_company'); })();
+          : (() => { throw new BadRequestException('Invalid tracking_company'); })();
     const trackingNumbers = readStringArray('tracking_numbers');
     const trackingUrls = readStringArray('tracking_urls');
     const isShipped = ['success', 'shipped'].includes(providerStatus.toLowerCase());
