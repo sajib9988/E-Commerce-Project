@@ -9,6 +9,7 @@ import { PaymentAttemptStatus, PaymentStatus, OrderStatus, Prisma } from '@prism
 import Stripe from 'stripe';
 import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
+import { ApliiqService } from '../apliiq/apliiq.service';
 
 @Injectable()
 export class PaymentsService {
@@ -17,6 +18,7 @@ export class PaymentsService {
 
   constructor(
     private readonly prisma: PrismaService,
+    private readonly apliiq: ApliiqService,
     config: ConfigService,
   ) {
     const secretKey = config.get<string>('STRIPE_SECRET_KEY');
@@ -130,10 +132,11 @@ export class PaymentsService {
     }
 
     await this.prisma.$transaction(async (tx) => {
-      // Unique Stripe event ID prevents processing the same event twice.
-      // If anything below fails, the event insert rolls back with the transaction.
-      await tx.stripeWebhookEvent.create({
-        data: { id: eventId, type: 'checkout.session.completed' },
+      // Insert once, but let Stripe retries continue through idempotent state checks.
+      // If the transaction fails, this insert rolls back with the transaction.
+      await tx.stripeWebhookEvent.createMany({
+        data: [{ id: eventId, type: 'checkout.session.completed' }],
+        skipDuplicates: true,
       });
 
       const attempt = await tx.paymentAttempt.findFirst({
@@ -185,6 +188,12 @@ export class PaymentsService {
         },
       });
     });
+
+    // Run only after the verified payment transaction has committed.
+    // submitPaidOrder checks PAID state and persists a provider submission record.
+    // Stripe retries can safely reach this point again; Apliiq submission must
+    // never be blindly repeated after an ambiguous network timeout.
+    await this.apliiq.submitPaidOrder(orderId);
   }
 
   async handleCheckoutExpired(session: Stripe.Checkout.Session, eventId: string) {
