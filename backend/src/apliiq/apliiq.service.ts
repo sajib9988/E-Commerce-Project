@@ -3,7 +3,6 @@ import {
   NotFoundException,
   ConflictException,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { ApliiqClient } from './apliiq.client';
 import { mapOrderToApliiq } from './apliiq.mapper';
@@ -15,7 +14,6 @@ export class ApliiqService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly client: ApliiqClient,
-    private readonly config: ConfigService,
   ) {}
 
   async submitPaidOrder(orderId: string) {
@@ -83,13 +81,101 @@ export class ApliiqService {
   }
 
   async processFulfillmentWebhook(body: unknown) {
-  // Validate shape with class-validator/Zod before accessing nested properties.
-  // Resolve body.fulfillment.order_id to Fulfillment.externalOrderId.
-  // In one DB transaction:
-  // 1) deduplicate a stable provider event key or compare the persisted status/payload;
-  // 2) update providerStatus, trackingCompany, trackingNumbers, trackingUrls;
-  // 3) when status means shipped, set fulfillment.shippedAt and Order.status = SHIPPED;
-  // 4) store only the minimum redacted audit data needed for support.
-  // Return success for an already-applied duplicate delivery.
-}
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      throw new ConflictException('Invalid Apliiq fulfillment payload');
+    }
+
+    const root = body as Record<string, unknown>;
+    const rawFulfillment = root.fulfillment;
+    if (
+      !rawFulfillment ||
+      typeof rawFulfillment !== 'object' ||
+      Array.isArray(rawFulfillment)
+    ) {
+      throw new ConflictException('Missing Apliiq fulfillment object');
+    }
+
+    const payload = rawFulfillment as Record<string, unknown>;
+    const rawOrderId = payload.order_id;
+    const externalOrderId =
+      typeof rawOrderId === 'string' || typeof rawOrderId === 'number'
+        ? String(rawOrderId).trim()
+        : '';
+    const providerStatus =
+      typeof payload.status === 'string' ? payload.status.trim() : '';
+
+    if (!externalOrderId || externalOrderId.length > 200 || !providerStatus || providerStatus.length > 100) {
+      throw new ConflictException('Apliiq fulfillment order_id/status is invalid');
+    }
+
+    const readStringArray = (key: string): string[] | undefined => {
+      const value = payload[key];
+      if (value === undefined || value === null) return undefined;
+      if (!Array.isArray(value) || value.length > 50) {
+        throw new ConflictException(`Apliiq ${key} must be an array of strings`);
+      }
+      return value.map((entry) => {
+        if (typeof entry !== 'string' || entry.length > 1000) {
+          throw new ConflictException(`Apliiq ${key} contains an invalid value`);
+        }
+        return entry.trim();
+      });
+    };
+
+    const trackingCompany =
+      payload.tracking_company === undefined || payload.tracking_company === null
+        ? undefined
+        : typeof payload.tracking_company === 'string'
+          ? payload.tracking_company.trim().slice(0, 200)
+          : (() => { throw new ConflictException('Invalid tracking_company'); })();
+    const trackingNumbers = readStringArray('tracking_numbers');
+    const trackingUrls = readStringArray('tracking_urls');
+    const isShipped = ['success', 'shipped'].includes(providerStatus.toLowerCase());
+
+    return this.prisma.$transaction(async (tx) => {
+      const fulfillment = await tx.fulfillment.findUnique({
+        where: { externalOrderId },
+        include: { order: true },
+      });
+
+      if (!fulfillment) {
+        throw new NotFoundException('No local fulfillment matches the Apliiq order ID');
+      }
+
+      const updateData: {
+        providerStatus: string;
+        trackingCompany?: string | null;
+        trackingNumbers?: string[];
+        trackingUrls?: string[];
+        shippedAt?: Date;
+      } = { providerStatus };
+
+      if (trackingCompany !== undefined) updateData.trackingCompany = trackingCompany;
+      if (trackingNumbers !== undefined) updateData.trackingNumbers = trackingNumbers;
+      if (trackingUrls !== undefined) updateData.trackingUrls = trackingUrls;
+      if (isShipped && !fulfillment.shippedAt) updateData.shippedAt = new Date();
+
+      // Repeated webhook deliveries are safe: applying the same values again
+      // does not create duplicate records or notify the customer twice.
+      const updated = await tx.fulfillment.update({
+        where: { id: fulfillment.id },
+        data: updateData,
+      });
+
+      // Apliiq's documented "success" payload is a shipment/tracking notification,
+      // not proof that the carrier delivered the package. Never mark DELIVERED here.
+      const terminalLocalStatuses = ['DELIVERED', 'CANCELLED', 'REFUNDED'];
+      if (
+        isShipped &&
+        !terminalLocalStatuses.includes(String(fulfillment.order.status))
+      ) {
+        await tx.order.update({
+          where: { id: fulfillment.orderId },
+          data: { status: 'SHIPPED' },
+        });
+      }
+
+      return updated;
+    });
+  }
 }
