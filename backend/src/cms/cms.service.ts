@@ -63,6 +63,7 @@ export class CmsService {
           ...dto,
           publishAt: dto.publishAt ? new Date(dto.publishAt) : undefined,
         },
+        include: fullTree,
       }),
     );
   }
@@ -107,6 +108,7 @@ async publish(id: string) {
   return this.prisma.cmsPage.update({
     where: { id },
     data: { status: 'PUBLISHED', publishedAt: page.publishedAt ?? new Date() },
+    include: fullTree,
   });
 }
 
