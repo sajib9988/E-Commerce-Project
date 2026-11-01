@@ -81,7 +81,7 @@ export class OrdersService {
           for (const [productId, quantity] of quantities) {
             const product = byId.get(productId)!;
             if (!product.isActive) throw new BadRequestException('A selected product is unavailable');
-            const unitPrice = new Prisma.Decimal(product.price.toString());
+            const unitPrice = new Prisma.Decimal((product.salePrice ?? product.regularPrice).toString());
             if (unitPrice.lessThan(0)) throw new BadRequestException('Invalid product price');
             const lineTotal = unitPrice.mul(quantity);
             subtotal = subtotal.add(lineTotal);
