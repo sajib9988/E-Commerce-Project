@@ -86,6 +86,7 @@ export class ProductsService {
           brand: dto.brand,
           sizes: dto.sizes ?? [],
           sku: dto.sku?.trim() || null,
+          apliiqDesignSku: dto.apliiqDesignSku?.trim() || null,
           stockQuantity: dto.stockQuantity ?? 0,
           isActive: dto.isActive ?? true,
           categoryId: dto.categoryId,
@@ -145,6 +146,7 @@ export class ProductsService {
           ...(dto.brand !== undefined && { brand: dto.brand }),
           ...(dto.sizes !== undefined && { sizes: dto.sizes }),
           ...(dto.sku !== undefined && { sku: dto.sku?.trim() || null }),
+          ...(dto.apliiqDesignSku !== undefined && { apliiqDesignSku: dto.apliiqDesignSku?.trim() || null }),
           ...(dto.stockQuantity !== undefined && { stockQuantity: dto.stockQuantity }),
           ...(dto.isActive !== undefined && { isActive: dto.isActive }),
           ...(dto.categoryId !== undefined && {
