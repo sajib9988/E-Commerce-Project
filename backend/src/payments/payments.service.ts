@@ -373,4 +373,24 @@ export class PaymentsService {
       });
     });
   }
+  async findAttemptsForManualReview() {
+    return this.prisma.paymentAttempt.findMany({
+      where: { requiresManualReview: true },
+      include: {
+        order: {
+          select: {
+            id: true,
+            orderNumber: true,
+            status: true,
+            paymentStatus: true,
+            totalAmount: true,
+            currency: true,
+            userId: true,
+          },
+        },
+      },
+      orderBy: { updatedAt: 'desc' },
+    });
+  }
+
 }
