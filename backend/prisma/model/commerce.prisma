@@ -123,6 +123,8 @@ model PaymentAttempt {
   stripeCheckoutSessionId  String?              @unique
   stripePaymentIntentId    String?              @unique
   paidAt                   DateTime?
+  requiresManualReview     Boolean              @default(false)
+  reviewReason             String?
   createdAt                DateTime             @default(now())
   updatedAt                DateTime             @updatedAt
 
