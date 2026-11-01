@@ -170,7 +170,7 @@ export class CouponsService {
 
     const products = await this.prisma.product.findMany({
       where: { id: { in: [...quantities.keys()] }, isActive: true },
-      select: { id: true, price: true },
+      select: { id: true, regularPrice: true, salePrice: true },
     });
     if (products.length !== quantities.size) {
       throw new BadRequestException('One or more products are unavailable');
@@ -178,7 +178,7 @@ export class CouponsService {
 
     let subtotal = new Prisma.Decimal(0);
     for (const product of products) {
-      subtotal = subtotal.add(new Prisma.Decimal(product.price.toString()).mul(quantities.get(product.id)!));
+      subtotal = subtotal.add(new Prisma.Decimal((product.salePrice ?? product.regularPrice).toString()).mul(quantities.get(product.id)!));
     }
     if (coupon.minOrderAmount && subtotal.lessThan(coupon.minOrderAmount)) {
       throw new BadRequestException('Order does not meet coupon minimum');
