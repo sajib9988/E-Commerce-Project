@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
   ServiceUnavailableException,
@@ -63,14 +64,60 @@ export class PaymentsService {
       throw new BadRequestException('Cannot pay for an empty order');
     }
 
-    const attempt = await this.prisma.paymentAttempt.create({
-      data: {
-        orderId: order.id,
-        provider: 'STRIPE',
-        status: PaymentAttemptStatus.CREATED,
-        amount: order.totalAmount,
-        currency: order.currency.toLowerCase(),
-      },
+    // Reuse an existing open session on retries instead of creating another charge path.
+    const currentAttempt = await this.prisma.paymentAttempt.findFirst({
+      where: { orderId: order.id, status: PaymentAttemptStatus.CREATED },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (currentAttempt?.stripeCheckoutSessionId) {
+      let currentSession: Stripe.Checkout.Session;
+      try {
+        currentSession = await this.stripe.checkout.sessions.retrieve(
+          currentAttempt.stripeCheckoutSessionId,
+        );
+      } catch {
+        // An unknown Stripe state must not trigger a second Checkout Session.
+        throw new ServiceUnavailableException(
+          'Could not confirm the existing payment session. Please retry shortly.',
+        );
+      }
+
+      if (currentSession.status === 'open' && currentSession.url) {
+        return { checkoutUrl: currentSession.url, orderId: order.id };
+      }
+      if (currentSession.status === 'complete') {
+        throw new ConflictException(
+          'Payment is processing. Wait for the payment confirmation before retrying.',
+        );
+      }
+
+      await this.prisma.paymentAttempt.updateMany({
+        where: { id: currentAttempt.id, status: PaymentAttemptStatus.CREATED },
+        data: { status: PaymentAttemptStatus.CANCELLED },
+      });
+    }
+
+    // Lock the order row so simultaneous requests reuse one attempt.
+    // Stripe's idempotency key below makes concurrent calls for that attempt converge
+    // on the same Checkout Session even if both requests reach Stripe together.
+    const attempt = await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "orders" WHERE "id" = ${order.id} FOR UPDATE`;
+      const active = await tx.paymentAttempt.findFirst({
+        where: { orderId: order.id, status: PaymentAttemptStatus.CREATED },
+        orderBy: { createdAt: 'desc' },
+      });
+      if (active) return active;
+
+      return tx.paymentAttempt.create({
+        data: {
+          orderId: order.id,
+          provider: 'STRIPE',
+          status: PaymentAttemptStatus.CREATED,
+          amount: order.totalAmount,
+          currency: order.currency.toLowerCase(),
+        },
+      });
     });
 
     try {
@@ -114,12 +161,10 @@ export class PaymentsService {
 
       return { checkoutUrl: session.url, orderId: order.id };
     } catch {
-      await this.prisma.paymentAttempt.update({
-        where: { id: attempt.id },
-        data: { status: PaymentAttemptStatus.FAILED },
-      });
+      // Keep the attempt CREATED if Stripe's response was ambiguous. Reusing its
+      // idempotency key is safer than marking it failed and creating a new session.
       throw new ServiceUnavailableException(
-        'Could not start Stripe Checkout. Please retry.',
+        'Could not confirm Stripe Checkout creation. Please retry the same order.',
       );
     }
   }
