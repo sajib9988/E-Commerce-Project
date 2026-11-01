@@ -26,6 +26,7 @@ type PaidOrderForApliiq = {
     id: string;
     productName: string;
     sku?: string | null;
+    apliiqDesignSku?: string | null;
     quantity: number;
     unitPrice: unknown;
     variantSnapshot?: unknown;
@@ -54,8 +55,8 @@ export function mapOrderToApliiq(order: PaidOrderForApliiq) {
   }
 
   const lineItems = order.items.map((item) => {
-    // sku must be the Apliiq sellable DESIGN SKU, not merely a blank-garment SKU.
-    const sku = item.sku?.trim();
+    // Use the provider-specific design SKU, never the internal store SKU.
+    const sku = item.apliiqDesignSku?.trim();
     if (!sku) {
       throw new BadRequestException(
         `Order item ${item.id} has no mapped Apliiq design SKU`,
