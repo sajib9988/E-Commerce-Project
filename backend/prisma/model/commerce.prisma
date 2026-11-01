@@ -35,7 +35,8 @@ model Product {
   id             String        @id @default(cuid())
   name           String
   description    String?
-  price          Decimal       @db.Decimal(10, 2)
+  regularPrice   Decimal       @db.Decimal(10, 2)
+  salePrice      Decimal?      @db.Decimal(10, 2)
   brand          String?
   sizes          String[]      @default([])
   sku            String?       @unique
