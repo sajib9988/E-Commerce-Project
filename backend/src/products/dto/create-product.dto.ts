@@ -47,11 +47,17 @@ export class CreateProductDto {
   @IsString({ each: true })
   sizes?: string[];
 
-  // For Apliiq-enabled products, sku must be the sellable design SKU.
+  // Internal store SKU; never send this to Apliiq unless explicitly mapped.
   @IsOptional()
   @IsString()
   @MaxLength(150)
   sku?: string;
+
+  // Apliiq's sellable design SKU (not a blank-garment SKU).
+  @IsOptional()
+  @IsString()
+  @MaxLength(150)
+  apliiqDesignSku?: string;
 
   @IsOptional()
   @Type(() => Number)
