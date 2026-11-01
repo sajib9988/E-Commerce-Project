@@ -177,9 +177,7 @@ export class PaymentsService {
       throw new BadRequestException('Checkout session is not a paid, linked session');
     }
 
-    await this.prisma.$transaction(async (tx) => {
-      // Insert once, but let Stripe retries continue through idempotent state checks.
-      // If the transaction fails, this insert rolls back with the transaction.
+    const shouldSubmitToApliiq = await this.prisma.$transaction(async (tx) => {
       await tx.stripeWebhookEvent.createMany({
         data: [{ id: eventId, type: 'checkout.session.completed' }],
         skipDuplicates: true,
@@ -194,7 +192,7 @@ export class PaymentsService {
         include: { order: true },
       });
 
-      if (!attempt) throw new Error('Matching payment attempt not found');
+      if (!attempt) throw new BadRequestException('Matching payment attempt not found');
 
       const expectedAmount = this.toMinorUnits(attempt.amount);
       if (
@@ -203,18 +201,59 @@ export class PaymentsService {
         attempt.order.totalAmount.toString() !== attempt.amount.toString() ||
         attempt.order.currency.toLowerCase() !== attempt.currency.toLowerCase()
       ) {
-        throw new Error('Stripe amount or currency mismatch');
-      }
-
-      // A different, late session must not change an already-paid order.
-      if (attempt.order.paymentStatus === PaymentStatus.PAID) {
-        return;
+        throw new BadRequestException('Stripe amount or currency mismatch');
       }
 
       const paymentIntentId =
         typeof session.payment_intent === 'string'
           ? session.payment_intent
           : session.payment_intent?.id;
+
+      // A second successful Checkout Session must be visible for manual review.
+      // Never silently discard a late duplicate capture or auto-refund it.
+      if (attempt.order.paymentStatus === PaymentStatus.PAID) {
+        if (attempt.status !== PaymentAttemptStatus.SUCCEEDED) {
+          await tx.paymentAttempt.update({
+            where: { id: attempt.id },
+            data: {
+              status: PaymentAttemptStatus.SUCCEEDED,
+              paidAt: new Date(),
+              stripePaymentIntentId: paymentIntentId ?? undefined,
+              requiresManualReview: true,
+              reviewReason: 'LATE_DUPLICATE_CAPTURE',
+            },
+          });
+        }
+        return false;
+      }
+
+      const reservation = await tx.stockReservation.findUnique({
+        where: { orderId },
+      });
+
+      // If an expiry event already released inventory, accept the payment record
+      // but stop automatic fulfillment. Admin must resolve stock/refund manually.
+      if (
+        !reservation ||
+        reservation.status !== 'RESERVED' ||
+        attempt.order.status === OrderStatus.CANCELLED
+      ) {
+        await tx.paymentAttempt.update({
+          where: { id: attempt.id },
+          data: {
+            status: PaymentAttemptStatus.SUCCEEDED,
+            paidAt: new Date(),
+            stripePaymentIntentId: paymentIntentId ?? undefined,
+            requiresManualReview: true,
+            reviewReason: 'LATE_PAYMENT_AFTER_RESERVATION_RELEASE',
+          },
+        });
+        await tx.order.update({
+          where: { id: orderId },
+          data: { paymentStatus: PaymentStatus.PAID, paidAt: new Date() },
+        });
+        return false;
+      }
 
       await tx.paymentAttempt.update({
         where: { id: attempt.id },
@@ -233,30 +272,104 @@ export class PaymentsService {
           paidAt: new Date(),
         },
       });
+
+      await tx.stockReservation.updateMany({
+        where: { orderId, status: 'RESERVED' },
+        data: { status: 'COMMITTED', committedAt: new Date() },
+      });
+      await tx.couponRedemption.updateMany({
+        where: { orderId, status: 'RESERVED' },
+        data: { status: 'REDEEMED', redeemedAt: new Date() },
+      });
+
+      return true;
     });
 
-    // Run only after the verified payment transaction has committed.
-    // submitPaidOrder checks PAID state and persists a provider submission record.
-    // Stripe retries can safely reach this point again; Apliiq submission must
-    // never be blindly repeated after an ambiguous network timeout.
-    await this.apliiq.submitPaidOrder(orderId);
+    // Only a first valid payment with a still-reserved inventory allocation
+    // can enter the automatic fulfillment path.
+    if (shouldSubmitToApliiq) {
+      await this.apliiq.submitPaidOrder(orderId);
+    }
   }
 
   async handleCheckoutExpired(session: Stripe.Checkout.Session, eventId: string) {
     const attemptId = session.metadata?.paymentAttemptId;
-    if (!attemptId) return;
+    const orderId = session.metadata?.orderId;
+    if (!attemptId || !orderId) return;
 
     await this.prisma.$transaction(async (tx) => {
-      await tx.stripeWebhookEvent.create({
-        data: { id: eventId, type: 'checkout.session.expired' },
+      // Stripe may deliver the same event more than once.
+      await tx.stripeWebhookEvent.createMany({
+        data: [{ id: eventId, type: 'checkout.session.expired' }],
+        skipDuplicates: true,
       });
+
       await tx.paymentAttempt.updateMany({
         where: {
           id: attemptId,
+          orderId,
           stripeCheckoutSessionId: session.id,
           status: PaymentAttemptStatus.CREATED,
         },
         data: { status: PaymentAttemptStatus.CANCELLED },
+      });
+
+      const order = await tx.order.findUnique({
+        where: { id: orderId },
+        select: { paymentStatus: true, status: true },
+      });
+      if (!order || order.paymentStatus === PaymentStatus.PAID) return;
+
+      // Do not release stock while another Checkout Session for this order
+      // is still open/being created.
+      const otherActiveAttempt = await tx.paymentAttempt.findFirst({
+        where: {
+          orderId,
+          status: PaymentAttemptStatus.CREATED,
+        },
+      });
+      if (otherActiveAttempt) return;
+
+      const reservation = await tx.stockReservation.findUnique({
+        where: { orderId },
+        include: { items: true },
+      });
+
+      if (reservation?.status === 'RESERVED') {
+        const claimed = await tx.stockReservation.updateMany({
+          where: { id: reservation.id, status: 'RESERVED' },
+          data: { status: 'RELEASED', releasedAt: new Date() },
+        });
+
+        if (claimed.count === 1) {
+          for (const item of reservation.items) {
+            await tx.product.update({
+              where: { id: item.productId },
+              data: { stockQuantity: { increment: item.quantity } },
+            });
+          }
+        }
+      }
+
+      const redemption = await tx.couponRedemption.findUnique({
+        where: { orderId },
+      });
+      if (redemption?.status === 'RESERVED') {
+        const claimed = await tx.couponRedemption.updateMany({
+          where: { id: redemption.id, status: 'RESERVED' },
+          data: { status: 'RELEASED', releasedAt: new Date() },
+        });
+        if (claimed.count === 1) {
+          await tx.coupon.update({
+            where: { id: redemption.couponId },
+            data: { usageCount: { decrement: 1 } },
+          });
+        }
+      }
+
+      await tx.order.updateMany({
+        where: { id: orderId, paymentStatus: PaymentStatus.PENDING },
+        data: { status: OrderStatus.CANCELLED },
       });
     });
   }
