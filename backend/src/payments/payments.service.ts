@@ -5,7 +5,8 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { PaymentAttemptStatus, PaymentStatus, OrderStatus, Prisma } from '@prisma/client';
+import { Prisma } from '../../generated/prisma/client';
+import { PaymentAttemptStatus, PaymentStatus, OrderStatus } from '../../generated/prisma/enums';
 import Stripe from 'stripe';
 import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';

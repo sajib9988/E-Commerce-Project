@@ -1,7 +1,8 @@
 import {
   BadRequestException, ConflictException, Injectable, NotFoundException,
 } from '@nestjs/common';
-import { CouponType, Prisma } from '@prisma/client';
+import { Prisma } from '../../generated/prisma/client';
+import { CouponType } from '../../generated/prisma/enums';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCouponDto, CouponTypeInput } from './dto/create-coupon.dto';
 import { UpdateCouponDto } from './dto/update-coupon.dto';

@@ -1,8 +1,8 @@
 import {
   BadRequestException, ConflictException, Injectable, NotFoundException,
 } from '@nestjs/common';
-import { CouponRedemptionStatus, CouponType, PaymentAttemptStatus,
-  Prisma, StockReservationStatus } from '@prisma/client';
+import { Prisma } from '../../generated/prisma/client';
+import { CouponType, PaymentAttemptStatus, StockReservationStatus } from '../../generated/prisma/enums';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 
