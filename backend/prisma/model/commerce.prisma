@@ -1,0 +1,234 @@
+model Category {
+  id            String        @id @default(cuid())
+  name          String
+  slug          String        @unique
+  description   String?
+  isActive      Boolean       @default(true)
+  sortOrder     Int           @default(0)
+  products      Product[]
+  subcategories Subcategory[]
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@index([isActive, sortOrder])
+  @@map("categories")
+}
+
+model Subcategory {
+  id          String    @id @default(cuid())
+  name        String
+  slug        String    @unique
+  description String?
+  categoryId  String
+  category    Category  @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  products    Product[]
+  isActive    Boolean   @default(true)
+  sortOrder   Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([categoryId, isActive, sortOrder])
+  @@map("subcategories")
+}
+
+model Product {
+  id             String        @id @default(cuid())
+  name           String
+  description    String?
+  price          Decimal       @db.Decimal(10, 2)
+  brand          String?
+  sizes          String[]      @default([])
+  sku            String?       @unique
+  stockQuantity  Int           @default(0)
+  isActive       Boolean       @default(true)
+  categoryId     String
+  category       Category      @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  subcategoryId  String
+  subcategory    Subcategory   @relation(fields: [subcategoryId], references: [id], onDelete: Restrict)
+  imageUrl       String
+  imagePublicId  String?
+  orderItems     OrderItem[]
+  reservationItems StockReservationItem[]
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@index([categoryId])
+  @@index([subcategoryId])
+  @@index([isActive, createdAt])
+  @@map("products")
+}
+
+model Order {
+  id               String             @id @default(cuid())
+  orderNumber      String             @unique @default(cuid())
+  userId           String
+  user             User               @relation(fields: [userId], references: [id], onDelete: Restrict)
+  status           OrderStatus        @default(PENDING_PAYMENT)
+  paymentStatus    PaymentStatus      @default(PENDING)
+  currency         String             @default("usd")
+  subtotalAmount   Decimal            @db.Decimal(10, 2)
+  discountAmount   Decimal            @default(0) @db.Decimal(10, 2)
+  shippingAmount   Decimal            @default(0) @db.Decimal(10, 2)
+  taxAmount        Decimal            @default(0) @db.Decimal(10, 2)
+  totalAmount      Decimal            @db.Decimal(10, 2)
+  shippingAddress  Json
+  billingAddress   Json?
+  customerEmail    String
+  customerName     String?
+  customerPhone    String?
+  couponCode       String?
+  idempotencyKey   String             @unique
+  paidAt           DateTime?
+  items            OrderItem[]
+  paymentAttempts  PaymentAttempt[]
+  stockReservation StockReservation?
+  couponRedemption CouponRedemption?
+  fulfillments     Fulfillment[]
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  @@index([userId, createdAt])
+  @@index([status, paymentStatus])
+  @@map("orders")
+}
+
+model OrderItem {
+  id             String   @id @default(cuid())
+  orderId        String
+  order          Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId      String
+  product        Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
+  productName    String
+  sku            String?
+  unitPrice      Decimal  @db.Decimal(10, 2)
+  quantity       Int
+  lineTotal      Decimal  @db.Decimal(10, 2)
+  imageUrl       String?
+  variantSnapshot Json?
+  createdAt      DateTime @default(now())
+
+  @@index([orderId])
+  @@index([productId])
+  @@map("order_items")
+}
+
+model PaymentAttempt {
+  id                       String               @id @default(cuid())
+  orderId                  String
+  order                    Order                @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  provider                 String               @default("STRIPE")
+  status                   PaymentAttemptStatus @default(CREATED)
+  amount                   Decimal              @db.Decimal(10, 2)
+  currency                 String
+  stripeCheckoutSessionId  String?              @unique
+  stripePaymentIntentId    String?              @unique
+  paidAt                   DateTime?
+  createdAt                DateTime             @default(now())
+  updatedAt                DateTime             @updatedAt
+
+  @@index([orderId, status])
+  @@map("payment_attempts")
+}
+
+model StockReservation {
+  id          String                 @id @default(cuid())
+  orderId     String                 @unique
+  order       Order                  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  status      StockReservationStatus @default(RESERVED)
+  expiresAt   DateTime
+  committedAt DateTime?
+  releasedAt  DateTime?
+  items       StockReservationItem[]
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
+
+  @@index([status, expiresAt])
+  @@map("stock_reservations")
+}
+
+model StockReservationItem {
+  id            String           @id @default(cuid())
+  reservationId String
+  reservation   StockReservation @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+  productId     String
+  product       Product          @relation(fields: [productId], references: [id], onDelete: Restrict)
+  quantity      Int
+  createdAt     DateTime         @default(now())
+
+  @@unique([reservationId, productId])
+  @@index([productId])
+  @@map("stock_reservation_items")
+}
+
+model Coupon {
+  id                String             @id @default(cuid())
+  code              String             @unique
+  type              CouponType
+  value             Decimal            @db.Decimal(10, 2)
+  minOrderAmount    Decimal?           @db.Decimal(10, 2)
+  maxDiscountAmount Decimal?           @db.Decimal(10, 2)
+  startsAt          DateTime?
+  expiresAt         DateTime?
+  isActive          Boolean            @default(true)
+  usageLimit        Int?
+  usageCount        Int                @default(0)
+  perUserLimit      Int                @default(1)
+  userId            String?
+  user              User?              @relation("AssignedCoupons", fields: [userId], references: [id], onDelete: SetNull)
+  redemptions       CouponRedemption[]
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  @@index([isActive, startsAt, expiresAt])
+  @@map("coupons")
+}
+
+model CouponRedemption {
+  id             String                 @id @default(cuid())
+  couponId       String
+  coupon         Coupon                 @relation(fields: [couponId], references: [id], onDelete: Restrict)
+  orderId        String                 @unique
+  order          Order                  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User                   @relation(fields: [userId], references: [id], onDelete: Restrict)
+  discountAmount Decimal                @db.Decimal(10, 2)
+  status         CouponRedemptionStatus @default(RESERVED)
+  redeemedAt     DateTime?
+  releasedAt     DateTime?
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+
+  @@index([couponId, userId, status])
+  @@map("coupon_redemptions")
+}
+
+model StripeWebhookEvent {
+  id        String   @id
+  type      String
+  createdAt DateTime @default(now())
+
+  @@index([type, createdAt])
+  @@map("stripe_webhook_events")
+}
+
+model Fulfillment {
+  id                String                    @id @default(cuid())
+  orderId           String
+  order             Order                     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  provider          String                    @default("APLIIQ")
+  submissionStatus  FulfillmentSubmissionStatus @default(SUBMITTING)
+  externalOrderId   String?                   @unique
+  providerStatus    String?
+  trackingCompany   String?
+  trackingNumbers   String[]                  @default([])
+  trackingUrls      String[]                  @default([])
+  submittedAt       DateTime?
+  shippedAt         DateTime?
+  lastErrorCode     String?
+  createdAt         DateTime                  @default(now())
+  updatedAt         DateTime                  @updatedAt
+
+  @@unique([orderId, provider])
+  @@index([submissionStatus, updatedAt])
+  @@map("fulfillments")
+}
