@@ -72,7 +72,7 @@ export class OrdersService {
 
           const byId = new Map(products.map((product) => [product.id, product]));
           const lineItems: Array<{
-            productId: string; productName: string; sku: string | null;
+            productId: string; productName: string; sku: string | null; apliiqDesignSku: string | null;
             unitPrice: Prisma.Decimal; quantity: number; lineTotal: Prisma.Decimal;
             imageUrl: string | null;
           }> = [];
@@ -87,6 +87,7 @@ export class OrdersService {
             subtotal = subtotal.add(lineTotal);
             lineItems.push({
               productId, productName: product.name, sku: product.sku ?? null,
+              apliiqDesignSku: product.apliiqDesignSku ?? null,
               unitPrice, quantity, lineTotal, imageUrl: product.imageUrl ?? null,
             });
           }
@@ -184,6 +185,7 @@ export class OrdersService {
               couponCode: coupon?.code ?? null, idempotencyKey,
               items: { create: lineItems.map((line) => ({
                 productId: line.productId, productName: line.productName, sku: line.sku,
+                apliiqDesignSku: line.apliiqDesignSku,
                 unitPrice: line.unitPrice, quantity: line.quantity, lineTotal: line.lineTotal,
                 imageUrl: line.imageUrl,
               })) },
