@@ -33,7 +33,7 @@ export class CreateProductDto {
   @Type(() => Number)
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
-  salePrice?: number;
+  salePrice?: number | null;
 
   @IsOptional()
   @IsString()
