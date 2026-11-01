@@ -5,6 +5,8 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  IsBoolean,
+  IsInt,
   Min,
   MaxLength,
   ArrayMaxSize,
@@ -38,6 +40,22 @@ export class CreateProductDto {
   @ArrayUnique()
   @IsString({ each: true })
   sizes?: string[];
+
+  // For Apliiq-enabled products, sku must be the sellable design SKU.
+  @IsOptional()
+  @IsString()
+  @MaxLength(150)
+  sku?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  stockQuantity?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
 
   @IsString()
   @IsNotEmpty()

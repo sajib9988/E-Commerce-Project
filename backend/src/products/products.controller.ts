@@ -14,6 +14,8 @@ import { ProductsService } from './products.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { productImageUploadOptions } from './upload';
+import { UserRole } from '../../generated/prisma/enums';
+import { Roles } from '../common/decorators/roles.decorator';
 
 @Controller('products')
 export class ProductsController {
@@ -31,6 +33,7 @@ export class ProductsController {
     return this.productsService.findOne(id);
   }
 
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
   @Post()
   @UseInterceptors(
     FileInterceptor('image', productImageUploadOptions),
@@ -42,6 +45,7 @@ export class ProductsController {
     return this.productsService.create(dto, file);
   }
 
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
   @Patch(':id')
   @UseInterceptors(
     FileInterceptor('image', productImageUploadOptions),
@@ -54,6 +58,7 @@ export class ProductsController {
     return this.productsService.update(id, dto, file);
   }
 
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.productsService.remove(id);
