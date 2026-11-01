@@ -17,7 +17,7 @@ This checklist is for the feature branch `feature/prisma-schema-alignment`. It i
 - Reject a sale price equal to or greater than regular price.
 - Update regular price while a sale price exists; reject the update if the sale price is no longer lower.
 - Clear sale price with `salePrice=null`; verify checkout returns to regular price.
-- Verify sizes remain a dynamic string array and SKU/stock fields persist.
+- Verify sizes remain a dynamic string array, internal store SKU persists, and `apliiqDesignSku` persists separately.
 
 ## Orders, stock and coupons
 
@@ -56,7 +56,7 @@ This checklist is for the feature branch `feature/prisma-schema-alignment`. It i
 ## Remaining production work
 
 - Replace zero-value shipping/tax placeholders with the approved US shipping and tax calculation.
-- Replace generic `sku` usage with a clearly named Apliiq design SKU contract, and confirm it is not a blank-garment SKU.
+- Confirm `apliiqDesignSku` is populated with the sellable design SKU and never a blank-garment SKU.
 - Implement durable Apliiq outbox/queue processing and reconciliation for UNKNOWN submissions before production.
 - Add an admin resolution workflow for manual-review captures (inspect, refund through a separate approved process, or resolve inventory); do not auto-refund silently.
 - Update the Next.js product form and API client to submit `regularPrice` and optional `salePrice`.
