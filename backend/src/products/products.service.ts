@@ -60,12 +60,19 @@ export class ProductsService {
     }
   }
 
+  private validatePrices(regularPrice: number, salePrice?: number | null) {
+    if (salePrice !== undefined && salePrice !== null && salePrice >= regularPrice) {
+      throw new BadRequestException('Sale price must be lower than regular price');
+    }
+  }
+
   async create(dto: CreateProductDto, file?: Express.Multer.File) {
     if (!file) {
       throw new BadRequestException('Product image is required');
     }
 
     await this.validateCategory(dto.categoryId, dto.subcategoryId);
+    this.validatePrices(dto.regularPrice, dto.salePrice);
 
     const image = await this.cloudinaryService.uploadImage(file);
 
@@ -74,7 +81,8 @@ export class ProductsService {
         data: {
           name: dto.name,
           description: dto.description,
-          price: dto.price,
+          regularPrice: dto.regularPrice,
+          salePrice: dto.salePrice ?? null,
           brand: dto.brand,
           sizes: dto.sizes ?? [],
           sku: dto.sku?.trim() || null,
@@ -107,6 +115,13 @@ export class ProductsService {
     const subcategoryId =
       dto.subcategoryId ?? existing.subcategoryId;
 
+    if (dto.regularPrice !== undefined || dto.salePrice !== undefined) {
+      this.validatePrices(
+        dto.regularPrice ?? Number(existing.regularPrice.toString()),
+        dto.salePrice === undefined ? existing.salePrice?.toNumber() ?? null : dto.salePrice,
+      );
+    }
+
     if (dto.categoryId !== undefined ||
         dto.subcategoryId !== undefined) {
       await this.validateCategory(categoryId, subcategoryId);
@@ -125,7 +140,8 @@ export class ProductsService {
           ...(dto.description !== undefined && {
             description: dto.description,
           }),
-          ...(dto.price !== undefined && { price: dto.price }),
+          ...(dto.regularPrice !== undefined && { regularPrice: dto.regularPrice }),
+          ...(dto.salePrice !== undefined && { salePrice: dto.salePrice }),
           ...(dto.brand !== undefined && { brand: dto.brand }),
           ...(dto.sizes !== undefined && { sizes: dto.sizes }),
           ...(dto.sku !== undefined && { sku: dto.sku?.trim() || null }),
