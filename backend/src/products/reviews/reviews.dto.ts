@@ -1,0 +1,10 @@
+import { IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
+export class CreateReviewDto {
+  @IsInt() @Min(1) @Max(5) rating!: number;
+  @IsOptional() @IsString() @MaxLength(120) title?: string;
+  @IsString() @MaxLength(3000) comment!: string;
+}
+export class ModerateReviewDto {
+  @IsString() decision!: 'APPROVED' | 'REJECTED';
+  @IsOptional() @IsString() @MaxLength(500) note?: string;
+}
