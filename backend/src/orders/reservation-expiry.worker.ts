@@ -1,9 +1,11 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Processor, WorkerHost } from '@nestjs/bullmq';
+import { Job, Queue } from 'bullmq';
+import { InjectQueue } from '@nestjs/bullmq';
 import { Prisma } from '../../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { OrdersService } from './orders.service';
 
-const POLL_INTERVAL_MS = 30_000;
 const BATCH_SIZE = 50;
 
 /**
@@ -13,26 +15,30 @@ const BATCH_SIZE = 50;
  * Replace the polling trigger with BullMQ when the Redis stage is implemented.
  */
 @Injectable()
-export class ReservationExpiryWorker implements OnModuleInit, OnModuleDestroy {
+export class ReservationExpiryWorker extends WorkerHost implements OnModuleInit {
   private readonly logger = new Logger(ReservationExpiryWorker.name);
-  private timer?: NodeJS.Timeout;
-  private running = false;
 
-  constructor(private readonly prisma: PrismaService, private readonly orders: OrdersService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly orders: OrdersService,
+    @InjectQueue('reservation-expiry') private readonly queue: Queue,
+  ) { super(); }
 
-  onModuleInit() {
-    this.timer = setInterval(() => void this.runOnce(), POLL_INTERVAL_MS);
-    this.timer.unref?.();
-    void this.runOnce();
+  async onModuleInit() {
+    await this.queue.add('scan-expired-reservations', {}, {
+      jobId: 'reservation-expiry-repeat', repeat: { every: 30_000 },
+      removeOnComplete: 100, removeOnFail: 500,
+    });
+    await this.queue.add('scan-expired-reservations', {}, {
+      jobId: `reservation-expiry-start-${Date.now()}`, removeOnComplete: true,
+    });
   }
 
-  onModuleDestroy() {
-    if (this.timer) clearInterval(this.timer);
+  async process(_job: Job): Promise<void> {
+    await this.runOnce();
   }
 
   async runOnce() {
-    if (this.running) return;
-    this.running = true;
     try {
       const expired = await this.prisma.stockReservation.findMany({
         where: { status: 'RESERVED', expiresAt: { lte: new Date() } },
@@ -65,8 +71,6 @@ export class ReservationExpiryWorker implements OnModuleInit, OnModuleDestroy {
       }
     } catch (error) {
       this.logger.error('Reservation expiry scan failed', error instanceof Error ? error.stack : String(error));
-    } finally {
-      this.running = false;
     }
   }
 }
