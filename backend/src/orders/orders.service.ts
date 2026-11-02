@@ -312,4 +312,84 @@ export class OrdersService {
       }
     }
   }
+
+  private pageParams(pageRaw?: string, limitRaw?: string) {
+    const page = Math.max(1, Number.parseInt(pageRaw ?? '1', 10) || 1);
+    const limit = Math.min(100, Math.max(1, Number.parseInt(limitRaw ?? '20', 10) || 20));
+    return { page, limit, skip: (page - 1) * limit };
+  }
+
+  async findMyOrders(userId: string, pageRaw?: string, limitRaw?: string) {
+    const { page, limit, skip } = this.pageParams(pageRaw, limitRaw);
+    const where = { userId };
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.order.findMany({ where, skip, take: limit, orderBy: { createdAt: 'desc' },
+        select: { id: true, orderNumber: true, status: true, paymentStatus: true, currency: true,
+          subtotalAmount: true, discountAmount: true, shippingAmount: true, taxAmount: true,
+          totalAmount: true, createdAt: true, updatedAt: true,
+          items: { select: { id: true, productId: true, productName: true, variantSnapshot: true,
+            sku: true, unitPrice: true, quantity: true, lineTotal: true, imageUrl: true } } }),
+      this.prisma.order.count({ where }),
+    ]);
+    return { items, pagination: { page, limit, total, pages: Math.ceil(total / limit) } };
+  }
+
+  async findMyOrder(userId: string, orderId: string) {
+    const order = await this.prisma.order.findFirst({ where: { id: orderId, userId },
+      include: { items: true, paymentAttempts: { select: { id: true, provider: true, status: true, amount: true, currency: true, paidAt: true, createdAt: true } },
+        stockReservation: { select: { status: true, expiresAt: true, committedAt: true, releasedAt: true } },
+        fulfillments: { select: { provider: true, submissionStatus: true, providerStatus: true, trackingCompany: true, trackingNumbers: true, trackingUrls: true, shippedAt: true } } } });
+    if (!order) throw new NotFoundException('Order not found');
+    return order;
+  }
+
+  async cancelMyOrder(userId: string, orderId: string) {
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "orders" WHERE "id" = ${orderId} FOR UPDATE`;
+      const order = await tx.order.findFirst({ where: { id: orderId, userId } });
+      if (!order) throw new NotFoundException('Order not found');
+      if (order.status !== 'PENDING_PAYMENT' || order.paymentStatus !== 'PENDING') {
+        throw new ConflictException('Only unpaid pending orders can be cancelled by the customer');
+      }
+      const activeAttempt = await tx.paymentAttempt.findFirst({ where: { orderId, status: PaymentAttemptStatus.CREATED } });
+      if (activeAttempt) throw new ConflictException('An active Stripe Checkout session exists; wait for expiry before cancelling');
+      await this.releaseReservations(tx, orderId);
+      return tx.order.update({ where: { id: orderId }, data: { status: 'CANCELLED' }, include: { items: true, stockReservation: true } });
+    });
+  }
+
+  async findAllForAdmin(pageRaw?: string, limitRaw?: string, statusRaw?: string) {
+    const { page, limit, skip } = this.pageParams(pageRaw, limitRaw);
+    const validStatuses = ['PENDING_PAYMENT', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED', 'REFUNDED'];
+    if (statusRaw && !validStatuses.includes(statusRaw)) throw new BadRequestException('Invalid order status filter');
+    const where = statusRaw ? { status: statusRaw as any } : {};
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.order.findMany({ where, skip, take: limit, orderBy: { createdAt: 'desc' },
+        include: { items: true, user: { select: { id: true, name: true, email: true } } } }),
+      this.prisma.order.count({ where }),
+    ]);
+    return { items, pagination: { page, limit, total, pages: Math.ceil(total / limit) } };
+  }
+
+  async findOneForAdmin(orderId: string) {
+    const order = await this.prisma.order.findUnique({ where: { id: orderId },
+      include: { items: true, user: { select: { id: true, name: true, email: true } },
+        paymentAttempts: true, stockReservation: { include: { items: true } }, couponRedemption: true, fulfillments: true } });
+    if (!order) throw new NotFoundException('Order not found');
+    return order;
+  }
+
+  async updateOrderStatus(orderId: string, nextStatus: string) {
+    const transitions: Record<string, string[]> = { PROCESSING: ['SHIPPED'], SHIPPED: ['DELIVERED'] };
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "orders" WHERE "id" = ${orderId} FOR UPDATE`;
+      const order = await tx.order.findUnique({ where: { id: orderId } });
+      if (!order) throw new NotFoundException('Order not found');
+      if (!['PROCESSING', 'SHIPPED', 'DELIVERED'].includes(nextStatus)) throw new BadRequestException('This endpoint only advances fulfillment status');
+      if (!transitions[order.status]?.includes(nextStatus)) throw new ConflictException(`Cannot move order from ${order.status} to ${nextStatus}`);
+      if (order.paymentStatus !== 'PAID') throw new ConflictException('Only paid orders can advance through fulfillment');
+      return tx.order.update({ where: { id: orderId }, data: { status: nextStatus as any } });
+    });
+  }
+
 }
