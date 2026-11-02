@@ -7,6 +7,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { createHash, randomBytes } from 'node:crypto';
 import { Prisma } from '../../generated/prisma/client';
 import { AuthProvider, UserRole } from '../../generated/prisma/enums';
 import { PrismaService } from '../prisma/prisma.service';
@@ -127,7 +128,12 @@ export class AuthService {
         });
       });
 
-      return this.issueSessionTokens(user);
+      const rawCode = randomBytes(32).toString('base64url');
+      await this.prisma.oAuthHandoff.create({ data: {
+        tokenHash: createHash('sha256').update(rawCode).digest('hex'),
+        userId: user.id, expiresAt: new Date(Date.now() + 60_000),
+      } });
+      return { handoffCode: rawCode, expiresIn: 60 };
     } catch (error) {
       // A concurrent callback may have inserted the same provider identity.
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
@@ -144,6 +150,25 @@ export class AuthService {
       }
       throw error;
     }
+  }
+
+
+  /** Exchanges a single-use, 60-second OAuth code for the normal app session. */
+  async exchangeOAuthHandoff(code: string) {
+    if (!code || code.length > 200) throw new UnauthorizedException('Invalid or expired OAuth handoff');
+    const tokenHash = createHash('sha256').update(code).digest('hex');
+    return this.prisma.$transaction(async (tx) => {
+      const handoff = await tx.oAuthHandoff.findUnique({ where: { tokenHash }, include: { user: true } });
+      if (!handoff || handoff.consumedAt || handoff.expiresAt <= new Date()) {
+        throw new UnauthorizedException('Invalid or expired OAuth handoff');
+      }
+      const claimed = await tx.oAuthHandoff.updateMany({
+        where: { id: handoff.id, consumedAt: null, expiresAt: { gt: new Date() } },
+        data: { consumedAt: new Date() },
+      });
+      if (claimed.count !== 1) throw new UnauthorizedException('OAuth handoff has already been used');
+      return this.issueSessionTokens(handoff.user);
+    });
   }
 
   async register(dto: RegisterDto) {
