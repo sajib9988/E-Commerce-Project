@@ -9,10 +9,11 @@ import {
   Post,
   Query,
   Req,
+  Res,
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import type { Request } from 'express';
+import type { Request, Response } from 'express';
 import { Throttle } from '@nestjs/throttler';
 import { Public } from '../common/decorators/public.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -40,8 +41,8 @@ type OAuthProfile = Parameters<AuthService['authenticateOAuthProfile']>[0];
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
-  // OAuth callback returns the same access/refresh-token payload as password login.
-  // The frontend must store/use these tokens using its existing auth flow.
+  // Never place access/refresh JWTs in the redirect URL. Redirect only a short-lived,
+  // one-time code; the Next.js server route exchanges it and sets HttpOnly cookies.
   @Public()
   @UseGuards(AuthGuard('google'))
   @Get('auth/google')
@@ -50,8 +51,11 @@ export class AuthController {
   @Public()
   @UseGuards(AuthGuard('google'))
   @Get('auth/google/callback')
-  googleCallback(@Req() request: Request) {
-    return this.authService.authenticateOAuthProfile(request.user as OAuthProfile);
+  async googleCallback(@Req() request: Request, @Res() response: Response) {
+    const { handoffCode } = await this.authService.authenticateOAuthProfile(request.user as OAuthProfile);
+    const origin = process.env.STOREFRONT_ORIGIN || process.env.FRONTEND_URL;
+    if (!origin) return response.status(500).send('Storefront origin is not configured');
+    return response.redirect(302, `${origin.replace(/\\/$/, '')}/auth/oauth/callback?code=${encodeURIComponent(handoffCode)}`);
   }
 
   @Public()
@@ -62,8 +66,19 @@ export class AuthController {
   @Public()
   @UseGuards(AuthGuard('facebook'))
   @Get('auth/facebook/callback')
-  facebookCallback(@Req() request: Request) {
-    return this.authService.authenticateOAuthProfile(request.user as OAuthProfile);
+  async facebookCallback(@Req() request: Request, @Res() response: Response) {
+    const { handoffCode } = await this.authService.authenticateOAuthProfile(request.user as OAuthProfile);
+    const origin = process.env.STOREFRONT_ORIGIN || process.env.FRONTEND_URL;
+    if (!origin) return response.status(500).send('Storefront origin is not configured');
+    return response.redirect(302, `${origin.replace(/\\/$/, '')}/auth/oauth/callback?code=${encodeURIComponent(handoffCode)}`);
+  }
+
+  @Public()
+  @Throttle(AUTH_THROTTLE)
+  @HttpCode(200)
+  @Post('auth/oauth/exchange')
+  exchangeOAuthHandoff(@Body('code') code: string) {
+    return this.authService.exchangeOAuthHandoff(code);
   }
 
   @Public()
