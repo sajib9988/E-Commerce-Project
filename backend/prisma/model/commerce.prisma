@@ -54,6 +54,7 @@ model Product {
   orderItems     OrderItem[]
   reservationItems StockReservationItem[]
   variants       ProductVariant[]
+  reviews        ProductReview[]
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
@@ -146,6 +147,8 @@ model Order {
   stockReservation StockReservation?
   couponRedemption CouponRedemption?
   fulfillments     Fulfillment[]
+  reviews          ProductReview[]
+  refundRequests   RefundRequest[]
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
 
@@ -305,4 +308,52 @@ model Fulfillment {
   @@unique([orderId, provider])
   @@index([submissionStatus, updatedAt])
   @@map("fulfillments")
+}
+
+
+model ProductReview {
+  id          String       @id @default(cuid())
+  productId   String
+  product     Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orderId     String
+  order       Order        @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  rating      Int
+  title       String?
+  body        String
+  status      ReviewStatus @default(PENDING)
+  moderatedAt DateTime?
+  moderatedBy String?
+  moderationNote String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@unique([userId, productId])
+  @@index([productId, status, createdAt])
+  @@index([userId, createdAt])
+  @@map("product_reviews")
+}
+
+model RefundRequest {
+  id              String              @id @default(cuid())
+  orderId         String
+  order           Order               @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  userId          String
+  user            User                @relation(fields: [userId], references: [id], onDelete: Restrict)
+  status          RefundRequestStatus @default(PENDING)
+  reason          String
+  customerNote    String?
+  adminNote       String?
+  amount          Decimal             @db.Decimal(10, 2)
+  stripeRefundId  String?             @unique
+  reviewedBy      String?
+  reviewedAt      DateTime?
+  processedAt     DateTime?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+  @@map("refund_requests")
 }
