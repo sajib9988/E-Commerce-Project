@@ -91,19 +91,29 @@ export class RefundsService {
     }
 
     try {
-      const refund = await this.stripe.refunds.create({
+      // Check provider metadata as well as the idempotency key. Stripe may expire
+      // idempotency records after its retention window; this prevents a late retry
+      // from creating a second refund for the same request.
+      const priorRefunds = await this.stripe.refunds.list({ payment_intent: attempt.stripePaymentIntentId, limit: 100 });
+      const existingRefund = priorRefunds.data.find((item) => item.metadata?.refundRequestId === request.id);
+      const refund = existingRefund ?? await this.stripe.refunds.create({
         payment_intent: attempt.stripePaymentIntentId,
         // Full refund only. Amount is taken from the server-side successful payment/order.
         metadata: { refundRequestId: request.id, orderId: request.orderId, reviewedBy: adminId },
       }, { idempotencyKey: `refund-request:${request.id}` });
 
       return await this.prisma.$transaction(async (tx) => {
+        const finalStatus = refund.status === 'succeeded' ? 'REFUNDED'
+          : refund.status === 'failed' || refund.status === 'canceled' ? 'FAILED' : 'PROCESSING';
         const updated = await tx.refundRequest.update({
           where: { id: request.id },
-          data: { status: 'REFUNDED', stripeRefundId: refund.id, processedAt: new Date(),
+          data: { status: finalStatus, stripeRefundId: refund.id,
+            processedAt: finalStatus === 'REFUNDED' ? new Date() : null,
             reviewedBy: adminId, reviewedAt: new Date(), adminNote: adminNote?.trim() },
         });
-        await tx.order.update({ where: { id: request.orderId }, data: { status: 'REFUNDED' } });
+        if (finalStatus === 'REFUNDED') {
+          await tx.order.update({ where: { id: request.orderId }, data: { status: 'REFUNDED' } });
+        }
         return updated;
       });
     } catch {
