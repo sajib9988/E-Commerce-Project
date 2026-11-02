@@ -12,8 +12,9 @@ const BATCH_SIZE = 50;
  * Single-process safety worker for expired unpaid reservations.
  * The database transition RESERVED -> RELEASED is the concurrency guard,
  * so overlapping instances cannot restock the same reservation twice.
- * Replace the polling trigger with BullMQ when the Redis stage is implemented.
+ * BullMQ repeats the scan; the database transition remains the final concurrency guard.
  */
+@Processor('reservation-expiry')
 @Injectable()
 export class ReservationExpiryWorker extends WorkerHost implements OnModuleInit {
   private readonly logger = new Logger(ReservationExpiryWorker.name);
