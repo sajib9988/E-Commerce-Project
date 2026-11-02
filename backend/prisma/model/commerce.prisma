@@ -54,6 +54,7 @@ model Product {
   orderItems     OrderItem[]
   reservationItems StockReservationItem[]
   variants       ProductVariant[]
+  reviews        ProductReview[]
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
@@ -146,6 +147,7 @@ model Order {
   stockReservation StockReservation?
   couponRedemption CouponRedemption?
   fulfillments     Fulfillment[]
+  refundRequests   RefundRequest[]
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
 
@@ -176,6 +178,49 @@ model OrderItem {
   @@index([productId])
   @@index([variantId])
   @@map("order_items")
+}
+
+model ProductReview {
+  id        String              @id @default(cuid())
+  productId String
+  product   Product             @relation(fields: [productId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rating    Int
+  title     String?             @db.VarChar(120)
+  body      String              @db.VarChar(3000)
+  status    ProductReviewStatus @default(PENDING)
+  moderatedBy String?
+  moderatedAt DateTime?
+  moderationNote String?        @db.VarChar(500)
+  createdAt DateTime            @default(now())
+  updatedAt DateTime            @updatedAt
+
+  @@unique([productId, userId])
+  @@index([productId, status, createdAt])
+  @@index([userId, createdAt])
+  @@map("product_reviews")
+}
+
+model RefundRequest {
+  id          String             @id @default(cuid())
+  orderId     String
+  order       Order              @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  userId      String
+  user        User               @relation(fields: [userId], references: [id], onDelete: Restrict)
+  reason      String             @db.VarChar(1000)
+  status      RefundRequestStatus @default(PENDING)
+  adminNote   String?            @db.VarChar(500)
+  reviewedBy  String?
+  reviewedAt  DateTime?
+  stripeRefundId String?         @unique
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+  @@unique([orderId, status])
+  @@map("refund_requests")
 }
 
 model PaymentAttempt {
