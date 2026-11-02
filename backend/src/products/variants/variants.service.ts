@@ -21,11 +21,14 @@ export class VariantsService {
       throw new BadRequestException('Sale price must be lower than regular price');
     }
     const [product, size] = await Promise.all([
-      this.prisma.product.findUnique({ where: { id: dto.productId }, select: { id: true } }),
+      this.prisma.product.findUnique({ where: { id: dto.productId }, select: { id: true, subcategory: { select: { sizeTemplateId: true } } } }),
       this.prisma.productSize.findUnique({ where: { id: dto.sizeId }, include: { template: true } }),
     ]);
     if (!product) throw new NotFoundException('Product not found');
     if (!size || !size.isActive || !size.template.isActive) throw new BadRequestException('An active size from an active template is required');
+    if (product.subcategory.sizeTemplateId && product.subcategory.sizeTemplateId !== size.templateId) {
+      throw new BadRequestException('The selected size does not belong to the template assigned to this product subcategory');
+    }
     return this.prisma.productVariant.create({
       data: {
         productId: dto.productId, sizeId: dto.sizeId, sku: dto.sku.trim(),
