@@ -346,10 +346,17 @@ export class PaymentsService {
 
         if (claimed.count === 1) {
           for (const item of reservation.items) {
-            await tx.product.update({
-              where: { id: item.productId },
-              data: { stockQuantity: { increment: item.quantity } },
-            });
+            if (item.variantId) {
+              await tx.productVariant.update({
+                where: { id: item.variantId },
+                data: { stockQuantity: { increment: item.quantity } },
+              });
+            } else {
+              await tx.product.update({
+                where: { id: item.productId },
+                data: { stockQuantity: { increment: item.quantity } },
+              });
+            }
           }
         }
       }
