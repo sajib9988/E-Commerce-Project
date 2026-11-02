@@ -46,6 +46,6 @@ export class OrdersController {
   @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
   @Patch('admin/:orderId/status')
   updateOrderStatus(@CurrentUser() user: AuthTokenPayload, @Param('orderId') orderId: string, @Body() dto: UpdateOrderStatusDto) {
-    return this.orders.updateOrderStatus(orderId, user.sub, dto.status, dto.note);
+    return this.orders.updateOrderStatus(orderId, dto.status);
   }
 }
