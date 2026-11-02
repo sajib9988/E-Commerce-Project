@@ -18,6 +18,8 @@ import { ApliiqModule } from './apliiq/apliiq.module';
 import { PaymentsModule } from './payments/payments.module';
 import { CouponsModule } from './coupons/coupons.module';
 import { CategoriesModule } from './categories/categories.module';
+import { VariantsModule } from './products/variants/variants.module';
+import { SizeTemplatesModule } from './products/size-templates/size-templates.module';
 
 @Module({
   imports: [
@@ -35,6 +37,8 @@ import { CategoriesModule } from './categories/categories.module';
     PaymentsModule,
     CouponsModule,
     CategoriesModule,
+    VariantsModule,
+    SizeTemplatesModule,
   ],
   controllers: [AppController],
   providers: [
