@@ -3,6 +3,8 @@ import {
   BadRequestException,
   NotFoundException,
   ConflictException,
+  OnModuleDestroy,
+  OnModuleInit,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ApliiqClient } from './apliiq.client';
@@ -11,73 +13,81 @@ import { mapOrderToApliiq } from './apliiq.mapper';
 type CreateOrderResponse = { id: string | number };
 
 @Injectable()
-export class ApliiqService {
+export class ApliiqService implements OnModuleInit, OnModuleDestroy {
+  private pollTimer?: NodeJS.Timeout;
+  private polling = false;
+  private readonly pollIntervalMs = 5_000;
+  private readonly staleSubmissionMs = 5 * 60_000;
   constructor(
     private readonly prisma: PrismaService,
     private readonly client: ApliiqClient,
   ) {}
 
+  onModuleInit() {
+    // Fulfillment rows are a durable outbox; provider I/O runs after the payment transaction commits.
+    this.pollTimer = setInterval(() => { void this.pollFulfillmentQueue().catch(() => undefined); }, this.pollIntervalMs);
+    this.pollTimer.unref?.();
+    void this.pollFulfillmentQueue().catch(() => undefined);
+  }
+
+  onModuleDestroy() { if (this.pollTimer) clearInterval(this.pollTimer); }
+
   async submitPaidOrder(orderId: string) {
-    const order = await this.prisma.order.findUnique({
-      where: { id: orderId },
-      include: { items: true, fulfillments: true },
-    });
-
+    const order = await this.prisma.order.findUnique({ where: { id: orderId }, include: { fulfillments: true } });
     if (!order) throw new NotFoundException('Order not found');
-    if (order.paymentStatus !== 'PAID') {
-      throw new ConflictException('Only paid orders can be submitted to Apliiq');
-    }
+    if (order.paymentStatus !== 'PAID') throw new ConflictException('Only paid orders can be submitted to Apliiq');
+    const existing = order.fulfillments.find((item) => item.provider === 'APLIIQ');
+    if (existing) return existing;
+    return this.prisma.fulfillment.create({ data: { orderId: order.id, provider: 'APLIIQ', submissionStatus: 'QUEUED' } });
+  }
 
-    const existing = order.fulfillments.find((f) => f.provider === 'APLIIQ');
-    if (existing?.externalOrderId) return existing;
-    if (existing?.submissionStatus === 'SUBMITTING' ||
-        existing?.submissionStatus === 'UNKNOWN') {
-      // Reconcile with Apliiq before another POST; never blindly duplicate.
-      return existing;
-    }
-
-    const fulfillment = existing
-      ? await this.prisma.fulfillment.update({
-          where: { id: existing.id },
-          data: { submissionStatus: 'SUBMITTING', lastErrorCode: null },
-        })
-      : await this.prisma.fulfillment.create({
-          data: {
-            orderId: order.id,
-            provider: 'APLIIQ',
-            submissionStatus: 'SUBMITTING',
-          },
-        });
-
+  private async pollFulfillmentQueue() {
+    if (this.polling) return;
+    this.polling = true;
     try {
+      const staleBefore = new Date(Date.now() - this.staleSubmissionMs);
+      await this.prisma.fulfillment.updateMany({
+        where: { provider: 'APLIIQ', submissionStatus: 'SUBMITTING', updatedAt: { lt: staleBefore } },
+        data: { submissionStatus: 'UNKNOWN', lastErrorCode: 'WORKER_STALE_REQUIRES_RECONCILIATION' },
+      });
+      const queued = await this.prisma.fulfillment.findMany({
+        where: { provider: 'APLIIQ', submissionStatus: 'QUEUED' },
+        select: { id: true, orderId: true }, orderBy: { createdAt: 'asc' }, take: 5,
+      });
+      for (const item of queued) {
+        const claimed = await this.prisma.fulfillment.updateMany({
+          where: { id: item.id, submissionStatus: 'QUEUED' },
+          data: { submissionStatus: 'SUBMITTING', lastErrorCode: null },
+        });
+        if (claimed.count === 1) await this.submitClaimedFulfillment(item.id, item.orderId);
+      }
+    } finally { this.polling = false; }
+  }
+
+  private async submitClaimedFulfillment(fulfillmentId: string, orderId: string) {
+    try {
+      const [fulfillment, order] = await Promise.all([
+        this.prisma.fulfillment.findUnique({ where: { id: fulfillmentId } }),
+        this.prisma.order.findUnique({ where: { id: orderId }, include: { items: true } }),
+      ]);
+      if (!fulfillment || fulfillment.submissionStatus !== 'SUBMITTING') return;
+      if (!order || order.paymentStatus !== 'PAID') {
+        await this.prisma.fulfillment.update({ where: { id: fulfillmentId }, data: { submissionStatus: 'UNKNOWN', lastErrorCode: 'ORDER_NOT_PAID_OR_MISSING' } });
+        return;
+      }
       const payload = mapOrderToApliiq(order as never);
       const response = await this.client.postOrder<CreateOrderResponse>(payload);
-
       if (response?.id === undefined || response?.id === null) {
-        await this.prisma.fulfillment.update({
-          where: { id: fulfillment.id },
-          data: { submissionStatus: 'UNKNOWN', lastErrorCode: 'MISSING_PROVIDER_ID' },
-        });
-        return { ...fulfillment, submissionStatus: 'UNKNOWN' };
+        await this.prisma.fulfillment.update({ where: { id: fulfillmentId }, data: { submissionStatus: 'UNKNOWN', lastErrorCode: 'MISSING_PROVIDER_ID' } });
+        return;
       }
-
-      return await this.prisma.fulfillment.update({
-        where: { id: fulfillment.id },
-        data: {
-          externalOrderId: String(response.id),
-          submissionStatus: 'ACCEPTED',
-          submittedAt: new Date(),
-          lastErrorCode: null,
-        },
-      });
-    } catch (error) {
-      // Timeout/network errors are ambiguous: Apliiq may have accepted the order.
-      // Do not auto-submit again until reconciled by provider order lookup/manual review.
       await this.prisma.fulfillment.update({
-        where: { id: fulfillment.id },
-        data: { submissionStatus: 'UNKNOWN', lastErrorCode: 'SUBMISSION_UNCONFIRMED' },
+        where: { id: fulfillmentId },
+        data: { externalOrderId: String(response.id), submissionStatus: 'ACCEPTED', submittedAt: new Date(), lastErrorCode: null },
       });
-      throw error;
+    } catch {
+      // An ambiguous timeout may mean the provider accepted the order. Never blindly retry UNKNOWN.
+      await this.prisma.fulfillment.update({ where: { id: fulfillmentId }, data: { submissionStatus: 'UNKNOWN', lastErrorCode: 'SUBMISSION_UNCONFIRMED' } }).catch(() => undefined);
     }
   }
 
