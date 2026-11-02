@@ -38,6 +38,7 @@ enum StockReservationStatus {
 }
 
 enum FulfillmentSubmissionStatus {
+  QUEUED
   SUBMITTING
   UNKNOWN
   ACCEPTED
