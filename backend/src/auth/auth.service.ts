@@ -156,7 +156,7 @@ export class AuthService {
       },
     });
 
-    await this.issueAndSendOtp(user.id, user.email, 'verify-email');
+    await this.issueAndSendOtp(user.id, email, 'verify-email');
     return { success: true, message: 'Account created. Check your email for the verification code.' };
   }
 
@@ -174,7 +174,7 @@ export class AuthService {
       return this.issueSessionTokens(user);
     }
 
-    await this.issueAndSendOtp(user.id, user.email, 'login');
+    await this.issueAndSendOtp(user.id, email, 'login');
     const challengeToken = this.signToken(
       { sub: user.id, email: user.email, name: user.name, role: user.role },
       'otp-challenge',
@@ -206,7 +206,7 @@ export class AuthService {
     const email = dto.email.trim().toLowerCase();
     const user = await this.prisma.user.findUnique({ where: { email } });
     // Keep the response neutral so callers cannot use this endpoint to enumerate accounts.
-    if (!user || user.emailVerified) {
+    if (!user || user.emailVerified || !user.email) {
       return { success: true, message: 'If verification is required, a code has been sent.' };
     }
     this.assertResendAllowed(user.verificationCodeExpiresAt);
