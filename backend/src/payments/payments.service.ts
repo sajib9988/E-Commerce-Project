@@ -524,9 +524,9 @@ export class PaymentsService {
       throw new ConflictException('No successful Stripe PaymentIntent is available');
     }
 
-    let stripeRefund: Stripe.Refund;
+    let stripeRefundId: string;
     try {
-      stripeRefund = await this.stripe.refunds.create(
+      const stripeRefund = await this.stripe.refunds.create(
         {
           payment_intent: successfulAttempt.stripePaymentIntentId,
           reason: 'requested_by_customer',
@@ -534,6 +534,7 @@ export class PaymentsService {
         },
         { idempotencyKey: 'customer-refund-request:' + request.id },
       );
+      stripeRefundId = stripeRefund.id;
     } catch {
       // Keep request PENDING; a retry uses the same Stripe idempotency key.
       throw new ServiceUnavailableException('Stripe refund could not be confirmed. The request remains pending for a safe retry.');
@@ -542,7 +543,7 @@ export class PaymentsService {
     return this.prisma.$transaction(async (tx) => {
       const claimed = await tx.refundRequest.updateMany({
         where: { id: requestId, status: 'PENDING' },
-        data: { status: 'APPROVED', adminNote: normalizedNote, reviewedBy: adminId, reviewedAt: new Date(), stripeRefundId: stripeRefund.id },
+        data: { status: 'APPROVED', adminNote: normalizedNote, reviewedBy: adminId, reviewedAt: new Date(), stripeRefundId },
       });
       if (claimed.count !== 1) {
         // Stripe's idempotency key ensures a retry cannot create a second refund.
