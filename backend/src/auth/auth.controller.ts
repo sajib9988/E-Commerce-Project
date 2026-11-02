@@ -43,6 +43,18 @@ export class AuthController {
 
   // Never place access/refresh JWTs in the redirect URL. Redirect only a short-lived,
   // one-time code; the Next.js server route exchanges it and sets HttpOnly cookies.
+  // These link-start routes require an existing authenticated session. The signed
+  // cookie-session carries the target user ID through the provider round-trip.
+  @Get('auth/google/link')
+  startGoogleLink(@CurrentUser() user: AuthTokenPayload, @Req() request: Request, @Res() response: Response) {
+    const req = request as Request & { session?: Record<string, unknown> };
+    if (!req.session) return response.status(500).send('OAuth session is unavailable');
+    req.session.oauthLinkUserId = user.sub;
+    const apiOrigin = process.env.API_ORIGIN;
+    if (!apiOrigin) return response.status(500).send('API_ORIGIN is not configured');
+    return response.redirect(302, `${apiOrigin.replace(/\/$/, '')}/api/v1/auth/google`);
+  }
+
   @Public()
   @UseGuards(AuthGuard('google'))
   @Get('auth/google')
@@ -52,10 +64,23 @@ export class AuthController {
   @UseGuards(AuthGuard('google'))
   @Get('auth/google/callback')
   async googleCallback(@Req() request: Request, @Res() response: Response) {
-    const { handoffCode } = await this.authService.authenticateOAuthProfile(request.user as OAuthProfile);
+    const req = request as Request & { session?: Record<string, unknown> };
+    const linkUserId = typeof req.session?.oauthLinkUserId === 'string' ? req.session.oauthLinkUserId : undefined;
+    if (req.session) delete req.session.oauthLinkUserId;
+    const { handoffCode } = await this.authService.authenticateOAuthProfile(request.user as OAuthProfile, linkUserId);
     const origin = process.env.STOREFRONT_ORIGIN || process.env.FRONTEND_URL;
     if (!origin) return response.status(500).send('Storefront origin is not configured');
     return response.redirect(302, `${origin.replace(/\/$/, '')}/auth/oauth/callback?code=${encodeURIComponent(handoffCode)}`);
+  }
+
+  @Get('auth/facebook/link')
+  startFacebookLink(@CurrentUser() user: AuthTokenPayload, @Req() request: Request, @Res() response: Response) {
+    const req = request as Request & { session?: Record<string, unknown> };
+    if (!req.session) return response.status(500).send('OAuth session is unavailable');
+    req.session.oauthLinkUserId = user.sub;
+    const apiOrigin = process.env.API_ORIGIN;
+    if (!apiOrigin) return response.status(500).send('API_ORIGIN is not configured');
+    return response.redirect(302, `${apiOrigin.replace(/\/$/, '')}/api/v1/auth/facebook`);
   }
 
   @Public()
@@ -67,7 +92,10 @@ export class AuthController {
   @UseGuards(AuthGuard('facebook'))
   @Get('auth/facebook/callback')
   async facebookCallback(@Req() request: Request, @Res() response: Response) {
-    const { handoffCode } = await this.authService.authenticateOAuthProfile(request.user as OAuthProfile);
+    const req = request as Request & { session?: Record<string, unknown> };
+    const linkUserId = typeof req.session?.oauthLinkUserId === 'string' ? req.session.oauthLinkUserId : undefined;
+    if (req.session) delete req.session.oauthLinkUserId;
+    const { handoffCode } = await this.authService.authenticateOAuthProfile(request.user as OAuthProfile, linkUserId);
     const origin = process.env.STOREFRONT_ORIGIN || process.env.FRONTEND_URL;
     if (!origin) return response.status(500).send('Storefront origin is not configured');
     return response.redirect(302, `${origin.replace(/\/$/, '')}/auth/oauth/callback?code=${encodeURIComponent(handoffCode)}`);
