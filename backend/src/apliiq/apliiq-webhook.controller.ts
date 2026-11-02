@@ -5,7 +5,9 @@ import { ConfigService } from '@nestjs/config';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import type { Request } from 'express';
 import { ApliiqService } from './apliiq.service';
+import { Public } from '../common/decorators/public.decorator';
 
+@Public()
 @Controller('webhooks/apliiq')
 export class ApliiqWebhookController {
   constructor(
