@@ -3,6 +3,7 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import type { AuthTokenPayload } from '../common/types/auth-token-payload';
 import { Roles } from '../common/decorators/roles.decorator';
 import { UserRole } from '../../generated/prisma/enums';
+import { Public } from '../common/decorators/public.decorator';
 import { CreateReviewDto } from './dto/create-review.dto';
 import { ModerateReviewDto } from './dto/moderate-review.dto';
 import { ReviewsService } from './reviews.service';
@@ -16,6 +17,7 @@ export class ReviewsController {
     return this.reviews.create(user.sub, productId, dto);
   }
 
+  @Public()
   @Get('products/:productId/reviews')
   findApproved(@Param('productId') productId: string, @Query('page') page?: string, @Query('limit') limit?: string) {
     return this.reviews.findApproved(productId, Number(page) || 1, Number(limit) || 20);
