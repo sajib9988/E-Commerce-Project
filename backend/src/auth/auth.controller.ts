@@ -33,6 +33,7 @@ import { ForgetPasswordDto } from './dto/forget-password.dto';
 import { UpdateUserRoleDto } from './dto/update-user-role.dto';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { ExchangeOAuthHandoffDto } from './dto/exchange-oauth-handoff.dto';
 
 const AUTH_THROTTLE = { default: { limit: 5, ttl: 60_000 } };
 type OAuthProfile = Parameters<AuthService['authenticateOAuthProfile']>[0];
@@ -105,8 +106,8 @@ export class AuthController {
   @Throttle(AUTH_THROTTLE)
   @HttpCode(200)
   @Post('auth/oauth/exchange')
-  exchangeOAuthHandoff(@Body('code') code: string) {
-    return this.authService.exchangeOAuthHandoff(code);
+  exchangeOAuthHandoff(@Body() dto: ExchangeOAuthHandoffDto) {
+    return this.authService.exchangeOAuthHandoff(dto.code);
   }
 
   @Public()
