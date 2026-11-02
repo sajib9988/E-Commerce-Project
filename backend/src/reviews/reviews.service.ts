@@ -12,7 +12,7 @@ export class ReviewsService {
     if (!product) throw new NotFoundException('Product not found');
 
     const purchase = await this.prisma.order.findFirst({
-      where: { userId, paymentStatus: 'PAID', items: { some: { productId } } },
+      where: { userId, paymentStatus: 'PAID', status: { in: ['PROCESSING', 'SHIPPED', 'DELIVERED'] }, items: { some: { productId } } },
       orderBy: { paidAt: 'desc' },
       select: { id: true },
     });
