@@ -340,6 +340,7 @@ export class OrdersService {
 
   async cancelMyOrder(userId: string, orderId: string) {
     return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "orders" WHERE "id" = ${orderId} FOR UPDATE`;
       const order = await tx.order.findFirst({ where: { id: orderId, userId } });
       if (!order) throw new NotFoundException('Order not found');
       if (order.status !== 'PENDING_PAYMENT' || order.paymentStatus !== 'PENDING') {
@@ -391,7 +392,12 @@ export class OrdersService {
       if (!transitions[order.status]?.includes(nextStatus)) {
         throw new ConflictException(`Invalid order status transition: ${order.status} -> ${nextStatus}`);
       }
-      return tx.order.update({ where: { id: orderId }, data: { status: nextStatus as OrderStatus }, include: { items: true } });
+      const changed = await tx.order.updateMany({
+        where: { id: orderId, status: order.status },
+        data: { status: nextStatus as OrderStatus },
+      });
+      if (changed.count !== 1) throw new ConflictException('Order status changed concurrently; refresh and retry');
+      return tx.order.findUnique({ where: { id: orderId }, include: { items: true } });
     });
   }
 }
