@@ -5,6 +5,8 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  IsBoolean,
+  IsInt,
   Min,
   MaxLength,
   ArrayMaxSize,
@@ -25,7 +27,13 @@ export class CreateProductDto {
   @Type(() => Number)
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
-  price: number;
+  regularPrice: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  salePrice?: number | null;
 
   @IsOptional()
   @IsString()
@@ -38,6 +46,28 @@ export class CreateProductDto {
   @ArrayUnique()
   @IsString({ each: true })
   sizes?: string[];
+
+  // Internal store SKU; never send this to Apliiq unless explicitly mapped.
+  @IsOptional()
+  @IsString()
+  @MaxLength(150)
+  sku?: string;
+
+  // Apliiq's sellable design SKU (not a blank-garment SKU).
+  @IsOptional()
+  @IsString()
+  @MaxLength(150)
+  apliiqDesignSku?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  stockQuantity?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
 
   @IsString()
   @IsNotEmpty()

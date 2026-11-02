@@ -1,8 +1,8 @@
 import {
   BadRequestException, ConflictException, Injectable, NotFoundException,
 } from '@nestjs/common';
-import { CouponRedemptionStatus, CouponType, PaymentAttemptStatus,
-  Prisma, StockReservationStatus } from '@prisma/client';
+import { Prisma } from '../../generated/prisma/client';
+import { CouponType, PaymentAttemptStatus, StockReservationStatus } from '../../generated/prisma/enums';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 
@@ -72,7 +72,7 @@ export class OrdersService {
 
           const byId = new Map(products.map((product) => [product.id, product]));
           const lineItems: Array<{
-            productId: string; productName: string; sku: string | null;
+            productId: string; productName: string; sku: string | null; apliiqDesignSku: string | null;
             unitPrice: Prisma.Decimal; quantity: number; lineTotal: Prisma.Decimal;
             imageUrl: string | null;
           }> = [];
@@ -81,12 +81,13 @@ export class OrdersService {
           for (const [productId, quantity] of quantities) {
             const product = byId.get(productId)!;
             if (!product.isActive) throw new BadRequestException('A selected product is unavailable');
-            const unitPrice = new Prisma.Decimal(product.price.toString());
+            const unitPrice = new Prisma.Decimal((product.salePrice ?? product.regularPrice).toString());
             if (unitPrice.lessThan(0)) throw new BadRequestException('Invalid product price');
             const lineTotal = unitPrice.mul(quantity);
             subtotal = subtotal.add(lineTotal);
             lineItems.push({
               productId, productName: product.name, sku: product.sku ?? null,
+              apliiqDesignSku: product.apliiqDesignSku ?? null,
               unitPrice, quantity, lineTotal, imageUrl: product.imageUrl ?? null,
             });
           }
@@ -184,6 +185,7 @@ export class OrdersService {
               couponCode: coupon?.code ?? null, idempotencyKey,
               items: { create: lineItems.map((line) => ({
                 productId: line.productId, productName: line.productName, sku: line.sku,
+                apliiqDesignSku: line.apliiqDesignSku,
                 unitPrice: line.unitPrice, quantity: line.quantity, lineTotal: line.lineTotal,
                 imageUrl: line.imageUrl,
               })) },

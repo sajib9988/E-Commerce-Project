@@ -1,0 +1,45 @@
+enum OrderStatus {
+  PENDING_PAYMENT
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  REFUNDED
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+}
+
+enum PaymentAttemptStatus {
+  CREATED
+  SUCCEEDED
+  FAILED
+  CANCELLED
+}
+
+enum CouponType {
+  PERCENT
+  FIXED
+  FREE_SHIPPING
+}
+
+enum CouponRedemptionStatus {
+  RESERVED
+  REDEEMED
+  RELEASED
+}
+
+enum StockReservationStatus {
+  RESERVED
+  COMMITTED
+  RELEASED
+}
+
+enum FulfillmentSubmissionStatus {
+  QUEUED
+  SUBMITTING
+  UNKNOWN
+  ACCEPTED
+}

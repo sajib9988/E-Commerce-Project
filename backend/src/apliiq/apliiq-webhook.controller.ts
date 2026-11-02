@@ -1,11 +1,13 @@
 import {
-  Controller, Headers, HttpCode, Post, Req, UnauthorizedException,
+  BadRequestException, Controller, Headers, HttpCode, Post, Req, ServiceUnavailableException, UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import type { Request } from 'express';
 import { ApliiqService } from './apliiq.service';
+import { Public } from '../common/decorators/public.decorator';
 
+@Public()
 @Controller('webhooks/apliiq')
 export class ApliiqWebhookController {
   constructor(
@@ -21,7 +23,10 @@ export class ApliiqWebhookController {
     @Headers('x-apliiq-webhook-token') token?: string,
   ) {
     const expectedToken = this.config.get<string>('APLIIQ_FULFILLMENT_WEBHOOK_TOKEN');
-    if (expectedToken && token !== expectedToken) {
+    if (!expectedToken) {
+      throw new ServiceUnavailableException('Apliiq webhook token is not configured');
+    }
+    if (token !== expectedToken) {
       throw new UnauthorizedException('Invalid webhook token');
     }
 
@@ -46,7 +51,12 @@ export class ApliiqWebhookController {
       throw new UnauthorizedException('Invalid Apliiq webhook signature');
     }
 
-    const body = JSON.parse(req.rawBody.toString('utf8'));
+    let body: unknown;
+    try {
+      body = JSON.parse(req.rawBody.toString('utf8'));
+    } catch {
+      throw new BadRequestException('Invalid Apliiq webhook JSON');
+    }
     await this.apliiq.processFulfillmentWebhook(body);
     return { received: true };
   }
