@@ -1,7 +1,6 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
-import { Prisma } from '../../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -15,26 +14,30 @@ export class RefundsService {
   }
 
   async createRequest(userId: string, orderId: string, reason: string, customerNote: string) {
-    const order = await this.prisma.order.findFirst({
-      where: { id: orderId, userId },
-      include: { paymentAttempts: { where: { status: 'SUCCEEDED' }, orderBy: { paidAt: 'desc' } } },
-    });
-    if (!order) throw new NotFoundException('Order not found');
-    if (order.paymentStatus !== 'PAID' || order.status === 'REFUNDED' || order.status === 'CANCELLED') {
-      throw new ConflictException('This order is not eligible for a refund request');
-    }
-    const payment = order.paymentAttempts.find((attempt) => Boolean(attempt.stripePaymentIntentId));
-    if (!payment?.stripePaymentIntentId) throw new ConflictException('No successful Stripe payment is available for refund');
-    const pending = await this.prisma.refundRequest.findFirst({
-      where: { orderId, status: { in: ['PENDING', 'APPROVED', 'PROCESSING'] } },
-    });
-    if (pending) throw new ConflictException('A refund request already exists for this order');
-    const priorRefund = await this.prisma.refundRequest.findFirst({ where: { orderId, status: 'REFUNDED' } });
-    if (priorRefund) throw new ConflictException('This order has already been refunded');
-    return this.prisma.refundRequest.create({
-      data: { orderId, userId, reason: reason.trim(), customerNote: customerNote.trim(), amount: order.totalAmount },
-      select: { id: true, orderId: true, status: true, reason: true, customerNote: true, amount: true, createdAt: true },
-    });
+    return this.prisma.$transaction(async (tx) => {
+      // Serialize concurrent requests for the same order before checking duplicates.
+      const locked = await tx.$queryRaw<Array<{ id: string }>>`SELECT "id" FROM "orders" WHERE "id" = ${orderId} FOR UPDATE`;
+      if (!locked.length) throw new NotFoundException('Order not found');
+      const order = await tx.order.findFirst({
+        where: { id: orderId, userId },
+        include: { paymentAttempts: { where: { status: 'SUCCEEDED' }, orderBy: { paidAt: 'desc' } } },
+      });
+      if (!order) throw new NotFoundException('Order not found');
+      if (order.paymentStatus !== 'PAID' || order.status === 'REFUNDED' || order.status === 'CANCELLED') {
+        throw new ConflictException('This order is not eligible for a refund request');
+      }
+      const paymentAttempts = order.paymentAttempts.filter((attempt) => Boolean(attempt.stripePaymentIntentId));
+      if (!paymentAttempts.length) throw new ConflictException('No successful Stripe payment is available for refund');
+      if (paymentAttempts.length > 1) throw new ConflictException('Multiple successful captures require manual payment review before a refund request');
+      const existing = await tx.refundRequest.findFirst({
+        where: { orderId, status: { in: ['PENDING', 'APPROVED', 'PROCESSING', 'REFUNDED'] } },
+      });
+      if (existing) throw new ConflictException('An active or completed refund request already exists for this order');
+      return tx.refundRequest.create({
+        data: { orderId, userId, reason: reason.trim(), customerNote: customerNote.trim(), amount: order.totalAmount },
+        select: { id: true, orderId: true, status: true, reason: true, customerNote: true, amount: true, createdAt: true },
+      });
+    }, { isolationLevel: 'Serializable' });
   }
 
   findMine(userId: string) {
