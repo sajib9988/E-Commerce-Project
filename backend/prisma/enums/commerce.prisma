@@ -43,3 +43,17 @@ enum FulfillmentSubmissionStatus {
   UNKNOWN
   ACCEPTED
 }
+
+
+enum ProductReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum RefundRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  FAILED
+}
