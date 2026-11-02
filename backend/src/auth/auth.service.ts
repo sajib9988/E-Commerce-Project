@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { Prisma } from '../../generated/prisma/client';
-import { UserRole } from '../../generated/prisma/enums';
+import { AuthProvider, UserRole } from '../../generated/prisma/enums';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../email/email.service';
 import { comparePassword, hashPassword } from '../common/utils/password.util';
@@ -36,6 +36,16 @@ const CHALLENGE_TOKEN_TTL_SECONDS = OTP_TTL_SECONDS;
 
 type OtpAttemptState = { count: number; resetAt: number };
 
+type OAuthProfileInput = {
+  provider: AuthProvider;
+  providerUserId: string;
+  name: string;
+  email?: string | null;
+  emailVerified?: boolean;
+  avatarUrl?: string | null;
+};
+
+
 const safeUserSelect = {
   id: true,
   name: true,
@@ -56,6 +66,79 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly emailService: EmailService,
   ) {}
+
+  /**
+   * Resolve a social identity to one internal account.
+   * Email is optional and is never used as an implicit account-linking key.
+   */
+  async authenticateOAuthProfile(profile: OAuthProfileInput) {
+    const providerEmail = profile.email?.trim().toLowerCase() || null;
+
+    try {
+      const user = await this.prisma.$transaction(async (tx) => {
+        const linkedIdentity = await tx.userAuthProvider.findUnique({
+          where: {
+            provider_providerUserId: {
+              provider: profile.provider,
+              providerUserId: profile.providerUserId,
+            },
+          },
+          include: { user: true },
+        });
+
+        if (linkedIdentity) {
+          return linkedIdentity.user;
+        }
+
+        if (providerEmail) {
+          const emailOwner = await tx.user.findUnique({
+            where: { email: providerEmail },
+            select: { id: true },
+          });
+          if (emailOwner) {
+            throw new ConflictException(
+              'An account with this email already exists. Sign in and link this provider from account settings.',
+            );
+          }
+        }
+
+        return tx.user.create({
+          data: {
+            name: profile.name.trim() || 'Customer',
+            email: providerEmail,
+            password: null,
+            avatarUrl: profile.avatarUrl ?? null,
+            role: UserRole.USER,
+            emailVerified: Boolean(providerEmail && profile.emailVerified),
+            authProviders: {
+              create: {
+                provider: profile.provider,
+                providerUserId: profile.providerUserId,
+                providerEmail,
+              },
+            },
+          },
+        });
+      });
+
+      return this.issueSessionTokens(user);
+    } catch (error) {
+      // A concurrent callback may have inserted the same provider identity.
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        const linkedIdentity = await this.prisma.userAuthProvider.findUnique({
+          where: {
+            provider_providerUserId: {
+              provider: profile.provider,
+              providerUserId: profile.providerUserId,
+            },
+          },
+          include: { user: true },
+        });
+        if (linkedIdentity) return this.issueSessionTokens(linkedIdentity.user);
+      }
+      throw error;
+    }
+  }
 
   async register(dto: RegisterDto) {
     const email = dto.email.trim().toLowerCase();
