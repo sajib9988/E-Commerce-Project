@@ -3,7 +3,7 @@ import { UserRole } from '../../generated/prisma/enums';
 import { Public } from '../common/decorators/public.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CategoriesService } from './categories.service';
-import { CreateCategoryDto, CreateSubcategoryDto } from './dto/category.dto';
+import { CreateCategoryDto, CreateSubcategoryDto, UpdateCategoryDto } from './dto/category.dto';
 
 @Controller('categories')
 export class CategoriesController {
@@ -23,7 +23,7 @@ export class CategoriesController {
 
   @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
   @Patch(':id')
-  update(@Param('id') id: string, @Body() dto: CreateCategoryDto) {
+  update(@Param('id') id: string, @Body() dto: UpdateCategoryDto) {
     return this.categories.update(id, dto);
   }
 
@@ -41,7 +41,7 @@ export class CategoriesController {
 
   @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
   @Patch('subcategories/:id')
-  updateSubcategory(@Param('id') id: string, @Body() dto: CreateSubcategoryDto) {
+  updateSubcategory(@Param('id') id: string, @Body() dto: UpdateCategoryDto) {
     return this.categories.updateSubcategory(id, dto);
   }
 
