@@ -73,7 +73,7 @@ export class AuthService {
    * We require an email for customer registration; it is never used as an
    * implicit account-linking key.
    */
-  async authenticateOAuthProfile(profile: OAuthProfileInput) {
+  async authenticateOAuthProfile(profile: OAuthProfileInput, linkUserId?: string) {
     const providerEmail = profile.email?.trim().toLowerCase() || null;
     if (!providerEmail) {
       throw new BadRequestException(
@@ -84,18 +84,28 @@ export class AuthService {
     try {
       const user = await this.prisma.$transaction(async (tx) => {
         const linkedIdentity = await tx.userAuthProvider.findUnique({
-          where: {
-            provider_providerUserId: {
-              provider: profile.provider,
-              providerUserId: profile.providerUserId,
-            },
-          },
+          where: { provider_providerUserId: { provider: profile.provider, providerUserId: profile.providerUserId } },
           include: { user: true },
         });
 
-        if (linkedIdentity) {
-          return linkedIdentity.user;
+        if (linkUserId) {
+          if (linkedIdentity && linkedIdentity.userId !== linkUserId) {
+            throw new ConflictException('This social account is already linked to another account');
+          }
+          const targetUser = await tx.user.findUnique({ where: { id: linkUserId } });
+          if (!targetUser) throw new UnauthorizedException('The account to link no longer exists');
+          if (linkedIdentity) return targetUser;
+          const emailOwner = providerEmail ? await tx.user.findUnique({ where: { email: providerEmail }, select: { id: true } }) : null;
+          if (emailOwner && emailOwner.id !== targetUser.id) {
+            throw new ConflictException('This provider email belongs to a different account. Sign in to that account before linking.');
+          }
+          await tx.userAuthProvider.create({ data: {
+            userId: targetUser.id, provider: profile.provider,
+            providerUserId: profile.providerUserId, providerEmail,
+          } });
+          return targetUser;
         }
+        if (linkedIdentity) return linkedIdentity.user;
 
         if (providerEmail) {
           const emailOwner = await tx.user.findUnique({
