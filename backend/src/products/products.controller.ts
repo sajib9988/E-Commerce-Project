@@ -16,6 +16,7 @@ import { UpdateProductDto } from './dto/update-product.dto';
 import { productImageUploadOptions } from './upload';
 import { UserRole } from '../../generated/prisma/enums';
 import { Roles } from '../common/decorators/roles.decorator';
+import { Public } from '../common/decorators/public.decorator';
 
 @Controller('products')
 export class ProductsController {
@@ -23,11 +24,13 @@ export class ProductsController {
     private readonly productsService: ProductsService,
   ) {}
 
+  @Public()
   @Get()
   findAll() {
     return this.productsService.findAll();
   }
 
+  @Public()
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.productsService.findOne(id);
