@@ -14,6 +14,7 @@ import {
 import { toast } from "react-hot-toast";
 
 import { Button } from "@/components/ui/button";
+import SocialAuthButtons from "@/components/form/socialAuthButtons";
 import { Input } from "@/components/ui/input";
 
 
@@ -757,6 +758,8 @@ export default function LoginForm() {
                 ? "Signing in..."
                 : "Login"}
             </Button>
+
+            <SocialAuthButtons />
           </form>
         </Form>
       ) : step === "admin-otp" ? (
