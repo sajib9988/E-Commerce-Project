@@ -29,3 +29,8 @@ enum MediaType {
   VIDEO
 }
 
+
+enum AuthProvider {
+  GOOGLE
+  FACEBOOK
+}
