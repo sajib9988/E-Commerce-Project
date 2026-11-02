@@ -156,7 +156,11 @@ export class AuthService {
           },
           include: { user: true },
         });
-        if (linkedIdentity) return this.issueSessionTokens(linkedIdentity.user);
+        if (linkedIdentity) {
+          const rawCode = randomBytes(32).toString('base64url');
+          await this.prisma.oAuthHandoff.create({ data: { tokenHash: createHash('sha256').update(rawCode).digest('hex'), userId: linkedIdentity.userId, expiresAt: new Date(Date.now() + 60_000) } });
+          return { handoffCode: rawCode, expiresIn: 60 };
+        }
       }
       throw error;
     }
