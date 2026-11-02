@@ -22,5 +22,6 @@ The backend uses Redis-backed BullMQ queues for reservation-expiry scans and OTP
 
 - `reservation-expiry`: repeatable scan; releases expired unpaid reservations and cancels eligible pending orders.
 - `email`: OTP email delivery with 5 attempts and exponential backoff.
+- `apliiq-fulfillment`: drains the durable fulfillment outbox and submits paid orders after payment commits. Ambiguous submissions remain UNKNOWN for manual reconciliation; the worker never blindly resubmits them.
 
 Prisma migration/generation, package installation, builds and tests have not been run by the assistant; run them locally before merge.
