@@ -7,19 +7,19 @@ import { AuthProvider } from '../../../generated/prisma/enums';
 export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
   constructor() {
     super({
-      clientID: process.env.GOOGLE_CLIENT_ID ?? '',
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? '',
-      callbackURL: process.env.GOOGLE_CALLBACK_URL,
+      // Placeholder values let the API boot before OAuth credentials are added.
+      // Google login will only work after the real values are configured.
+      clientID: process.env.GOOGLE_CLIENT_ID || 'oauth-not-configured',
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET || 'oauth-not-configured',
+      callbackURL:
+        process.env.GOOGLE_CALLBACK_URL ||
+        'http://localhost:3000/api/v1/auth/google/callback',
       scope: ['email', 'profile'],
       state: true,
     });
   }
 
-  validate(
-    _accessToken: string,
-    _refreshToken: string,
-    profile: Profile,
-  ) {
+  validate(_accessToken: string, _refreshToken: string, profile: Profile) {
     const providerEmail = profile.emails?.[0]?.value?.trim().toLowerCase() ?? null;
     const rawProfile = profile._json as { email_verified?: boolean };
 
