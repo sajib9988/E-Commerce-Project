@@ -12,6 +12,8 @@ model User {
   orders                    Order[]
   assignedCoupons           Coupon[]  @relation("AssignedCoupons")
   couponRedemptions         CouponRedemption[]
+  productReviews            ProductReview[]
+  refundRequests             RefundRequest[]
   createdAt                 DateTime  @default(now())
   updatedAt                 DateTime  @updatedAt
 
