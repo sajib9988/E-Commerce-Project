@@ -21,6 +21,8 @@ import { CouponsModule } from './coupons/coupons.module';
 import { CategoriesModule } from './categories/categories.module';
 import { VariantsModule } from './products/variants/variants.module';
 import { SizeTemplatesModule } from './products/size-templates/size-templates.module';
+import { ReviewsModule } from './reviews/reviews.module';
+import { RefundsModule } from './refunds/refunds.module';
 
 @Module({
   imports: [
@@ -44,6 +46,8 @@ import { SizeTemplatesModule } from './products/size-templates/size-templates.mo
     CategoriesModule,
     VariantsModule,
     SizeTemplatesModule,
+    ReviewsModule,
+    RefundsModule,
   ],
   controllers: [AppController],
   providers: [
