@@ -299,6 +299,8 @@ export class PaymentsService {
     if (!attemptId || !orderId) return;
 
     await this.prisma.$transaction(async (tx) => {
+      // Serialize expiry against successful-payment handling for this order.
+      await tx.$queryRaw`SELECT "id" FROM "orders" WHERE "id" = ${orderId} FOR UPDATE`;
       // Claim event ID in the same transaction as side effects; duplicate deliveries do nothing.
       const eventClaim = await tx.stripeWebhookEvent.createMany({
         data: [{ id: eventId, type: 'checkout.session.expired' }],
