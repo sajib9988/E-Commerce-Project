@@ -40,6 +40,7 @@ const safeUserSelect = {
   id: true,
   name: true,
   email: true,
+  avatarUrl: true,
   role: true,
   emailVerified: true,
   createdAt: true,
@@ -79,7 +80,7 @@ export class AuthService {
   async login(dto: LoginDto) {
     const email = dto.email.trim().toLowerCase();
     const user = await this.prisma.user.findUnique({ where: { email } });
-    if (!user || !(await comparePassword(dto.password, user.password))) {
+    if (!user || !user.password || !(await comparePassword(dto.password, user.password))) {
       throw new UnauthorizedException('Invalid email or password');
     }
     if (!user.emailVerified) {
@@ -133,7 +134,7 @@ export class AuthService {
   async resendOtp(dto: ResendOtpDto) {
     const payload = this.verifyChallengeToken(dto.challengeToken);
     const user = await this.prisma.user.findUnique({ where: { id: payload.sub } });
-    if (!user || user.role === UserRole.USER) {
+    if (!user || user.role === UserRole.USER || !user.email) {
       throw new UnauthorizedException('Session expired or invalid');
     }
     this.assertResendAllowed(user.verificationCodeExpiresAt);
@@ -144,7 +145,7 @@ export class AuthService {
   async verifyOtp(dto: VerifyOtpDto) {
     const payload = this.verifyChallengeToken(dto.challengeToken);
     const user = await this.prisma.user.findUnique({ where: { id: payload.sub } });
-    if (!user || user.role === UserRole.USER) {
+    if (!user || user.role === UserRole.USER || !user.email) {
       throw new UnauthorizedException('Session expired or invalid');
     }
 
@@ -172,7 +173,7 @@ export class AuthService {
     if (!isTurnstileValid) throw new BadRequestException('Turnstile verification failed');
     const email = emailInput.trim().toLowerCase();
     const user = await this.prisma.user.findUnique({ where: { email } });
-    if (user) {
+    if (user?.email) {
       const code = generateOtp();
       await this.prisma.user.update({
         where: { id: user.id },
@@ -202,7 +203,7 @@ export class AuthService {
 
   async changePassword(userId: string, dto: ChangePasswordDto) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user || !(await comparePassword(dto.currentPassword, user.password))) {
+    if (!user || !user.password || !(await comparePassword(dto.currentPassword, user.password))) {
       throw new BadRequestException('Current password is incorrect');
     }
     await this.prisma.user.update({
@@ -221,7 +222,7 @@ export class AuthService {
     }
     if (payload.purpose !== 'refresh') throw new UnauthorizedException('Wrong token type');
     const user = await this.prisma.user.findUnique({ where: { id: payload.sub } });
-    if (!user || !user.emailVerified) throw new UnauthorizedException('Session expired or invalid');
+    if (!user) throw new UnauthorizedException('Session expired or invalid');
     return this.issueSessionTokens(user);
   }
 
@@ -233,7 +234,7 @@ export class AuthService {
   async me(userId: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, name: true, email: true, role: true, emailVerified: true },
+      select: { id: true, name: true, email: true, avatarUrl: true, role: true, emailVerified: true },
     });
     if (!user) throw new UnauthorizedException('Session expired or invalid');
     return user;
@@ -337,7 +338,7 @@ export class AuthService {
 
   private issueSessionTokens(user: {
     id: string;
-    email: string;
+    email: string | null;
     name: string;
     role: AuthTokenPayload['role'];
   }) {
@@ -345,7 +346,7 @@ export class AuthService {
     return {
       accessToken: this.signToken(base, 'access', ACCESS_TOKEN_TTL_SECONDS),
       refreshToken: this.signToken(base, 'refresh', REFRESH_TOKEN_TTL_SECONDS),
-      user: { id: user.id, name: user.name, email: user.email, role: user.role },
+      user: { id: user.id, name: user.name, email: user.email, avatarUrl: 'avatarUrl' in user ? user.avatarUrl : null, role: user.role },
     };
   }
 
