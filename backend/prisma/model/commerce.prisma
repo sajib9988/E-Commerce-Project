@@ -219,7 +219,7 @@ model RefundRequest {
 
   @@index([userId, createdAt])
   @@index([status, createdAt])
-  @@unique([orderId, status])
+  @@unique([orderId])
   @@map("refund_requests")
 }
 
