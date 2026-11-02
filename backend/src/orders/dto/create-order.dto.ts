@@ -8,6 +8,10 @@ class CheckoutLineDto {
   @IsString() @MaxLength(128)
   productId!: string;
 
+  // Required for newly managed size/SKU variants; omitted only for legacy simple products.
+  @IsOptional() @IsString() @MaxLength(128)
+  variantId?: string;
+
   @Type(() => Number) @IsInt() @Min(1) @Max(99)
   quantity!: number;
 }
