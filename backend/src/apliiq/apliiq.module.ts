@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { BullModule } from '@nestjs/bullmq';
 import { ConfigModule } from '@nestjs/config';
 import { PrismaModule } from '../prisma/prisma.module';
 import { ApliiqClient } from './apliiq.client';
@@ -9,6 +10,7 @@ import { ApliiqWebhookController } from './apliiq-webhook.controller';
   imports: [
     ConfigModule,
     PrismaModule,
+    BullModule.registerQueue({ name: 'apliiq-fulfillment' }),
   ],
   controllers: [ApliiqWebhookController],
   providers: [ApliiqClient, ApliiqService],
