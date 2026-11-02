@@ -2,7 +2,7 @@ import {
   BadRequestException, ConflictException, Injectable, NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '../../generated/prisma/client';
-import { CouponType, PaymentAttemptStatus, StockReservationStatus } from '../../generated/prisma/enums';
+import { CouponType, OrderStatus, PaymentAttemptStatus, StockReservationStatus } from '../../generated/prisma/enums';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 
@@ -357,7 +357,9 @@ export class OrdersService {
   async findAllForAdmin(page = 1, limit = 20, status?: string) {
     const take = Math.min(Math.max(limit, 1), 100);
     const skip = (Math.max(page, 1) - 1) * take;
-    const where: Prisma.OrderWhereInput = status ? { status: status as never } : {};
+    const allowedStatuses = Object.values(OrderStatus) as string[];
+    if (status && !allowedStatuses.includes(status)) throw new BadRequestException('Invalid order status filter');
+    const where: Prisma.OrderWhereInput = status ? { status: status as OrderStatus } : {};
     const [items, total] = await this.prisma.$transaction([
       this.prisma.order.findMany({
         where, include: { items: true, user: { select: { id: true, name: true, email: true } } },
@@ -389,7 +391,7 @@ export class OrdersService {
       if (!transitions[order.status]?.includes(nextStatus)) {
         throw new ConflictException(`Invalid order status transition: ${order.status} -> ${nextStatus}`);
       }
-      return tx.order.update({ where: { id: orderId }, data: { status: nextStatus as never }, include: { items: true } });
+      return tx.order.update({ where: { id: orderId }, data: { status: nextStatus as OrderStatus }, include: { items: true } });
     });
   }
 }
