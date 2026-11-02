@@ -1,5 +1,5 @@
 import {
-  BadRequestException, ConflictException, Injectable, NotFoundException,
+  BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '../../generated/prisma/client';
 import { CouponType, PaymentAttemptStatus, StockReservationStatus } from '../../generated/prisma/enums';
@@ -312,4 +312,70 @@ export class OrdersService {
       }
     }
   }
+
+  async findMyOrders(userId: string) {
+    return this.prisma.order.findMany({
+      where: { userId },
+      include: { items: true, fulfillments: true },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async findMyOrder(userId: string, orderId: string) {
+    const order = await this.prisma.order.findFirst({
+      where: { id: orderId, userId },
+      include: { items: true, paymentAttempts: true, fulfillments: true, stockReservation: true, refundRequests: true },
+    });
+    if (!order) throw new NotFoundException('Order not found');
+    return order;
+  }
+
+  async cancelMyOrder(userId: string, orderId: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const order = await tx.order.findFirst({ where: { id: orderId, userId } });
+      if (!order) throw new NotFoundException('Order not found');
+      if (order.status !== 'PENDING_PAYMENT' || order.paymentStatus !== 'PENDING') {
+        throw new ConflictException('Only unpaid pending orders can be cancelled. Request a refund for paid orders.');
+      }
+      await this.releaseReservations(tx, orderId);
+      return tx.order.update({ where: { id: orderId }, data: { status: 'CANCELLED' } });
+    });
+  }
+
+  async findAllForAdmin(status?: string, page = 1, limit = 25) {
+    const safePage = Math.max(1, Math.floor(page));
+    const safeLimit = Math.min(100, Math.max(1, Math.floor(limit)));
+    const where = status ? { status: status as any } : {};
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.order.findMany({
+        where, include: { items: true, user: { select: { id: true, name: true, email: true } }, fulfillments: true },
+        orderBy: { createdAt: 'desc' }, skip: (safePage - 1) * safeLimit, take: safeLimit,
+      }),
+      this.prisma.order.count({ where }),
+    ]);
+    return { items, pagination: { page: safePage, limit: safeLimit, total, pages: Math.ceil(total / safeLimit) } };
+  }
+
+  async findOneForAdmin(orderId: string) {
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      include: { user: { select: { id: true, name: true, email: true } }, items: true, paymentAttempts: true, stockReservation: { include: { items: true } }, fulfillments: true, refundRequests: true },
+    });
+    if (!order) throw new NotFoundException('Order not found');
+    return order;
+  }
+
+  async updateStatusByAdmin(orderId: string, nextStatus: string) {
+    const order = await this.prisma.order.findUnique({ where: { id: orderId } });
+    if (!order) throw new NotFoundException('Order not found');
+    const allowed: Record<string, string[]> = {
+      PROCESSING: ['SHIPPED'],
+      SHIPPED: ['DELIVERED'],
+    };
+    if (!allowed[order.status]?.includes(nextStatus)) {
+      throw new ConflictException('Invalid order status transition. Cancellation/refund must use the dedicated workflow.');
+    }
+    return this.prisma.order.update({ where: { id: orderId }, data: { status: nextStatus as any } });
+  }
+
 }
