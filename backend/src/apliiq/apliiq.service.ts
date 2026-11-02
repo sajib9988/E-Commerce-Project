@@ -3,34 +3,41 @@ import {
   BadRequestException,
   NotFoundException,
   ConflictException,
-  OnModuleDestroy,
   OnModuleInit,
 } from '@nestjs/common';
+import { Processor, WorkerHost, InjectQueue } from '@nestjs/bullmq';
+import { Job, Queue } from 'bullmq';
 import { PrismaService } from '../prisma/prisma.service';
 import { ApliiqClient } from './apliiq.client';
 import { mapOrderToApliiq } from './apliiq.mapper';
 
 type CreateOrderResponse = { id: string | number };
 
+@Processor('apliiq-fulfillment')
 @Injectable()
-export class ApliiqService implements OnModuleInit, OnModuleDestroy {
-  private pollTimer?: NodeJS.Timeout;
-  private polling = false;
+export class ApliiqService extends WorkerHost implements OnModuleInit {
   private readonly pollIntervalMs = 5_000;
   private readonly staleSubmissionMs = 5 * 60_000;
   constructor(
     private readonly prisma: PrismaService,
     private readonly client: ApliiqClient,
-  ) {}
+    @InjectQueue('apliiq-fulfillment') private readonly queue: Queue,
+  ) { super(); }
 
-  onModuleInit() {
-    // Fulfillment rows are a durable outbox; provider I/O runs after the payment transaction commits.
-    this.pollTimer = setInterval(() => { void this.pollFulfillmentQueue().catch(() => undefined); }, this.pollIntervalMs);
-    this.pollTimer.unref?.();
-    void this.pollFulfillmentQueue().catch(() => undefined);
+  async onModuleInit() {
+    // Durable DB outbox remains the source of truth; BullMQ schedules workers to drain it.
+    await this.queue.add('drain-fulfillment-outbox', {}, {
+      jobId: 'apliiq-fulfillment-repeat', repeat: { every: this.pollIntervalMs },
+      removeOnComplete: 100, removeOnFail: 500,
+    });
+    await this.queue.add('drain-fulfillment-outbox', {}, {
+      jobId: `apliiq-fulfillment-start-${Date.now()}`, removeOnComplete: true,
+    });
   }
 
-  onModuleDestroy() { if (this.pollTimer) clearInterval(this.pollTimer); }
+  async process(_job: Job): Promise<void> {
+    await this.pollFulfillmentQueue();
+  }
 
   async submitPaidOrder(orderId: string) {
     const order = await this.prisma.order.findUnique({ where: { id: orderId }, include: { fulfillments: true } });
@@ -38,12 +45,12 @@ export class ApliiqService implements OnModuleInit, OnModuleDestroy {
     if (order.paymentStatus !== 'PAID') throw new ConflictException('Only paid orders can be submitted to Apliiq');
     const existing = order.fulfillments.find((item) => item.provider === 'APLIIQ');
     if (existing) return existing;
-    return this.prisma.fulfillment.create({ data: { orderId: order.id, provider: 'APLIIQ', submissionStatus: 'QUEUED' } });
+    const fulfillment = await this.prisma.fulfillment.create({ data: { orderId: order.id, provider: 'APLIIQ', submissionStatus: 'QUEUED' } });
+    await this.queue.add('drain-fulfillment-outbox', {}, { removeOnComplete: true });
+    return fulfillment;
   }
 
   private async pollFulfillmentQueue() {
-    if (this.polling) return;
-    this.polling = true;
     try {
       const staleBefore = new Date(Date.now() - this.staleSubmissionMs);
       await this.prisma.fulfillment.updateMany({
@@ -61,7 +68,7 @@ export class ApliiqService implements OnModuleInit, OnModuleDestroy {
         });
         if (claimed.count === 1) await this.submitClaimedFulfillment(item.id, item.orderId);
       }
-    } finally { this.polling = false; }
+    }
   }
 
   private async submitClaimedFulfillment(fulfillmentId: string, orderId: string) {
