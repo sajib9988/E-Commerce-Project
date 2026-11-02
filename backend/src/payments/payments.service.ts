@@ -11,7 +11,6 @@ import { PaymentAttemptStatus, PaymentStatus, OrderStatus } from '../../generate
 import Stripe from 'stripe';
 import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
-import { ApliiqService } from '../apliiq/apliiq.service';
 
 @Injectable()
 export class PaymentsService {
@@ -20,7 +19,6 @@ export class PaymentsService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly apliiq: ApliiqService,
     config: ConfigService,
   ) {
     const secretKey = config.get<string>('STRIPE_SECRET_KEY');
@@ -177,11 +175,14 @@ export class PaymentsService {
       throw new BadRequestException('Checkout session is not a paid, linked session');
     }
 
-    const shouldSubmitToApliiq = await this.prisma.$transaction(async (tx) => {
-      await tx.stripeWebhookEvent.createMany({
+    await this.prisma.$transaction(async (tx) => {
+      // Serialize distinct Stripe event IDs referring to the same order.
+      await tx.$queryRaw`SELECT "id" FROM "orders" WHERE "id" = ${orderId} FOR UPDATE`;
+      const eventClaim = await tx.stripeWebhookEvent.createMany({
         data: [{ id: eventId, type: 'checkout.session.completed' }],
         skipDuplicates: true,
       });
+      if (eventClaim.count === 0) return;
 
       const attempt = await tx.paymentAttempt.findFirst({
         where: {
@@ -224,7 +225,7 @@ export class PaymentsService {
             },
           });
         }
-        return false;
+        return;
       }
 
       const reservation = await tx.stockReservation.findUnique({
@@ -252,7 +253,7 @@ export class PaymentsService {
           where: { id: orderId },
           data: { paymentStatus: PaymentStatus.PAID, paidAt: new Date() },
         });
-        return false;
+        return;
       }
 
       await tx.paymentAttempt.update({
@@ -282,14 +283,14 @@ export class PaymentsService {
         data: { status: 'REDEEMED', redeemedAt: new Date() },
       });
 
-      return true;
+      // Durable outbox row is committed atomically with payment and reservations.
+      // A background worker performs the Apliiq network request after commit.
+      await tx.fulfillment.upsert({
+        where: { orderId_provider: { orderId, provider: 'APLIIQ' } },
+        create: { orderId, provider: 'APLIIQ', submissionStatus: 'QUEUED' },
+        update: {},
+      });
     });
-
-    // Only a first valid payment with a still-reserved inventory allocation
-    // can enter the automatic fulfillment path.
-    if (shouldSubmitToApliiq) {
-      await this.apliiq.submitPaidOrder(orderId);
-    }
   }
 
   async handleCheckoutExpired(session: Stripe.Checkout.Session, eventId: string) {
@@ -298,11 +299,12 @@ export class PaymentsService {
     if (!attemptId || !orderId) return;
 
     await this.prisma.$transaction(async (tx) => {
-      // Stripe may deliver the same event more than once.
-      await tx.stripeWebhookEvent.createMany({
+      // Claim event ID in the same transaction as side effects; duplicate deliveries do nothing.
+      const eventClaim = await tx.stripeWebhookEvent.createMany({
         data: [{ id: eventId, type: 'checkout.session.expired' }],
         skipDuplicates: true,
       });
+      if (eventClaim.count === 0) return;
 
       await tx.paymentAttempt.updateMany({
         where: {
@@ -373,6 +375,47 @@ export class PaymentsService {
       });
     });
   }
+  async resolveManualReview(
+    attemptId: string, adminUserId: string, decision: 'REFUND' | 'RESOLVE_NO_REFUND', note: string,
+  ) {
+    const attempt = await this.prisma.paymentAttempt.findUnique({ where: { id: attemptId }, include: { order: true } });
+    if (!attempt) throw new NotFoundException('Payment attempt not found');
+    if (!attempt.requiresManualReview) throw new ConflictException('Payment attempt is not awaiting manual review');
+    const normalizedNote = note.trim();
+    if (normalizedNote.length < 5 || normalizedNote.length > 500) throw new BadRequestException('Resolution note must be between 5 and 500 characters');
+
+    if (decision === 'REFUND') {
+      if (!attempt.stripePaymentIntentId) throw new ConflictException('No Stripe PaymentIntent is recorded; refund cannot be automated');
+      await this.stripe.refunds.create(
+        {
+          payment_intent: attempt.stripePaymentIntentId,
+          reason: 'requested_by_customer',
+          metadata: { orderId: attempt.orderId, paymentAttemptId: attempt.id, reviewedBy: adminUserId, reviewNote: normalizedNote.slice(0, 450) },
+        },
+        { idempotencyKey: 'manual-review-refund:' + attempt.id },
+      );
+      const otherSuccessfulAttempts = await this.prisma.paymentAttempt.count({
+        where: { orderId: attempt.orderId, id: { not: attempt.id }, status: PaymentAttemptStatus.SUCCEEDED },
+      });
+      return this.prisma.$transaction(async (tx) => {
+        const resolved = await tx.paymentAttempt.update({
+          where: { id: attempt.id },
+          data: { requiresManualReview: false, reviewResolvedAt: new Date(), reviewResolvedBy: adminUserId, reviewResolution: 'REFUND: ' + normalizedNote },
+        });
+        // Refunding a duplicate capture must not cancel the original paid order.
+        if (otherSuccessfulAttempts === 0) {
+          await tx.order.update({ where: { id: attempt.orderId }, data: { status: OrderStatus.REFUNDED } });
+        }
+        return resolved;
+      });
+    }
+
+    return this.prisma.paymentAttempt.update({
+      where: { id: attempt.id },
+      data: { requiresManualReview: false, reviewResolvedAt: new Date(), reviewResolvedBy: adminUserId, reviewResolution: 'NO_REFUND: ' + normalizedNote },
+    });
+  }
+
   async findAttemptsForManualReview() {
     return this.prisma.paymentAttempt.findMany({
       where: { requiresManualReview: true },
