@@ -9,6 +9,7 @@ import { Eye, EyeOff, Mail, KeyRound } from "lucide-react";
 import { toast } from "react-hot-toast";
 
 import { Button } from "@/components/ui/button";
+import SocialAuthButtons from "@/components/form/socialAuthButtons";
 import { Input } from "@/components/ui/input";
 
 
@@ -474,6 +475,8 @@ export default function RegisterForm() {
                 ? "Creating..."
                 : "Register"}
             </Button>
+
+            <SocialAuthButtons />
           </form>
         </Form>
       ) : (
