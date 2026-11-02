@@ -306,3 +306,51 @@ model Fulfillment {
   @@index([submissionStatus, updatedAt])
   @@map("fulfillments")
 }
+
+model ProductReview {
+  id          String             @id @default(cuid())
+  productId   String
+  product     Product            @relation(fields: [productId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rating      Int
+  title       String?
+  comment     String
+  status      ReviewStatus       @default(PENDING)
+  moderatedBy String?
+  moderatedAt DateTime?
+  moderationNote String?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  @@unique([productId, userId])
+  @@index([productId, status, createdAt])
+  @@index([userId, createdAt])
+  @@map("product_reviews")
+}
+
+model RefundRequest {
+  id                String             @id @default(cuid())
+  orderId           String
+  order             Order              @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  userId            String
+  user              User               @relation(fields: [userId], references: [id], onDelete: Restrict)
+  paymentAttemptId  String
+  paymentAttempt    PaymentAttempt     @relation(fields: [paymentAttemptId], references: [id], onDelete: Restrict)
+  reason            String
+  customerNote      String?
+  status            RefundRequestStatus @default(PENDING)
+  requestedAmount   Decimal            @db.Decimal(10, 2)
+  stripeRefundId    String?            @unique
+  reviewedBy        String?
+  reviewedAt        DateTime?
+  adminNote         String?
+  failureReason     String?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+  @@index([orderId, status])
+  @@map("refund_requests")
+}
