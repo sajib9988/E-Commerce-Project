@@ -8,7 +8,11 @@ import {
   Patch,
   Post,
   Query,
+  Req,
+  UseGuards,
 } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
+import type { Request } from 'express';
 import { Throttle } from '@nestjs/throttler';
 import { Public } from '../common/decorators/public.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -30,10 +34,37 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 
 const AUTH_THROTTLE = { default: { limit: 5, ttl: 60_000 } };
+type OAuthProfile = Parameters<AuthService['authenticateOAuthProfile']>[0];
 
 @Controller()
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
+
+  // OAuth callback returns the same access/refresh-token payload as password login.
+  // The frontend must store/use these tokens using its existing auth flow.
+  @Public()
+  @UseGuards(AuthGuard('google'))
+  @Get('auth/google')
+  googleLogin() {}
+
+  @Public()
+  @UseGuards(AuthGuard('google'))
+  @Get('auth/google/callback')
+  googleCallback(@Req() request: Request) {
+    return this.authService.authenticateOAuthProfile(request.user as OAuthProfile);
+  }
+
+  @Public()
+  @UseGuards(AuthGuard('facebook'))
+  @Get('auth/facebook')
+  facebookLogin() {}
+
+  @Public()
+  @UseGuards(AuthGuard('facebook'))
+  @Get('auth/facebook/callback')
+  facebookCallback(@Req() request: Request) {
+    return this.authService.authenticateOAuthProfile(request.user as OAuthProfile);
+  }
 
   @Public()
   @Throttle(AUTH_THROTTLE)
@@ -127,7 +158,6 @@ export class AuthController {
     return this.authService.me(currentUser.sub);
   }
 
-  // User administration now belongs to AuthModule too; SUPER_ADMIN only.
   @Roles('SUPER_ADMIN')
   @Get('users')
   findAllUsers(@Query('search') search?: string, @Query('page') page?: string, @Query('limit') limit?: string) {
