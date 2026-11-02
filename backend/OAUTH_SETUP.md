@@ -16,6 +16,7 @@ FACEBOOK_APP_SECRET=
 FACEBOOK_CALLBACK_URL=http://localhost:5000/api/v1/auth/facebook/callback
 
 STOREFRONT_ORIGIN=http://localhost:3000
+API_ORIGIN=http://localhost:5000
 ```
 
 Use the actual public API origin and HTTPS callback URLs in production. Keep provider secrets only in the backend environment; never expose them through `NEXT_PUBLIC_*` variables.
@@ -45,7 +46,9 @@ Use the actual public API origin and HTTPS callback URLs in production. Keep pro
 - `GET /api/v1/auth/facebook` — starts Facebook consent.
 - `GET /api/v1/auth/facebook/callback` — validates callback state, persists the provider identity and returns the app session payload.
 
-The callback response has the same `accessToken`, `refreshToken`, and `user` shape as the existing login service. The storefront must consume this response and store/use tokens according to the existing auth contract. A dedicated storefront callback page / popup message bridge is not included in this backend PR.
+The provider callback redirects to `STOREFRONT_ORIGIN/auth/oauth/callback?code=...` with a random, one-time code that expires after 60 seconds. It never places access/refresh JWTs in the URL. The Next.js server callback must POST `{ code }` to `/api/v1/auth/oauth/exchange`, then set the returned `accessToken` and `refreshToken` as HttpOnly cookies using the existing cookie names and redirect to a safe local page. The code is hashed at rest and can be consumed only once. Do not exchange it from client-side JavaScript if a server route is available.
+
+For account linking, an already-authenticated user navigates to `GET /api/v1/auth/google/link` or `/api/v1/auth/facebook/link`. The backend carries the authenticated user ID in the signed OAuth session, then links the verified provider identity only after the provider callback. Linking fails if the provider identity is already linked to a different user or the provider email belongs to another account. These routes require the existing access-token authentication.
 
 ## Account persistence and linking policy
 
