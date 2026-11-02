@@ -5,6 +5,7 @@ model User {
   password                  String?
   avatarUrl                 String?
   authProviders             UserAuthProvider[]
+  oauthHandoffs              OAuthHandoff[]
   role                      UserRole  @default(USER)
   emailVerified             Boolean   @default(false)
   verificationCode          String?
@@ -35,4 +36,18 @@ model UserAuthProvider {
   @@unique([userId, provider])
   @@index([userId])
   @@map("user_auth_providers")
+}
+
+
+model OAuthHandoff {
+  id         String   @id @default(cuid())
+  tokenHash  String   @unique
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime @default(now())
+
+  @@index([expiresAt, consumedAt])
+  @@map("oauth_handoffs")
 }
