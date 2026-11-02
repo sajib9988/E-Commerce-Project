@@ -470,7 +470,7 @@ export class PaymentsService {
       });
     } catch (error) {
       if ((error as { code?: string })?.code === 'P2002') {
-        throw new ConflictException('A refund request with this status already exists');
+        throw new ConflictException('Only one refund request is allowed per order');
       }
       throw error;
     }
