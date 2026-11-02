@@ -10,9 +10,11 @@ import { ConfigService } from '@nestjs/config';
 import { Request } from 'express';
 import Stripe from 'stripe';
 import { PaymentsService } from './payments.service';
+import { Public } from '../common/decorators/public.decorator';
 
 type RawBodyRequest = Request & { rawBody?: Buffer };
 
+@Public()
 @Controller('webhooks/stripe')
 export class StripeWebhookController {
   private readonly stripe: Stripe;
