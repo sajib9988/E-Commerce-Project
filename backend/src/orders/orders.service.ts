@@ -316,7 +316,7 @@ export class OrdersService {
   async findMyOrders(userId: string) {
     return this.prisma.order.findMany({
       where: { userId },
-      include: { items: true, fulfillments: true },
+      include: { items: true, fulfillments: { select: { providerStatus: true, trackingCompany: true, trackingNumbers: true, trackingUrls: true, shippedAt: true } } },
       orderBy: { createdAt: 'desc' },
     });
   }
@@ -348,8 +348,10 @@ export class OrdersService {
   }
 
   async findAllForAdmin(status?: string, page = 1, limit = 25) {
-    const safePage = Math.max(1, Math.floor(page));
-    const safeLimit = Math.min(100, Math.max(1, Math.floor(limit)));
+    const safePage = Number.isFinite(page) ? Math.max(1, Math.floor(page)) : 1;
+    const safeLimit = Number.isFinite(limit) ? Math.min(100, Math.max(1, Math.floor(limit))) : 25;
+    const allowedStatuses = ['PENDING_PAYMENT', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED', 'REFUNDED'];
+    if (status && !allowedStatuses.includes(status)) throw new BadRequestException('Invalid order status filter');
     const where = status ? { status: status as any } : {};
     const [items, total] = await this.prisma.$transaction([
       this.prisma.order.findMany({
