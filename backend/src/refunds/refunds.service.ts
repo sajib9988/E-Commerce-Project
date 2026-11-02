@@ -73,10 +73,22 @@ export class RefundsService {
     const attempt = request.order.paymentAttempts.find((item) => Boolean(item.stripePaymentIntentId));
     if (!attempt?.stripePaymentIntentId) throw new ConflictException('Successful Stripe PaymentIntent not found');
 
-    await this.prisma.refundRequest.updateMany({
-      where: { id, status: { in: ['PENDING', 'PROCESSING'] } },
+    if (request.order.paymentAttempts.filter((item) => Boolean(item.stripePaymentIntentId)).length !== 1) {
+      throw new ConflictException('Multiple successful captures require manual payment review');
+    }
+
+    // Claim PENDING before calling Stripe. A concurrent rejection can no longer
+    // race past this transition; retries are allowed only for PROCESSING requests.
+    const claim = await this.prisma.refundRequest.updateMany({
+      where: { id, status: 'PENDING' },
       data: { status: 'PROCESSING', reviewedBy: adminId, reviewedAt: new Date(), adminNote: adminNote?.trim() },
     });
+    if (claim.count === 0) {
+      const current = await this.prisma.refundRequest.findUnique({ where: { id }, select: { status: true } });
+      if (current?.status !== 'PROCESSING') {
+        throw new ConflictException('Refund request is no longer pending approval');
+      }
+    }
 
     try {
       const refund = await this.stripe.refunds.create({
