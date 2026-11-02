@@ -55,7 +55,7 @@ export class AuthController {
     const { handoffCode } = await this.authService.authenticateOAuthProfile(request.user as OAuthProfile);
     const origin = process.env.STOREFRONT_ORIGIN || process.env.FRONTEND_URL;
     if (!origin) return response.status(500).send('Storefront origin is not configured');
-    return response.redirect(302, `${origin.replace(/\\/$/, '')}/auth/oauth/callback?code=${encodeURIComponent(handoffCode)}`);
+    return response.redirect(302, `${origin.replace(/\/$/, '')}/auth/oauth/callback?code=${encodeURIComponent(handoffCode)}`);
   }
 
   @Public()
@@ -70,7 +70,7 @@ export class AuthController {
     const { handoffCode } = await this.authService.authenticateOAuthProfile(request.user as OAuthProfile);
     const origin = process.env.STOREFRONT_ORIGIN || process.env.FRONTEND_URL;
     if (!origin) return response.status(500).send('Storefront origin is not configured');
-    return response.redirect(302, `${origin.replace(/\\/$/, '')}/auth/oauth/callback?code=${encodeURIComponent(handoffCode)}`);
+    return response.redirect(302, `${origin.replace(/\/$/, '')}/auth/oauth/callback?code=${encodeURIComponent(handoffCode)}`);
   }
 
   @Public()
