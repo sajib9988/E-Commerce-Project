@@ -69,10 +69,16 @@ export class AuthService {
 
   /**
    * Resolve a social identity to one internal account.
-   * Email is optional and is never used as an implicit account-linking key.
+   * We require an email for customer registration; it is never used as an
+   * implicit account-linking key.
    */
   async authenticateOAuthProfile(profile: OAuthProfileInput) {
     const providerEmail = profile.email?.trim().toLowerCase() || null;
+    if (!providerEmail) {
+      throw new BadRequestException(
+        'The provider did not share an email address. Allow email permission and try again.',
+      );
+    }
 
     try {
       const user = await this.prisma.$transaction(async (tx) => {
