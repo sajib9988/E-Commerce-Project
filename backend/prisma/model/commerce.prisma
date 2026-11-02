@@ -54,6 +54,7 @@ model Product {
   orderItems     OrderItem[]
   reservationItems StockReservationItem[]
   variants       ProductVariant[]
+  reviews        ProductReview[]
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
@@ -146,6 +147,7 @@ model Order {
   stockReservation StockReservation?
   couponRedemption CouponRedemption?
   fulfillments     Fulfillment[]
+  refundRequests   RefundRequest[]
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
 
@@ -196,6 +198,7 @@ model PaymentAttempt {
   reviewResolution         String?
   createdAt                DateTime             @default(now())
   updatedAt                DateTime             @updatedAt
+  refundRequests           RefundRequest[]
 
   @@index([orderId, status])
   @@map("payment_attempts")
