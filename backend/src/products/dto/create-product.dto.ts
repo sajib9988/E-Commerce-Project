@@ -1,4 +1,5 @@
 import { Type } from 'class-transformer';
+import { DesignStyle } from '../../../generated/prisma/enums';
 import {
   IsArray,
   IsNumber,
@@ -11,6 +12,7 @@ import {
   MaxLength,
   ArrayMaxSize,
   ArrayUnique,
+  IsEnum,
 } from 'class-validator';
 
 export class CreateProductDto {
@@ -39,6 +41,17 @@ export class CreateProductDto {
   @IsString()
   @MaxLength(100)
   brand?: string;
+
+  @IsOptional()
+  @IsEnum(DesignStyle)
+  designStyle?: DesignStyle;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(30)
+  @ArrayUnique()
+  @IsString({ each: true })
+  collectionIds?: string[];
 
   @IsOptional()
   @IsArray()
