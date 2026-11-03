@@ -42,6 +42,13 @@ export class CreateProductDto {
 
   @IsOptional()
   @IsArray()
+  @ArrayMaxSize(30)
+  @ArrayUnique()
+  @IsString({ each: true })
+  collectionIds?: string[];
+
+  @IsOptional()
+  @IsArray()
   @ArrayMaxSize(100)
   @ArrayUnique()
   @IsString({ each: true })

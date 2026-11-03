@@ -7,6 +7,7 @@ import {
   Param,
   Body,
   UploadedFile,
+  Query,
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -26,8 +27,8 @@ export class ProductsController {
 
   @Public()
   @Get()
-  findAll() {
-    return this.productsService.findAll();
+  findAll(@Query('collection') collectionSlug?: string) {
+    return this.productsService.findAll({ collectionSlug });
   }
 
   @Public()
