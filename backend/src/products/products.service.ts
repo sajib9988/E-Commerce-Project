@@ -1,9 +1,9 @@
-import { DesignStyle } from '../../generated/prisma/enums';
 import {
   Injectable,
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
+import { DesignStyle } from '../../generated/prisma/enums';
 import { PrismaService } from '../prisma/prisma.service';
 import { CloudinaryService } from '../cloudinary/cloudinary.service';
 import { CreateProductDto } from './dto/create-product.dto';
@@ -17,48 +17,48 @@ export class ProductsService {
   ) {}
 
   async findAll(filters: { designStyle?: DesignStyle; collectionSlug?: string } = {}) {
+    if (filters.designStyle && !Object.values(DesignStyle).includes(filters.designStyle)) {
+      throw new BadRequestException('Invalid designStyle filter');
+    }
     return this.prisma.product.findMany({
-      where: { isActive: true, ...(filters.designStyle && { designStyle: filters.designStyle }), ...(filters.collectionSlug && { collections: { some: { collection: { slug: filters.collectionSlug, isActive: true } } } }) },
-      include: { category: true, subcategory: true, collections: { include: { collection: true }, orderBy: { sortOrder: 'asc' } } },
+      where: {
+        isActive: true,
+        ...(filters.designStyle && { designStyle: filters.designStyle }),
+        ...(filters.collectionSlug && {
+          collections: { some: { collection: { slug: filters.collectionSlug, isActive: true } } },
+        }),
+      },
+      include: {
+        category: true,
+        subcategory: true,
+        variants: { where: { isActive: true }, include: { size: true } },
+        collections: { include: { collection: true }, orderBy: { sortOrder: 'asc' } },
+      },
       orderBy: { createdAt: 'desc' },
     });
   }
 
   async findOne(id: string) {
-    const product = await this.prisma.product.findUnique({
+    const product = await this.prisma.product.findFirst({
       where: { id, isActive: true },
-      include: { category: true, subcategory: true, collections: { include: { collection: true }, orderBy: { sortOrder: 'asc' } } },
+      include: {
+        category: true,
+        subcategory: true,
+        variants: { where: { isActive: true }, include: { size: true } },
+        collections: { include: { collection: true }, orderBy: { sortOrder: 'asc' } },
+      },
     });
-
-    if (!product) {
-      throw new NotFoundException('Product not found');
-    }
-
+    if (!product) throw new NotFoundException('Product not found');
     return product;
   }
 
-  private async validateCategory(
-    categoryId: string,
-    subcategoryId: string,
-  ) {
-    const category = await this.prisma.category.findUnique({
-      where: { id: categoryId },
-    });
-    if (!category) {
-      throw new NotFoundException('Category not found');
-    }
-
-    const subcategory = await this.prisma.subcategory.findUnique({
-      where: { id: subcategoryId },
-    });
-    if (!subcategory) {
-      throw new NotFoundException('Subcategory not found');
-    }
-
+  private async validateCategory(categoryId: string, subcategoryId: string) {
+    const category = await this.prisma.category.findUnique({ where: { id: categoryId } });
+    if (!category || !category.isActive) throw new NotFoundException('Active category not found');
+    const subcategory = await this.prisma.subcategory.findUnique({ where: { id: subcategoryId } });
+    if (!subcategory || !subcategory.isActive) throw new NotFoundException('Active subcategory not found');
     if (subcategory.categoryId !== categoryId) {
-      throw new BadRequestException(
-        'Subcategory does not belong to this category',
-      );
+      throw new BadRequestException('Subcategory does not belong to this category');
     }
   }
 
@@ -71,25 +71,29 @@ export class ProductsService {
   private async validateCollections(ids?: string[]) {
     if (!ids?.length) return;
     const uniqueIds = [...new Set(ids)];
-    const count = await this.prisma.collection.count({ where: { id: { in: uniqueIds }, isActive: true } });
-    if (count !== uniqueIds.length) throw new BadRequestException('One or more collections are missing or inactive');
+    const count = await this.prisma.collection.count({
+      where: { id: { in: uniqueIds }, isActive: true },
+    });
+    if (count !== uniqueIds.length) {
+      throw new BadRequestException('One or more collections are missing or inactive');
+    }
+  }
+
+  private createCollectionLinks(ids: string[]) {
+    return ids.map((collectionId, sortOrder) => ({ collectionId, sortOrder }));
   }
 
   async create(dto: CreateProductDto, file?: Express.Multer.File) {
-    if (!file) {
-      throw new BadRequestException('Product image is required');
-    }
-
+    if (!file) throw new BadRequestException('Product image is required');
     await this.validateCategory(dto.categoryId, dto.subcategoryId);
+    await this.validateCollections(dto.collectionIds);
     this.validatePrices(dto.regularPrice, dto.salePrice);
 
-    await this.validateCollections(dto.collectionIds);
     const image = await this.cloudinaryService.uploadImage(file);
-
     try {
       return await this.prisma.product.create({
         data: {
-          name: dto.name,
+          name: dto.name.trim(),
           description: dto.description,
           regularPrice: dto.regularPrice,
           salePrice: dto.salePrice ?? null,
@@ -104,30 +108,26 @@ export class ProductsService {
           subcategoryId: dto.subcategoryId,
           imageUrl: image.secure_url,
           imagePublicId: image.public_id,
-          ...(dto.collectionIds?.length && { collections: { create: dto.collectionIds.map((collectionId, sortOrder) => ({ collectionId, sortOrder })) } }),
+          ...(dto.collectionIds?.length && {
+            collections: { create: this.createCollectionLinks(dto.collectionIds) },
+          }),
         },
-        include: { category: true, subcategory: true, collections: { include: { collection: true }, orderBy: { sortOrder: 'asc' } } },
-      });
+        include: {
+          category: true,
+          subcategory: true,
+          collections: { include: { collection: true }, orderBy: { sortOrder: 'asc' } },
+        },
       });
     } catch (error) {
-      try {
-        await this.cloudinaryService.deleteImage(image.public_id);
-      } catch {
-        // Production: log cleanup failure and retry later.
-      }
+      try { await this.cloudinaryService.deleteImage(image.public_id); } catch { /* log and retry cleanup */ }
       throw error;
     }
   }
 
-  async update(
-    id: string,
-    dto: UpdateProductDto,
-    file?: Express.Multer.File,
-  ) {
+  async update(id: string, dto: UpdateProductDto, file?: Express.Multer.File) {
     const existing = await this.findOne(id);
     const categoryId = dto.categoryId ?? existing.categoryId;
-    const subcategoryId =
-      dto.subcategoryId ?? existing.subcategoryId;
+    const subcategoryId = dto.subcategoryId ?? existing.subcategoryId;
 
     if (dto.regularPrice !== undefined || dto.salePrice !== undefined) {
       this.validatePrices(
@@ -135,92 +135,63 @@ export class ProductsService {
         dto.salePrice === undefined ? existing.salePrice?.toNumber() ?? null : dto.salePrice,
       );
     }
-
-    if (dto.categoryId !== undefined ||
-        dto.subcategoryId !== undefined) {
+    if (dto.categoryId !== undefined || dto.subcategoryId !== undefined) {
       await this.validateCategory(categoryId, subcategoryId);
     }
-
     if (dto.collectionIds !== undefined) await this.validateCollections(dto.collectionIds);
 
-    const newImage = file
-      ? await this.cloudinaryService.uploadImage(file)
-      : null;
-
-    let updatedProduct;
+    const newImage = file ? await this.cloudinaryService.uploadImage(file) : null;
     try {
-      updatedProduct = await this.prisma.$transaction(async (tx) => {
-        if (dto.collectionIds !== undefined) await tx.productCollection.deleteMany({ where: { productId: id } });
+      const updated = await this.prisma.$transaction(async (tx) => {
+        if (dto.collectionIds !== undefined) {
+          await tx.productCollection.deleteMany({ where: { productId: id } });
+        }
         return tx.product.update({
-        where: { id },
-        data: {
-          ...(dto.name !== undefined && { name: dto.name }),
-          ...(dto.description !== undefined && {
-            description: dto.description,
-          }),
-          ...(dto.regularPrice !== undefined && { regularPrice: dto.regularPrice }),
-          ...(dto.salePrice !== undefined && { salePrice: dto.salePrice }),
-          ...(dto.brand !== undefined && { brand: dto.brand }),
-          ...(dto.designStyle !== undefined && { designStyle: dto.designStyle }),
-          ...(dto.sizes !== undefined && { sizes: dto.sizes }),
-          ...(dto.sku !== undefined && { sku: dto.sku?.trim() || null }),
-          ...(dto.apliiqDesignSku !== undefined && { apliiqDesignSku: dto.apliiqDesignSku?.trim() || null }),
-          ...(dto.stockQuantity !== undefined && { stockQuantity: dto.stockQuantity }),
-          ...(dto.isActive !== undefined && { isActive: dto.isActive }),
-          ...(dto.categoryId !== undefined && {
-            categoryId: dto.categoryId,
-          }),
-          ...(dto.subcategoryId !== undefined && {
-            subcategoryId: dto.subcategoryId,
-          }),
-          ...(dto.collectionIds !== undefined && { collections: { create: dto.collectionIds.map((collectionId, sortOrder) => ({ collectionId, sortOrder })) } }),
-          ...(newImage && {
-            imageUrl: newImage.secure_url,
-            imagePublicId: newImage.public_id,
-          }),
-        },
-        include: { category: true, subcategory: true },
+          where: { id },
+          data: {
+            ...(dto.name !== undefined && { name: dto.name.trim() }),
+            ...(dto.description !== undefined && { description: dto.description }),
+            ...(dto.regularPrice !== undefined && { regularPrice: dto.regularPrice }),
+            ...(dto.salePrice !== undefined && { salePrice: dto.salePrice }),
+            ...(dto.brand !== undefined && { brand: dto.brand }),
+            ...(dto.designStyle !== undefined && { designStyle: dto.designStyle }),
+            ...(dto.sizes !== undefined && { sizes: dto.sizes }),
+            ...(dto.sku !== undefined && { sku: dto.sku?.trim() || null }),
+            ...(dto.apliiqDesignSku !== undefined && { apliiqDesignSku: dto.apliiqDesignSku?.trim() || null }),
+            ...(dto.stockQuantity !== undefined && { stockQuantity: dto.stockQuantity }),
+            ...(dto.isActive !== undefined && { isActive: dto.isActive }),
+            ...(dto.categoryId !== undefined && { categoryId: dto.categoryId }),
+            ...(dto.subcategoryId !== undefined && { subcategoryId: dto.subcategoryId }),
+            ...(dto.collectionIds !== undefined && {
+              collections: { create: this.createCollectionLinks(dto.collectionIds) },
+            }),
+            ...(newImage && { imageUrl: newImage.secure_url, imagePublicId: newImage.public_id }),
+          },
+          include: {
+            category: true,
+            subcategory: true,
+            collections: { include: { collection: true }, orderBy: { sortOrder: 'asc' } },
+          },
+        });
       });
+      if (newImage && existing.imagePublicId) {
+        try { await this.cloudinaryService.deleteImage(existing.imagePublicId); } catch { /* log and retry cleanup */ }
+      }
+      return updated;
     } catch (error) {
       if (newImage) {
-        try {
-          await this.cloudinaryService.deleteImage(newImage.public_id);
-        } catch {
-          // Production: log cleanup failure and retry later.
-        }
+        try { await this.cloudinaryService.deleteImage(newImage.public_id); } catch { /* log and retry cleanup */ }
       }
       throw error;
     }
-
-    if (newImage && existing.imagePublicId) {
-      try {
-        await this.cloudinaryService.deleteImage(existing.imagePublicId);
-      } catch {
-        // Production: log cleanup failure and retry later.
-      }
-    }
-
-    return updatedProduct;
   }
 
   async remove(id: string) {
     const existing = await this.findOne(id);
-
-    const deletedProduct = await this.prisma.product.delete({
-      where: { id },
-    });
-
+    await this.prisma.product.update({ where: { id }, data: { isActive: false } });
     if (existing.imagePublicId) {
-      try {
-        await this.cloudinaryService.deleteImage(existing.imagePublicId);
-      } catch {
-        // Production: log cleanup failure and retry later.
-      }
+      try { await this.cloudinaryService.deleteImage(existing.imagePublicId); } catch { /* log and retry cleanup */ }
     }
-
-    return {
-      message: 'Product deleted successfully',
-      id: deletedProduct.id,
-    };
+    return { message: 'Product archived successfully', id };
   }
 }
