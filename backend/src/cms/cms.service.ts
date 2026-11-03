@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '../../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CmsSectionDto, CreateCmsPageDto, UpdateCmsPageDto } from './cms-page.dto';
@@ -77,6 +77,8 @@ async update(id: string, dto: UpdateCmsPageDto) {
 
   const { sections, publishAt, ...fields } = dto;
 
+  if (sections) await this.validateCollectionBlocks(sections);
+
   return this.withSlugConflict(() =>
     this.prisma.$transaction(async (tx) => {
       if (sections) await tx.cmsSection.deleteMany({ where: { pageId: id } });
@@ -116,6 +118,28 @@ async publish(id: string) {
     await this.findOne(id);
     await this.prisma.cmsPage.delete({ where: { id } });
     return { success: true };
+  }
+
+
+  // A CMS collection block stores a slug, never a client-supplied product list.
+  private async validateCollectionBlocks(sections: CmsSectionDto[]) {
+    const slugs = [...new Set(sections.flatMap((section) =>
+      section.blocks
+        .filter((block) => block.type === 'PRODUCT_COLLECTION')
+        .map((block) => block.content.collectionSlug)
+        .filter((slug): slug is string => typeof slug === 'string'),
+    ))];
+    if (!slugs.length) return;
+
+    const active = await this.prisma.collection.findMany({
+      where: { slug: { in: slugs }, isActive: true },
+      select: { slug: true },
+    });
+    const allowed = new Set(active.map((item) => item.slug));
+    const invalid = slugs.filter((slug) => !allowed.has(slug));
+    if (invalid.length) {
+      throw new BadRequestException(`CMS Product Collection block references missing or inactive collection(s): ${invalid.join(', ')}`);
+    }
   }
 
   // sortOrder client theke na niye array index theke ney (trust kora jay na)
