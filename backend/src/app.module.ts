@@ -18,6 +18,7 @@ import { OrdersModule } from './orders/orders.module';
 import { ApliiqModule } from './apliiq/apliiq.module';
 import { PaymentsModule } from './payments/payments.module';
 import { CouponsModule } from './coupons/coupons.module';
+import { CollectionsModule } from './collections/collections.module';
 import { CategoriesModule } from './categories/categories.module';
 import { VariantsModule } from './products/variants/variants.module';
 import { SizeTemplatesModule } from './products/size-templates/size-templates.module';
@@ -43,6 +44,7 @@ import { ReviewsModule } from './reviews/reviews.module';
     PaymentsModule,
     CouponsModule,
     CategoriesModule,
+    CollectionsModule,
     VariantsModule,
     SizeTemplatesModule,
     ReviewsModule,
