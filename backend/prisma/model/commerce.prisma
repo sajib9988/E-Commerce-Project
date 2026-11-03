@@ -40,6 +40,7 @@ model Product {
   regularPrice   Decimal       @db.Decimal(10, 2)
   salePrice      Decimal?      @db.Decimal(10, 2)
   brand          String?
+  designStyle    DesignStyle?
   sizes          String[]      @default([])
   sku            String?       @unique
   apliiqDesignSku String?
@@ -55,6 +56,7 @@ model Product {
   reservationItems StockReservationItem[]
   variants       ProductVariant[]
   reviews        ProductReview[]
+  collections    ProductCollection[]
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
@@ -64,6 +66,37 @@ model Product {
   @@map("products")
 }
 
+
+model Collection {
+  id          String              @id @default(cuid())
+  name        String
+  slug        String              @unique
+  description String?
+  bannerImage String?
+  thumbnail   String?
+  isActive    Boolean             @default(true)
+  isFeatured  Boolean             @default(false)
+  sortOrder   Int                 @default(0)
+  products    ProductCollection[]
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  @@index([isActive, isFeatured, sortOrder])
+  @@map("collections")
+}
+
+model ProductCollection {
+  productId    String
+  collectionId String
+  product      Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  collection   Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  sortOrder    Int        @default(0)
+  createdAt    DateTime   @default(now())
+
+  @@id([productId, collectionId])
+  @@index([collectionId, sortOrder])
+  @@map("product_collections")
+}
 
 model SizeTemplate {
   id            String            @id @default(cuid())
