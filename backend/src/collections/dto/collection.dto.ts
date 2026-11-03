@@ -1,3 +1,4 @@
+import { PartialType } from '@nestjs/mapped-types';
 import { IsBoolean, IsInt, IsNotEmpty, IsOptional, IsString, Matches, MaxLength, Min } from 'class-validator';
 
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -28,4 +29,4 @@ export class CreateCollectionDto {
   sortOrder?: number;
 }
 
-export class UpdateCollectionDto extends CreateCollectionDto {}
+export class UpdateCollectionDto extends PartialType(CreateCollectionDto) {}
