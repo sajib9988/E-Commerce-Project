@@ -187,11 +187,9 @@ export class ProductsService {
   }
 
   async remove(id: string) {
-    const existing = await this.findOne(id);
+    await this.findOne(id);
+    // Archive only: keep media and order snapshots intact for historical records/reactivation.
     await this.prisma.product.update({ where: { id }, data: { isActive: false } });
-    if (existing.imagePublicId) {
-      try { await this.cloudinaryService.deleteImage(existing.imagePublicId); } catch { /* log and retry cleanup */ }
-    }
     return { message: 'Product archived successfully', id };
   }
 }
