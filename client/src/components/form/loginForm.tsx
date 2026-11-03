@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
@@ -22,7 +22,7 @@ import { Input } from "@/components/ui/input";
 
 
 import { LoginFormData, loginSchema, VerifyEmailFormData, verifyEmailSchema } from "@/lib/validation";
-import { loginUser, resendVerification, verifyEmail } from "@/service/auth.service";
+import { loginUser, resendVerification, verifyEmail, verifyLoginOtp, resendLoginOtp } from "@/service/auth.service";
 import { Form, FormControl, FormField, FormItem, FormMessage } from "../ui/form";
 
 export default function LoginForm() {
@@ -32,7 +32,7 @@ export default function LoginForm() {
   // STEP
   // =====================================================
 
-  const [step, setStep] = useState<"login" | "verify">(
+  const [step, setStep] = useState<"login" | "verify" | "admin-otp">(
     "login"
   );
 
@@ -41,6 +41,8 @@ export default function LoginForm() {
   // =====================================================
 
   const [email, setEmail] = useState("");
+  const [challengeToken, setChallengeToken] = useState("");
+  const [adminOtp, setAdminOtp] = useState("");
 
   const [showOtp, setShowOtp] = useState(false);
 
@@ -144,6 +146,14 @@ export default function LoginForm() {
         return;
       }
 
+      if (result.data?.requiresOtp && result.data?.challengeToken) {
+        setChallengeToken(result.data.challengeToken);
+        setAdminOtp("");
+        setStep("admin-otp");
+        toast.success("A login code has been sent to your email.");
+        return;
+      }
+
       // =================================================
       // LOGIN SUCCESS
       // =================================================
@@ -156,7 +166,7 @@ export default function LoginForm() {
       console.log("User role:", userRole);
 
       setTimeout(() => {
-        if (userRole === "ADMIN") {
+        if (userRole === "ADMIN" || userRole === "SUPER_ADMIN") {
           router.push("/admin");
         } else {
           router.push("/");
@@ -170,6 +180,48 @@ export default function LoginForm() {
       toast.error(
         "Something went wrong. Please try again."
       );
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+
+  const handleAdminOtp = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!challengeToken || !/^\\d{6}$/.test(adminOtp)) {
+      toast.error("Enter the 6-digit login code.");
+      return;
+    }
+    setIsLoading(true);
+    try {
+      const result = await verifyLoginOtp(challengeToken, adminOtp);
+      if (!result.ok) {
+        toast.error(result.data?.message || "Could not verify login code.");
+        return;
+      }
+      toast.success("Admin login successful");
+      router.replace("/admin");
+      router.refresh();
+    } catch {
+      toast.error("Something went wrong. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleResendAdminOtp = async () => {
+    if (!challengeToken) return;
+    setIsLoading(true);
+    try {
+      const result = await resendLoginOtp(challengeToken);
+      if (!result?.success) {
+        toast.error(result?.message || "Could not resend login code.");
+        return;
+      }
+      setAdminOtp("");
+      toast.success("A new login code has been sent.");
+    } catch {
+      toast.error("Could not resend login code.");
     } finally {
       setIsLoading(false);
     }
@@ -459,9 +511,7 @@ export default function LoginForm() {
           text-white
         "
       >
-        {step === "login"
-          ? "Welcome"
-          : "Verify Email"}
+        {step === "login" ? "Welcome" : step === "admin-otp" ? "Admin Login Verification" : "Verify Email"}
       </h2>
 
       {/* =================================================
@@ -476,11 +526,7 @@ export default function LoginForm() {
           text-white/55
         "
       >
-        {step === "login"
-          ? "Sign in to your Petronick account"
-          : showOtp
-            ? `Enter the 6-digit code sent to ${email}`
-            : "Your email address needs to be verified"}
+        {step === "login" ? "Sign in to your Petronick account" : step === "admin-otp" ? "Enter the 6-digit code sent to your admin email" : showOtp ? `Enter the 6-digit code sent to ${email}` : "Your email address needs to be verified"}
       </p>
 
       {/* =================================================
@@ -713,9 +759,25 @@ export default function LoginForm() {
             </Button>
           </form>
         </Form>
+      ) : step === "admin-otp" ? (
+        <form onSubmit={handleAdminOtp} className="space-y-5">
+          <Input
+            value={adminOtp}
+            onChange={(event) => setAdminOtp(event.target.value.replace(/\\D/g, "").slice(0, 6))}
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            placeholder="6-digit login code"
+            className="h-12 rounded-2xl border-none bg-white/5 text-center text-white ring-1 ring-white/10"
+          />
+          <Button type="submit" disabled={isLoading || adminOtp.length !== 6} className="h-12 w-full rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 font-bold text-white">
+            {isLoading ? "Verifying..." : "Verify & Login"}
+          </Button>
+          <button type="button" onClick={handleResendAdminOtp} disabled={isLoading} className="w-full text-center text-xs text-white/60 hover:text-white">Resend login code</button>
+          <button type="button" onClick={() => { setStep("login"); setChallengeToken(""); setAdminOtp(""); }} disabled={isLoading} className="w-full text-center text-xs text-white/50 hover:text-white">Back to Login</button>
+        </form>
       ) : (
         /* =================================================
-           VERIFY STEP
+           VERIFY EMAIL STEP
         ================================================= */
 
         <Form {...verifyForm}>

@@ -17,6 +17,7 @@ export class ProductsService {
 
   async findAll() {
     return this.prisma.product.findMany({
+      where: { isActive: true },
       include: { category: true, subcategory: true },
       orderBy: { createdAt: 'desc' },
     });
@@ -24,7 +25,7 @@ export class ProductsService {
 
   async findOne(id: string) {
     const product = await this.prisma.product.findUnique({
-      where: { id },
+      where: { id, isActive: true },
       include: { category: true, subcategory: true },
     });
 

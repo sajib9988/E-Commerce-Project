@@ -17,6 +17,7 @@ import { OrdersModule } from './orders/orders.module';
 import { ApliiqModule } from './apliiq/apliiq.module';
 import { PaymentsModule } from './payments/payments.module';
 import { CouponsModule } from './coupons/coupons.module';
+import { CategoriesModule } from './categories/categories.module';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { CouponsModule } from './coupons/coupons.module';
     ApliiqModule,
     PaymentsModule,
     CouponsModule,
+    CategoriesModule,
   ],
   controllers: [AppController],
   providers: [
