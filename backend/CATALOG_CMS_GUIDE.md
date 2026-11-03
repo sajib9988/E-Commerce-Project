@@ -4,7 +4,6 @@
 Products may use one of these optional values:
 - `REALISTIC`
 - `CARTOON`
-- `MINIMAL`
 
 Public product filters:
 - `GET /api/v1/products?designStyle=REALISTIC`
@@ -25,7 +24,7 @@ Collection fields: name, slug, description, bannerImage, thumbnail, isActive, is
 A product may belong to multiple collections. The join record stores its position within a collection.
 
 ## Homepage CMS collection block
-The CMS supports a `PRODUCT_COLLECTION` block type. Add it to the Homepage CMS page and set its content to:
+The existing CMS hierarchy remains `CmsPage → CmsSection → CmsBlock`. Use the dedicated `PRODUCT_COLLECTION` block type inside a Homepage section; this is preferable to embedding dynamic product data in `RICH_TEXT`, because the frontend can identify and render a live product collection independently. Set the block content to:
 
 ```json
 {
@@ -35,7 +34,7 @@ The CMS supports a `PRODUCT_COLLECTION` block type. Add it to the Homepage CMS p
 }
 ```
 
-The CMS section/block `sortOrder` controls placement; `isVisible` controls whether it is shown. Publish the Homepage CMS page to expose the block through the public CMS page endpoint. The storefront renderer should resolve `collectionSlug` using `GET /api/v1/collections/:slug` (or fetch a featured collection list) and render the product cards. The backend validates the slug format and optional limit (1–24), but the renderer is a frontend responsibility.
+The CMS section/block `sortOrder` controls placement; `isVisible` controls visibility. The backend verifies that `collectionSlug` belongs to an existing active collection before saving the page update. Publish the Homepage CMS page to expose the block through the public CMS page endpoint. The storefront renderer should resolve `collectionSlug` using `GET /api/v1/collections/:slug` and render the product cards (applying `limit` in the renderer or API query layer). Dynamic product data is not copied into CMS rich text; CMS stores only the collection reference and presentation settings.
 
 ## Migration / validation
 After pulling this branch, regenerate Prisma Client and create/apply a migration for the new `DesignStyle` enum, `Product.designStyle`, `Collection`, and `ProductCollection` models. Run Prisma format/validate, client generation, backend build, lint and tests before merging. No migration or local test command is run by this change.
