@@ -50,6 +50,19 @@ export function assertSafeBlockContent(
   content: Obj,
 ): void {
   switch (type) {
+    case 'PRODUCT_COLLECTION': {
+      if (typeof content.collectionSlug !== 'string' || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(content.collectionSlug)) {
+        throw new BadRequestException('PRODUCT_COLLECTION requires a valid collectionSlug');
+      }
+      if (content.title !== undefined && typeof content.title !== 'string') {
+        throw new BadRequestException('PRODUCT_COLLECTION title must be a string');
+      }
+      if (content.limit !== undefined && (!Number.isInteger(content.limit) || Number(content.limit) < 1 || Number(content.limit) > 24)) {
+        throw new BadRequestException('PRODUCT_COLLECTION limit must be between 1 and 24');
+      }
+      break;
+    }
+
     case 'BUTTONS': {
       const items = Array.isArray(content.items) ? content.items : [];
 
