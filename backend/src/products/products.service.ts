@@ -1,3 +1,4 @@
+import { DesignStyle } from '../../generated/prisma/enums';
 import {
   Injectable,
   NotFoundException,
@@ -15,10 +16,10 @@ export class ProductsService {
     private readonly cloudinaryService: CloudinaryService,
   ) {}
 
-  async findAll() {
+  async findAll(filters: { designStyle?: DesignStyle; collectionSlug?: string } = {}) {
     return this.prisma.product.findMany({
-      where: { isActive: true },
-      include: { category: true, subcategory: true },
+      where: { isActive: true, ...(filters.designStyle && { designStyle: filters.designStyle }), ...(filters.collectionSlug && { collections: { some: { collection: { slug: filters.collectionSlug, isActive: true } } } }) },
+      include: { category: true, subcategory: true, collections: { include: { collection: true }, orderBy: { sortOrder: 'asc' } } },
       orderBy: { createdAt: 'desc' },
     });
   }
@@ -26,7 +27,7 @@ export class ProductsService {
   async findOne(id: string) {
     const product = await this.prisma.product.findUnique({
       where: { id, isActive: true },
-      include: { category: true, subcategory: true },
+      include: { category: true, subcategory: true, collections: { include: { collection: true }, orderBy: { sortOrder: 'asc' } } },
     });
 
     if (!product) {
@@ -67,6 +68,13 @@ export class ProductsService {
     }
   }
 
+  private async validateCollections(ids?: string[]) {
+    if (!ids?.length) return;
+    const uniqueIds = [...new Set(ids)];
+    const count = await this.prisma.collection.count({ where: { id: { in: uniqueIds }, isActive: true } });
+    if (count !== uniqueIds.length) throw new BadRequestException('One or more collections are missing or inactive');
+  }
+
   async create(dto: CreateProductDto, file?: Express.Multer.File) {
     if (!file) {
       throw new BadRequestException('Product image is required');
@@ -75,6 +83,7 @@ export class ProductsService {
     await this.validateCategory(dto.categoryId, dto.subcategoryId);
     this.validatePrices(dto.regularPrice, dto.salePrice);
 
+    await this.validateCollections(dto.collectionIds);
     const image = await this.cloudinaryService.uploadImage(file);
 
     try {
@@ -85,6 +94,7 @@ export class ProductsService {
           regularPrice: dto.regularPrice,
           salePrice: dto.salePrice ?? null,
           brand: dto.brand,
+          designStyle: dto.designStyle ?? null,
           sizes: dto.sizes ?? [],
           sku: dto.sku?.trim() || null,
           apliiqDesignSku: dto.apliiqDesignSku?.trim() || null,
@@ -94,8 +104,10 @@ export class ProductsService {
           subcategoryId: dto.subcategoryId,
           imageUrl: image.secure_url,
           imagePublicId: image.public_id,
+          ...(dto.collectionIds?.length && { collections: { create: dto.collectionIds.map((collectionId, sortOrder) => ({ collectionId, sortOrder })) } }),
         },
-        include: { category: true, subcategory: true },
+        include: { category: true, subcategory: true, collections: { include: { collection: true }, orderBy: { sortOrder: 'asc' } } },
+      });
       });
     } catch (error) {
       try {
@@ -129,13 +141,17 @@ export class ProductsService {
       await this.validateCategory(categoryId, subcategoryId);
     }
 
+    if (dto.collectionIds !== undefined) await this.validateCollections(dto.collectionIds);
+
     const newImage = file
       ? await this.cloudinaryService.uploadImage(file)
       : null;
 
     let updatedProduct;
     try {
-      updatedProduct = await this.prisma.product.update({
+      updatedProduct = await this.prisma.$transaction(async (tx) => {
+        if (dto.collectionIds !== undefined) await tx.productCollection.deleteMany({ where: { productId: id } });
+        return tx.product.update({
         where: { id },
         data: {
           ...(dto.name !== undefined && { name: dto.name }),
@@ -145,6 +161,7 @@ export class ProductsService {
           ...(dto.regularPrice !== undefined && { regularPrice: dto.regularPrice }),
           ...(dto.salePrice !== undefined && { salePrice: dto.salePrice }),
           ...(dto.brand !== undefined && { brand: dto.brand }),
+          ...(dto.designStyle !== undefined && { designStyle: dto.designStyle }),
           ...(dto.sizes !== undefined && { sizes: dto.sizes }),
           ...(dto.sku !== undefined && { sku: dto.sku?.trim() || null }),
           ...(dto.apliiqDesignSku !== undefined && { apliiqDesignSku: dto.apliiqDesignSku?.trim() || null }),
@@ -156,6 +173,7 @@ export class ProductsService {
           ...(dto.subcategoryId !== undefined && {
             subcategoryId: dto.subcategoryId,
           }),
+          ...(dto.collectionIds !== undefined && { collections: { create: dto.collectionIds.map((collectionId, sortOrder) => ({ collectionId, sortOrder })) } }),
           ...(newImage && {
             imageUrl: newImage.secure_url,
             imagePublicId: newImage.public_id,
