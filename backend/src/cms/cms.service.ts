@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '../../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CmsSectionDto, CreateCmsPageDto, UpdateCmsPageDto } from './cms-page.dto';
@@ -77,6 +77,8 @@ async update(id: string, dto: UpdateCmsPageDto) {
 
   const { sections, publishAt, ...fields } = dto;
 
+  if (sections) await this.validateCollectionBlocks(sections);
+
   return this.withSlugConflict(() =>
     this.prisma.$transaction(async (tx) => {
       if (sections) await tx.cmsSection.deleteMany({ where: { pageId: id } });
@@ -116,6 +118,34 @@ async publish(id: string) {
     await this.findOne(id);
     await this.prisma.cmsPage.delete({ where: { id } });
     return { success: true };
+  }
+
+  // Dynamic collection blocks must point to an existing active collection.
+  // The CMS stores only the collection slug; product data remains in the Collection module.
+  private async validateCollectionBlocks(sections: CmsSectionDto[]) {
+    const slugs = [...new Set(
+      sections.flatMap((section) =>
+        section.blocks
+          .filter((block) => block.type === 'PRODUCT_COLLECTION')
+          .map((block) => block.content.collectionSlug)
+          .filter((slug): slug is string => typeof slug === 'string'),
+      ),
+    )];
+
+    if (slugs.length === 0) return;
+
+    const activeCollections = await this.prisma.collection.findMany({
+      where: { slug: { in: slugs }, isActive: true },
+      select: { slug: true },
+    });
+    const activeSlugs = new Set(activeCollections.map((collection) => collection.slug));
+    const invalidSlugs = slugs.filter((slug) => !activeSlugs.has(slug));
+
+    if (invalidSlugs.length > 0) {
+      throw new BadRequestException(
+        `CMS Product Collection block references missing or inactive collection(s): ${invalidSlugs.join(', ')}`,
+      );
+    }
   }
 
   // sortOrder client theke na niye array index theke ney (trust kora jay na)

@@ -22,6 +22,7 @@ enum CmsBlockType {
   VIDEO
   SPACER
   ACCORDION
+  PRODUCT_COLLECTION
 }
 
 enum MediaType {

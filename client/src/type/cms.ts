@@ -10,7 +10,8 @@ export type BlockType =
   | "GALLERY"
   | "VIDEO"
   | "SPACER"
-  | "ACCORDION";
+  | "ACCORDION"
+  | "PRODUCT_COLLECTION";
 
 export type MediaType = "IMAGE" | "VIDEO";
 
@@ -238,6 +239,7 @@ export const BLOCK_LABELS: Record<BlockType, string> = {
   VIDEO: "Video",
   SPACER: "Spacer",
   ACCORDION: "Accordion / FAQ",
+  PRODUCT_COLLECTION: "Product Collection",
 };
 
 export const BLOCK_TYPES = Object.keys(BLOCK_LABELS) as BlockType[];

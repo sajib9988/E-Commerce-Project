@@ -7,6 +7,7 @@ import {
   Param,
   Body,
   UploadedFile,
+  Query,
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -14,7 +15,7 @@ import { ProductsService } from './products.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { productImageUploadOptions } from './upload';
-import { UserRole } from '../../generated/prisma/enums';
+import { DesignStyle, UserRole } from '../../generated/prisma/enums';
 import { Roles } from '../common/decorators/roles.decorator';
 import { Public } from '../common/decorators/public.decorator';
 
@@ -26,8 +27,8 @@ export class ProductsController {
 
   @Public()
   @Get()
-  findAll() {
-    return this.productsService.findAll();
+  findAll(@Query('designStyle') designStyle?: DesignStyle, @Query('collection') collectionSlug?: string) {
+    return this.productsService.findAll({ designStyle, collectionSlug });
   }
 
   @Public()

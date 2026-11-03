@@ -19,6 +19,7 @@ import {
 
 import { RichTextEditor } from "@/components/cms/rich-text-editor";
 import { MediaPickerButton } from "./media-picker";
+import { ProductCollectionBlockEditor } from "./product-collection-block";
 
 type BlockEditorProps = {
   blocks: ContentBlock[];
@@ -706,6 +707,14 @@ export function BlockEditor({
                 Add Item
               </button>
             </div>
+          )}
+
+          {/* Product collection */}
+          {block.type === "PRODUCT_COLLECTION" && (
+            <ProductCollectionBlockEditor
+              block={block}
+              onChange={(content) => updateContent(block, content)}
+            />
           )}
 
           {/* Block settings */}

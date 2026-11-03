@@ -444,4 +444,114 @@ export class PaymentsService {
     });
   }
 
+
+  async createCustomerRefundRequest(userId: string, orderId: string, reason: string) {
+    const normalizedReason = reason.trim();
+    if (normalizedReason.length < 10 || normalizedReason.length > 1000) {
+      throw new BadRequestException('Refund reason must be between 10 and 1000 characters');
+    }
+    const order = await this.prisma.order.findFirst({
+      where: { id: orderId, userId },
+      include: { paymentAttempts: { where: { status: PaymentAttemptStatus.SUCCEEDED }, orderBy: { paidAt: 'asc' } } },
+    });
+    if (!order) throw new NotFoundException('Order not found');
+    if (order.paymentStatus !== PaymentStatus.PAID || order.status === OrderStatus.REFUNDED) {
+      throw new ConflictException('Only paid, not-yet-refunded orders can request a refund');
+    }
+    if (!order.paymentAttempts.some((attempt) => attempt.stripePaymentIntentId)) {
+      throw new ConflictException('No successful Stripe payment is available for refund');
+    }
+    const pending = await this.prisma.refundRequest.findFirst({ where: { orderId, status: 'PENDING' } });
+    if (pending) throw new ConflictException('A refund request is already pending for this order');
+    try {
+      return await this.prisma.refundRequest.create({
+        data: { orderId, userId, reason: normalizedReason },
+        select: { id: true, orderId: true, reason: true, status: true, createdAt: true },
+      });
+    } catch (error) {
+      if ((error as { code?: string })?.code === 'P2002') {
+        throw new ConflictException('Only one refund request is allowed per order');
+      }
+      throw error;
+    }
+  }
+
+  async findMyRefundRequests(userId: string) {
+    return this.prisma.refundRequest.findMany({
+      where: { userId },
+      include: { order: { select: { id: true, orderNumber: true, totalAmount: true, currency: true, status: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async findRefundRequestsForAdmin(status?: 'PENDING' | 'APPROVED' | 'REJECTED' | 'FAILED') {
+    return this.prisma.refundRequest.findMany({
+      where: status ? { status } : {},
+      include: {
+        order: { select: { id: true, orderNumber: true, totalAmount: true, currency: true, status: true, paymentStatus: true } },
+        user: { select: { id: true, name: true, email: true } },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+  }
+
+  async reviewRefundRequest(requestId: string, adminId: string, decision: 'APPROVE' | 'REJECT', note: string) {
+    const normalizedNote = note.trim();
+    if (normalizedNote.length < 5 || normalizedNote.length > 500) {
+      throw new BadRequestException('Admin note must be between 5 and 500 characters');
+    }
+    const request = await this.prisma.refundRequest.findUnique({
+      where: { id: requestId },
+      include: { order: { include: { paymentAttempts: { where: { status: PaymentAttemptStatus.SUCCEEDED }, orderBy: { paidAt: 'asc' } } } } },
+    });
+    if (!request) throw new NotFoundException('Refund request not found');
+    if (request.status !== 'PENDING') throw new ConflictException('Refund request has already been reviewed');
+
+    if (decision === 'REJECT') {
+      const claimed = await this.prisma.refundRequest.updateMany({
+        where: { id: requestId, status: 'PENDING' },
+        data: { status: 'REJECTED', adminNote: normalizedNote, reviewedBy: adminId, reviewedAt: new Date() },
+      });
+      if (claimed.count !== 1) throw new ConflictException('Refund request was already processed');
+      return this.prisma.refundRequest.findUnique({ where: { id: requestId } });
+    }
+
+    if (request.order.paymentStatus !== PaymentStatus.PAID || request.order.status === OrderStatus.REFUNDED) {
+      throw new ConflictException('Order is no longer eligible for refund');
+    }
+    const successfulAttempt = request.order.paymentAttempts.find((attempt) => attempt.stripePaymentIntentId);
+    if (!successfulAttempt?.stripePaymentIntentId) {
+      throw new ConflictException('No successful Stripe PaymentIntent is available');
+    }
+
+    let stripeRefundId: string;
+    try {
+      const stripeRefund = await this.stripe.refunds.create(
+        {
+          payment_intent: successfulAttempt.stripePaymentIntentId,
+          reason: 'requested_by_customer',
+          metadata: { refundRequestId: request.id, orderId: request.orderId, reviewedBy: adminId, reviewNote: normalizedNote.slice(0, 450) },
+        },
+        { idempotencyKey: 'customer-refund-request:' + request.id },
+      );
+      stripeRefundId = stripeRefund.id;
+    } catch {
+      // Keep request PENDING; a retry uses the same Stripe idempotency key.
+      throw new ServiceUnavailableException('Stripe refund could not be confirmed. The request remains pending for a safe retry.');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const claimed = await tx.refundRequest.updateMany({
+        where: { id: requestId, status: 'PENDING' },
+        data: { status: 'APPROVED', adminNote: normalizedNote, reviewedBy: adminId, reviewedAt: new Date(), stripeRefundId },
+      });
+      if (claimed.count !== 1) {
+        // Stripe's idempotency key ensures a retry cannot create a second refund.
+        throw new ConflictException('Refund was sent to Stripe but the request state changed; reconcile this request before retrying');
+      }
+      await tx.order.update({ where: { id: request.orderId }, data: { status: OrderStatus.REFUNDED } });
+      return tx.refundRequest.findUnique({ where: { id: requestId } });
+    });
+  }
+
 }

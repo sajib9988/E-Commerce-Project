@@ -108,6 +108,16 @@ case "ACCORDION":
         },
       };
 
+    case "PRODUCT_COLLECTION":
+      return {
+        ...base,
+        content: {
+          collectionSlug: "",
+          title: "",
+          limit: 8,
+        },
+      };
+
     default: {
       const exhaustiveCheck: never = type;
       throw new Error(

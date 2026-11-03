@@ -1,3 +1,8 @@
+enum DesignStyle {
+  REALISTIC
+  CARTOON
+}
+
 enum OrderStatus {
   PENDING_PAYMENT
   PROCESSING

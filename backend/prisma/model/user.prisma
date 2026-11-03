@@ -10,6 +10,8 @@ model User {
   resetToken                String?
   resetTokenExpiresAt       DateTime?
   orders                    Order[]
+  productReviews            ProductReview[]
+  refundRequests            RefundRequest[]
   assignedCoupons           Coupon[]  @relation("AssignedCoupons")
   couponRedemptions         CouponRedemption[]
   reviews                   ProductReview[]
