@@ -1,7 +1,6 @@
 enum DesignStyle {
   REALISTIC
   CARTOON
-  MINIMAL
 }
 
 enum OrderStatus {
