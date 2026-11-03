@@ -57,7 +57,7 @@ export function assertSafeBlockContent(
       if (content.title !== undefined && typeof content.title !== 'string') {
         throw new BadRequestException('PRODUCT_COLLECTION title must be a string');
       }
-      if (content.limit !== undefined && (!Number.isInteger(content.limit) || Number(content.limit) < 1 || Number(content.limit) > 24)) {
+      if (content.limit !== undefined && (typeof content.limit !== 'number' || !Number.isInteger(content.limit) || content.limit < 1 || content.limit > 24)) {
         throw new BadRequestException('PRODUCT_COLLECTION limit must be between 1 and 24');
       }
       break;
