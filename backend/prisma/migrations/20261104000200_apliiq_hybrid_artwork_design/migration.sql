@@ -1,5 +1,3 @@
-ALTER TABLE "products" DROP COLUMN "apliiqArtworkId";
-
 CREATE TABLE "product_artworks" (
   "id" TEXT NOT NULL,
   "productId" TEXT NOT NULL,
@@ -16,6 +14,18 @@ CREATE UNIQUE INDEX "product_artworks_apliiqArtworkId_key" ON "product_artworks"
 CREATE INDEX "product_artworks_productId_isPrimary_idx" ON "product_artworks"("productId", "isPrimary");
 ALTER TABLE "product_artworks" ADD CONSTRAINT "product_artworks_productId_fkey"
   FOREIGN KEY ("productId") REFERENCES "products"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+INSERT INTO "product_artworks" (
+  "id", "productId", "name", "imageUrl", "imagePublicId", "apliiqArtworkId",
+  "isPrimary", "createdAt", "updatedAt"
+)
+SELECT
+  'legacy-artwork-' || "id", "id", LEFT("name", 50), "imageUrl", "imagePublicId",
+  "apliiqArtworkId", true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+FROM "products"
+WHERE "apliiqArtworkId" IS NOT NULL;
+
+ALTER TABLE "products" DROP COLUMN "apliiqArtworkId";
 
 CREATE TABLE "product_artwork_placements" (
   "id" TEXT NOT NULL,
