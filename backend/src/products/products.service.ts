@@ -127,7 +127,10 @@ export class ProductsService {
         });
       });
       if (newImage && existing.imagePublicId) {
-        try { await this.cloudinaryService.deleteImage(existing.imagePublicId); } catch { /* log and retry cleanup */ }
+        const artworkStillUsesImage = await this.prisma.productArtwork.count({ where: { productId: id, imagePublicId: existing.imagePublicId } });
+        if (artworkStillUsesImage === 0) {
+          try { await this.cloudinaryService.deleteImage(existing.imagePublicId); } catch { /* log and retry cleanup */ }
+        }
       }
       return updated;
     } catch (error) {
