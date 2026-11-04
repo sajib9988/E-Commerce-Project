@@ -70,6 +70,37 @@ $ mau deploy
 
 With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
 
+
+## Project backend configuration
+
+Copy `.env.example` to `.env` and configure the services below before running the API:
+
+- **Redis:** Set `REDIS_URL` to the same private Redis service used by BullMQ. The global request throttler and OTP failed-attempt counters now use Redis, so all API instances share the same limits.
+- **Reverse proxy:** Set `TRUST_PROXY=1` only when the VPS origin is firewalled to accept traffic from the trusted Cloudflare proxy path. Do not trust forwarded headers from direct public clients.
+- **Turnstile:** Configure `TURNSTILE_SECRET_KEY` in production. Registration and password-reset verification fail closed when it is missing.
+- **OAuth:** Configure `GOOGLE_CLIENT_ID` and/or `FACEBOOK_APP_ID` + `FACEBOOK_APP_SECRET`. The API validates provider tokens server-side at `POST /auth/oauth/google` or `POST /auth/oauth/facebook`; send `{ "accessToken": "..." }`.
+- **Refresh sessions:** `POST /auth/refresh` rotates the refresh token. `POST /auth/logout` expects the refresh token in the request body so the server can revoke its stored session. Existing refresh tokens issued before the refresh-session migration are not in the database; users must sign in again after that migration is deployed.
+- **Notifications:** Configure Gmail OAuth2 or SMTP settings to send order-confirmation and shipment emails. Jobs are queued through BullMQ's `email` queue.
+
+### Catalog pagination
+
+Public catalog endpoints preserve the legacy array response when no pagination query is supplied. Add `page` or `limit` to receive `{ items, pagination }`.
+
+- `GET /products?page=1&limit=20&search=shirt&sortBy=createdAt&sortOrder=desc`
+- `GET /collections?page=1&limit=20&search=summer`
+
+Admin catalog endpoints include inactive records:
+
+- `GET /products/admin/list?page=1&limit=20&isActive=false`
+- `GET /collections/admin/list?page=1&limit=20&isActive=false`
+
+### Database migrations
+
+Run `pnpm db:deploy` after setting the production `DATABASE_URL`. The authentication and Stripe Checkout changes add these migrations:
+
+- `20261104000300_auth_oauth_refresh_sessions`
+- `20261104000400_checkout_session_expiry`
+
 ## Resources
 
 Check out a few resources that may come in handy when working with NestJS:
