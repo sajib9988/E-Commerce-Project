@@ -310,12 +310,18 @@ export class AuthService {
       await this.recordFailedAttempt(user.id);
       throw new BadRequestException('Invalid or expired reset code');
     }
-    await this.prisma.user.update({
-      where: { id: user.id },
-      data: { password: await hashPassword(dto.newPassword), resetToken: null, resetTokenExpiresAt: null,
-        verificationCode: null, verificationCodeExpiresAt: null },
+    const passwordHash = await hashPassword(dto.newPassword);
+    await this.prisma.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id: user.id },
+        data: { password: passwordHash, resetToken: null, resetTokenExpiresAt: null,
+          verificationCode: null, verificationCodeExpiresAt: null },
+      });
+      await tx.refreshSession.updateMany({
+        where: { userId: user.id, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
     });
-    await this.prisma.refreshSession.updateMany({ where: { userId: user.id, revokedAt: null }, data: { revokedAt: new Date() } });
     await this.redis.del(this.otpAttemptKey(user.id));
     return { success: true, message: 'Password reset successfully.' };
   }
@@ -325,11 +331,17 @@ export class AuthService {
     if (!user || !(await comparePassword(dto.currentPassword, user.password))) {
       throw new BadRequestException('Current password is incorrect');
     }
-    await this.prisma.user.update({
-      where: { id: userId },
-      data: { password: await hashPassword(dto.newPassword), resetToken: null, resetTokenExpiresAt: null },
+    const passwordHash = await hashPassword(dto.newPassword);
+    await this.prisma.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id: userId },
+        data: { password: passwordHash, resetToken: null, resetTokenExpiresAt: null },
+      });
+      await tx.refreshSession.updateMany({
+        where: { userId, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
     });
-    await this.prisma.refreshSession.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: new Date() } });
     return { success: true, message: 'Password changed successfully.' };
   }
 
@@ -423,27 +435,38 @@ export class AuthService {
       const duplicate = await this.prisma.user.findUnique({ where: { email } });
       if (duplicate && duplicate.id !== id) throw new ConflictException('A user with this email already exists');
     }
-    const updated = await this.prisma.user.update({
-      where: { id },
-      data: {
-        ...(dto.name !== undefined && { name: dto.name.trim() }),
-        ...(dto.email !== undefined && { email: dto.email.trim().toLowerCase(), emailVerified: false }),
-        ...(dto.role !== undefined && { role: dto.role }),
-        ...(dto.password !== undefined && { password: await hashPassword(dto.password) }),
-      },
-      select: safeUserSelect,
+    const passwordHash = dto.password !== undefined ? await hashPassword(dto.password) : undefined;
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.user.update({
+        where: { id },
+        data: {
+          ...(dto.name !== undefined && { name: dto.name.trim() }),
+          ...(dto.email !== undefined && { email: dto.email.trim().toLowerCase(), emailVerified: false }),
+          ...(dto.role !== undefined && { role: dto.role }),
+          ...(passwordHash !== undefined && { password: passwordHash }),
+        },
+        select: safeUserSelect,
+      });
+      if (dto.email !== undefined || dto.role !== undefined || dto.password !== undefined) {
+        await tx.refreshSession.updateMany({
+          where: { userId: id, revokedAt: null },
+          data: { revokedAt: new Date() },
+        });
+      }
+      return updated;
     });
-    if (dto.email !== undefined || dto.role !== undefined || dto.password !== undefined) {
-      await this.prisma.refreshSession.updateMany({ where: { userId: id, revokedAt: null }, data: { revokedAt: new Date() } });
-    }
-    return updated;
   }
 
   async updateUserRole(id: string, role: UserRole) {
     await this.findOneUser(id);
-    const updated = await this.prisma.user.update({ where: { id }, data: { role }, select: safeUserSelect });
-    await this.prisma.refreshSession.updateMany({ where: { userId: id, revokedAt: null }, data: { revokedAt: new Date() } });
-    return updated;
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.user.update({ where: { id }, data: { role }, select: safeUserSelect });
+      await tx.refreshSession.updateMany({
+        where: { userId: id, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+      return updated;
+    });
   }
 
   async removeUser(id: string) {
