@@ -217,17 +217,6 @@ export class ApliiqService extends WorkerHost implements OnModuleInit {
       .map((url) => url.startsWith('//') ? `https:${url}` : url)
       .filter((url) => /^https:\/\//i.test(url)))];
     const mockupUrl = mockupUrls[0] ?? null;
-    await this.prisma.apliiqProductDesign.upsert({
-      where: { productId_colorId: { productId, colorId: String(colorId) } },
-      create: {
-        productId, colorId: String(colorId), productCode, apliiqDesignId: String(designId),
-        mockupUrl, mockupUrls, providerPayload: response as any,
-      },
-      update: {
-        productCode, apliiqDesignId: String(designId), mockupUrl, mockupUrls,
-        providerPayload: response as any,
-      },
-    });
     const providerVariants = Array.isArray(response.Variants) ? response.Variants as Array<Record<string, unknown>> : [];
     if (!providerVariants.length && !this.client.isMockMode) {
       throw new ConflictException('Apliiq Design response did not include sellable size variants');
@@ -259,12 +248,23 @@ export class ApliiqService extends WorkerHost implements OnModuleInit {
     if (unmatched.length) {
       throw new ConflictException(`Apliiq returned no SKU for local size(s): ${unmatched.join(', ')}. No order should be placed until variants are mapped.`);
     }
-    await this.prisma.$transaction(
-      skuUpdates.map((item) => this.prisma.productVariant.update({
+    await this.prisma.$transaction([
+      this.prisma.apliiqProductDesign.upsert({
+        where: { productId_colorId: { productId, colorId: String(colorId) } },
+        create: {
+          productId, colorId: String(colorId), productCode, apliiqDesignId: String(designId),
+          mockupUrl, mockupUrls, providerPayload: response as any,
+        },
+        update: {
+          productCode, apliiqDesignId: String(designId), mockupUrl, mockupUrls,
+          providerPayload: response as any,
+        },
+      }),
+      ...skuUpdates.map((item) => this.prisma.productVariant.update({
         where: { id: item.id },
         data: { apliiqVariantSku: item.sku, apliiqDesignId: item.designId },
       })),
-    );
+    ]);
     return {
       productId,
       apliiqDesignId: String(designId),
