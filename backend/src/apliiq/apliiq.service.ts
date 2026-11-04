@@ -54,6 +54,39 @@ export class ApliiqService extends WorkerHost implements OnModuleInit {
     return { id: String(id), provider: result };
   }
 
+  /**
+   * Registers the already-uploaded Product image as an Apliiq Artwork.
+   * No second Cloudinary upload is performed. The admin must only call this
+   * when Product.imageUrl is a print-ready artwork file, not a shirt mockup.
+   */
+  async registerProductArtwork(productId: string) {
+    const product = await this.prisma.product.findUnique({ where: { id: productId } });
+    if (!product) throw new NotFoundException('Product not found');
+    if (product.apliiqArtworkId) {
+      return { productId, artworkId: product.apliiqArtworkId, reused: true, mock: this.client.isMockMode };
+    }
+    let imageUrl: URL;
+    try {
+      imageUrl = new URL(product.imageUrl);
+    } catch {
+      throw new BadRequestException('Product image must be a public Cloudinary HTTPS URL');
+    }
+    if (imageUrl.protocol !== 'https:' || imageUrl.hostname !== 'res.cloudinary.com') {
+      throw new BadRequestException('Product image must be hosted on Cloudinary over HTTPS');
+    }
+    const result = await this.client.postArtwork<Record<string, unknown>>({
+      Name: product.name.trim(),
+      ImagePath: product.imageUrl,
+    });
+    const rawId = result.Id ?? result.id;
+    if (rawId === undefined || rawId === null || String(rawId).trim() === '') {
+      throw new ConflictException('Apliiq Artwork response did not include an artwork ID');
+    }
+    const artworkId = String(rawId);
+    await this.prisma.product.update({ where: { id: productId }, data: { apliiqArtworkId: artworkId } });
+    return { productId, artworkId, imageUrl: product.imageUrl, reused: false, mock: this.client.isMockMode };
+  }
+
   async createProductDesign(productId: string, payload: Record<string, unknown>) {
     const product = await this.prisma.product.findUnique({
       where: { id: productId },
