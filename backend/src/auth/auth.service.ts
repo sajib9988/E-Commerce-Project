@@ -26,6 +26,7 @@ import type { ResetPasswordDto } from './dto/reset-password.dto';
 import type { ChangePasswordDto } from './dto/change-password.dto';
 import type { CreateUserDto } from './dto/create-user.dto';
 import type { UpdateUserDto } from './dto/update-user.dto';
+import { RedisService } from '../redis/redis.service';
 
 export const ACCESS_TOKEN_TTL_SECONDS = 30 * 60;
 export const REFRESH_TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60;
@@ -33,8 +34,6 @@ export const OTP_TTL_SECONDS = 5 * 60;
 export const OTP_RESEND_COOLDOWN_SECONDS = 60;
 const OTP_MAX_ATTEMPTS = 5;
 const CHALLENGE_TOKEN_TTL_SECONDS = OTP_TTL_SECONDS;
-
-type OtpAttemptState = { count: number; resetAt: number };
 
 const safeUserSelect = {
   id: true,
@@ -48,12 +47,11 @@ const safeUserSelect = {
 
 @Injectable()
 export class AuthService {
-  private readonly otpAttempts = new Map<string, OtpAttemptState>();
-
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
     private readonly emailService: EmailService,
+    private readonly redis: RedisService,
   ) {}
 
   async register(dto: RegisterDto) {
@@ -116,7 +114,7 @@ export class AuthService {
       where: { id: user.id },
       data: { emailVerified: true, verificationCode: null, verificationCodeExpiresAt: null },
     });
-    this.otpAttempts.delete(user.id);
+    await this.redis.del(this.otpAttemptKey(user.id));
     return { success: true, message: 'Email verified. You can now log in.' };
   }
 
@@ -150,14 +148,14 @@ export class AuthService {
       throw new UnauthorizedException('Session expired or invalid');
     }
 
-    this.checkAttemptLimit(user.id);
+    await this.checkAttemptLimit(user.id);
     if (!user.verificationCode || !user.verificationCodeExpiresAt ||
         user.verificationCodeExpiresAt.getTime() < Date.now()) {
-      this.otpAttempts.delete(user.id);
+      await this.redis.del(this.otpAttemptKey(user.id));
       throw new UnauthorizedException('Code expired — request a new one');
     }
     if (!compareOtp(dto.code, user.verificationCode)) {
-      this.recordFailedAttempt(user.id);
+      await this.recordFailedAttempt(user.id);
       throw new UnauthorizedException('Incorrect code');
     }
 
@@ -306,6 +304,7 @@ export class AuthService {
   }
 
   private async issueAndSendOtp(userId: string, email: string, purpose: 'verify-email' | 'login') {
+    await this.redis.del(this.otpAttemptKey(userId));
     const code = generateOtp();
     await this.prisma.user.update({
       where: { id: userId },
@@ -322,19 +321,19 @@ export class AuthService {
     }
   }
 
-  private checkAttemptLimit(userId: string) {
-    const attempt = this.otpAttempts.get(userId);
-    if (attempt && attempt.count >= OTP_MAX_ATTEMPTS && attempt.resetAt > Date.now()) {
+  private otpAttemptKey(userId: string) {
+    return `auth:otp-attempts:${userId}`;
+  }
+
+  private async checkAttemptLimit(userId: string) {
+    const count = Number(await this.redis.get(this.otpAttemptKey(userId)) ?? 0);
+    if (count >= OTP_MAX_ATTEMPTS) {
       throw new ForbiddenException('Too many incorrect attempts. Request a new code.');
     }
   }
 
-  private recordFailedAttempt(userId: string) {
-    const attempt = this.otpAttempts.get(userId);
-    this.otpAttempts.set(userId, {
-      count: (attempt?.count ?? 0) + 1,
-      resetAt: attempt?.resetAt ?? Date.now() + OTP_TTL_SECONDS * 1000,
-    });
+  private async recordFailedAttempt(userId: string) {
+    await this.redis.incrementWithExpiry(this.otpAttemptKey(userId), OTP_TTL_SECONDS);
   }
 
   private issueSessionTokens(user: {
