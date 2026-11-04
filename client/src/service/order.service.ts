@@ -42,7 +42,8 @@ function buildQuery(params: OrderQuery) {
   Object.entries(params).forEach(([key, value]) => {
     if (value !== undefined && value !== "") query.set(key, String(value));
   });
-  return query.size ? `?${query.toString()}` : "";
+  const value = query.toString();
+  return value ? `?${value}` : "";
 }
 
 export async function getMyOrders(params: Omit<OrderQuery, "status"> = {}) {
