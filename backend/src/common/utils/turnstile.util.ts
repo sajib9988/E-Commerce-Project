@@ -13,7 +13,7 @@ export async function verifyTurnstileToken(
 ): Promise<boolean> {
   const secret = process.env.TURNSTILE_SECRET_KEY;
   if (!secret) {
-    return process.env.NODE_ENV !== 'production';
+    return process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test';
   }
   if (!token.trim()) return false;
 
@@ -23,7 +23,7 @@ export async function verifyTurnstileToken(
   }
 
   try {
-    const res = await fetch(VERIFY_URL, { method: 'POST', body });
+    const res = await fetch(VERIFY_URL, { method: 'POST', body, signal: AbortSignal.timeout(8_000) });
     const data = (await res.json()) as TurnstileVerifyResponse;
     return data.success;
   } catch {
