@@ -11,9 +11,9 @@ import { PaymentAttemptStatus, PaymentStatus, OrderStatus } from '../../generate
 import Stripe from 'stripe';
 import { PrismaService } from '../prisma/prisma.service';
 
-@Injectable()
 const CHECKOUT_SESSION_TTL_SECONDS = 30 * 60;
 
+@Injectable()
 export class PaymentsService {
   private readonly stripe: Stripe;
   private readonly frontendUrl: string;
