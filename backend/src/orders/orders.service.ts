@@ -323,7 +323,7 @@ export class OrdersService {
     const [items, total] = await this.prisma.$transaction([
       this.prisma.order.findMany({
         where: { userId },
-        include: { items: true, fulfillments: true },
+        include: { items: true, fulfillments: { select: { id: true, provider: true, submissionStatus: true, providerStatus: true, trackingCompany: true, trackingNumbers: true, trackingUrls: true, submittedAt: true, shippedAt: true, createdAt: true, updatedAt: true } } },
         orderBy: { createdAt: 'desc' },
         skip, take,
       }),
@@ -335,7 +335,7 @@ export class OrdersService {
   async findMyOrder(userId: string, orderId: string) {
     const order = await this.prisma.order.findFirst({
       where: { id: orderId, userId },
-      include: { items: true, paymentAttempts: { select: { id: true, status: true, amount: true, currency: true, paidAt: true } }, fulfillments: true },
+      include: { items: true, paymentAttempts: { select: { id: true, status: true, amount: true, currency: true, paidAt: true } }, fulfillments: { select: { id: true, provider: true, submissionStatus: true, providerStatus: true, trackingCompany: true, trackingNumbers: true, trackingUrls: true, submittedAt: true, shippedAt: true, createdAt: true, updatedAt: true } } },
     });
     if (!order) throw new NotFoundException('Order not found');
     return order;
