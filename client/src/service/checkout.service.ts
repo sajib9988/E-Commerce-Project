@@ -58,5 +58,5 @@ export async function createPendingOrder(data: CreateOrderInput) {
 }
 
 export async function createCheckoutSession(orderId: string) {
-  return request<{ url?: string; sessionId?: string }>("/payments/checkout", { orderId });
+  return request<{ checkoutUrl?: string; orderId?: string }>("/payments/checkout", { orderId });
 }
