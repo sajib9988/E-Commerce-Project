@@ -9,7 +9,7 @@ export class CollectionsService {
     return this.prisma.collection.findMany({
       where: { isActive: true, ...(featuredOnly && { isFeatured: true }) },
       orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
-      include: { _count: { select: { products: true } }, products: { where: { product: { isActive: true } }, orderBy: { sortOrder: 'asc' }, include: { product: { include: { category: true, subcategory: true, variants: { where: { isActive: true }, include: { size: true } } } } } } },
+      include: { _count: { select: { products: true } }, products: { where: { product: { isActive: true } }, orderBy: { sortOrder: 'asc' }, include: { product: { include: { category: true, subcategory: true, variants: { where: { isActive: true }, include: { size: true } }, apliiqDesigns: { orderBy: { createdAt: 'asc' } } } } } } },
     });
   }
   async findBySlug(slug: string) {
