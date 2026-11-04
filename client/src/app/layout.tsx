@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import { StorefrontNavbar } from "@/components/storefront/storefront-navbar";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -29,7 +28,6 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col">
-        <StorefrontNavbar />
         {children}
       </body>
     </html>
