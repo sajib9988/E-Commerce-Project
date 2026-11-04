@@ -18,6 +18,8 @@ export class ProductsService {
         category: true, subcategory: true,
         variants: { where: { isActive: true }, include: { size: true } },
         collections: { include: { collection: true }, orderBy: { sortOrder: 'asc' } },
+        artworks: { include: { placements: true }, orderBy: { isPrimary: 'desc' } },
+        apliiqDesigns: true,
       },
       orderBy: { createdAt: 'desc' },
     });
