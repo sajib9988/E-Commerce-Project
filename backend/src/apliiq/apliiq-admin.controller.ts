@@ -1,6 +1,6 @@
 import { Body, Controller, Param, Post, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { productImageUploadOptions } from '../products/upload';
+import { artworkImageUploadOptions } from '../products/upload';
 import { UserRole } from '../../generated/prisma/enums';
 import { Roles } from '../common/decorators/roles.decorator';
 import { ApliiqService } from './apliiq.service';
@@ -11,7 +11,7 @@ export class ApliiqAdminController {
   constructor(private readonly apliiq: ApliiqService) {}
 
   @Post('products/:productId/artworks')
-  @UseInterceptors(FileInterceptor('image', productImageUploadOptions))
+  @UseInterceptors(FileInterceptor('image', artworkImageUploadOptions))
   createArtwork(
     @Param('productId') productId: string,
     @Body('name') name: string,
