@@ -22,7 +22,7 @@ async function safeJson<T>(response: Response): Promise<T | ApiError> {
 }
 
 function isApiError(value: unknown): value is ApiError {
-  return typeof value === "object" && value !== null && "statusCode" in value;
+  return typeof value === "object" && value !== null && "success" in value && value.success === false;
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T | ApiError> {
