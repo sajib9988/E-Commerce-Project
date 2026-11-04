@@ -27,8 +27,38 @@ export class ProductsController {
 
   @Public()
   @Get()
-  findAll(@Query('collection') collectionSlug?: string) {
-    return this.productsService.findAll({ collectionSlug });
+  findAll(
+    @Query('collection') collectionSlug?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('search') search?: string,
+    @Query('categoryId') categoryId?: string,
+    @Query('sortBy') sortBy?: string,
+    @Query('sortOrder') sortOrder?: string,
+    @Query('minPrice') minPrice?: string,
+    @Query('maxPrice') maxPrice?: string,
+  ) {
+    return this.productsService.findAll({
+      collectionSlug, page: page === undefined ? undefined : Number(page),
+      limit: limit === undefined ? undefined : Number(limit), search, categoryId, sortBy, sortOrder,
+      minPrice: minPrice === undefined ? undefined : Number(minPrice),
+      maxPrice: maxPrice === undefined ? undefined : Number(maxPrice),
+    });
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @Get('admin/list')
+  findAllForAdmin(
+    @Query('page') page?: string, @Query('limit') limit?: string,
+    @Query('search') search?: string, @Query('categoryId') categoryId?: string,
+    @Query('isActive') isActive?: string, @Query('sortBy') sortBy?: string,
+    @Query('sortOrder') sortOrder?: string,
+  ) {
+    return this.productsService.findAllForAdmin({
+      page: Number(page) || 1, limit: Number(limit) || 20, search, categoryId,
+      isActive: isActive === undefined ? undefined : isActive === 'true',
+      sortBy, sortOrder,
+    });
   }
 
   @Public()
