@@ -57,6 +57,8 @@ export class AuthService {
   ) {}
 
   async register(dto: RegisterDto) {
+    const turnstileValid = await verifyTurnstileToken(dto.turnstileToken ?? '');
+    if (!turnstileValid) throw new BadRequestException('Turnstile verification failed');
     const email = dto.email.trim().toLowerCase();
     const existing = await this.prisma.user.findUnique({ where: { email } });
     if (existing) {
