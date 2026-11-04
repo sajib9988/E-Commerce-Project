@@ -99,6 +99,9 @@ export class OrdersService {
               if (variant.productId !== product.id || !variant.isActive || !variant.size.isActive) {
                 throw new BadRequestException('Selected product variant is unavailable');
               }
+              if (variant.apliiqColorId && !variant.apliiqVariantSku) {
+                throw new BadRequestException('This Apliiq color/size has not been configured as a sellable Design yet');
+              }
               unitPrice = new Prisma.Decimal((variant.salePrice ?? variant.regularPrice).toString());
               sku = variant.sku;
               apliiqDesignSku = variant.apliiqVariantSku ?? null;
