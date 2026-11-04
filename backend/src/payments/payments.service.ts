@@ -10,6 +10,7 @@ import { Prisma } from '../../generated/prisma/client';
 import { PaymentAttemptStatus, PaymentStatus, OrderStatus } from '../../generated/prisma/enums';
 import Stripe from 'stripe';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 const CHECKOUT_SESSION_TTL_SECONDS = 30 * 60;
 
@@ -21,6 +22,7 @@ export class PaymentsService {
   constructor(
     private readonly prisma: PrismaService,
     config: ConfigService,
+    private readonly notifications: NotificationsService,
   ) {
     const secretKey = config.get<string>('STRIPE_SECRET_KEY');
     const frontendUrl = config.get<string>('FRONTEND_URL');
@@ -216,6 +218,7 @@ export class PaymentsService {
       throw new BadRequestException('Checkout session is not a paid, linked session');
     }
 
+    let confirmation: { email: string; orderNumber: string; customerName?: string | null; totalAmount: string; currency: string } | null = null;
     await this.prisma.$transaction(async (tx) => {
       // Serialize distinct Stripe event IDs referring to the same order.
       await tx.$queryRaw`SELECT "id" FROM "orders" WHERE "id" = ${orderId} FOR UPDATE`;
@@ -266,6 +269,7 @@ export class PaymentsService {
             },
           });
         }
+        confirmation = { email: attempt.order.customerEmail, orderNumber: attempt.order.orderNumber, customerName: attempt.order.customerName, totalAmount: attempt.amount.toString(), currency: attempt.currency };
         return;
       }
 
@@ -294,6 +298,7 @@ export class PaymentsService {
           where: { id: orderId },
           data: { paymentStatus: PaymentStatus.PAID, paidAt: new Date() },
         });
+        confirmation = { email: attempt.order.customerEmail, orderNumber: attempt.order.orderNumber, customerName: attempt.order.customerName, totalAmount: attempt.amount.toString(), currency: attempt.currency };
         return;
       }
 
@@ -331,7 +336,9 @@ export class PaymentsService {
         create: { orderId, provider: 'APLIIQ', submissionStatus: 'QUEUED' },
         update: {},
       });
+      confirmation = { email: attempt.order.customerEmail, orderNumber: attempt.order.orderNumber, customerName: attempt.order.customerName, totalAmount: attempt.amount.toString(), currency: attempt.currency };
     });
+    if (confirmation) await this.notifications.orderConfirmed(confirmation);
   }
 
   async handleCheckoutExpired(session: Stripe.Checkout.Session, eventId: string) {
