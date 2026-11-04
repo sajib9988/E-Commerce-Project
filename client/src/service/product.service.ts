@@ -38,7 +38,7 @@ async function request<T>(path: string, options: RequestInit = {}, authenticated
   if (!BASE_URL) return { success: false, message: "NEXT_PUBLIC_BASE_URL is not configured" };
   try {
     const isFormData = typeof FormData !== "undefined" && options.body instanceof FormData;
-    const headers = authenticated ? await getAuthHeaders(!isFormData) : {};
+    const headers: Record<string, string> = authenticated ? await getAuthHeaders(!isFormData) : {};
     const suppliedHeaders = new Headers(options.headers);
     suppliedHeaders.forEach((value, key) => { headers[key] = value; });
     const response = await fetch(`${BASE_URL.replace(/\/+$/, "")}${path}`, {
