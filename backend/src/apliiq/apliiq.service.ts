@@ -125,8 +125,21 @@ export class ApliiqService extends WorkerHost implements OnModuleInit {
   }) {
     const artwork = await this.prisma.productArtwork.findUnique({ where: { id: artworkId }, select: { id: true } });
     if (!artwork) throw new NotFoundException('Product artwork not found');
-    if (!payload.locationId?.trim() || !payload.service?.trim()) {
-      throw new BadRequestException('Apliiq locationId and service are required');
+    const allowedServices = ['print', 'applique', 'dtgprint', 'sublimation', 'embroidery', 'transfer_print'];
+    if (!payload.locationId?.trim() || !allowedServices.includes(payload.service?.trim())) {
+      throw new BadRequestException('A valid Apliiq locationId and supported decoration service are required');
+    }
+    if (['print', 'embroidery'].includes(payload.service.trim())) {
+      const colors = (payload.printColors ?? '').split(',').map((color) => color.trim()).filter(Boolean);
+      if (colors.length < 1 || colors.length > 6 || colors.some((color) => !/^#[0-9a-f]{6}$/i.test(color))) {
+        throw new BadRequestException('Screen print and embroidery require 1–6 comma-separated hex colors');
+      }
+    }
+    if (payload.boxId !== undefined && (!Number.isInteger(payload.boxId) || payload.boxId < 1)) {
+      throw new BadRequestException('boxId must be a positive integer');
+    }
+    if ([payload.widthInches, payload.heightInches].some((value) => value !== undefined && (!Number.isFinite(value) || value <= 0))) {
+      throw new BadRequestException('Artwork physical dimensions must be positive numbers');
     }
     return this.prisma.productArtworkPlacement.create({
       data: {
