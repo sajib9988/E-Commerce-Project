@@ -24,15 +24,26 @@ import { VariantsModule } from './products/variants/variants.module';
 import { SizeTemplatesModule } from './products/size-templates/size-templates.module';
 import { ReviewsModule } from './reviews/reviews.module';
 import { RefundsModule } from './refunds/refunds.module';
+import { RedisModule } from './redis/redis.module';
+import { RedisService } from './redis/redis.service';
+import { RedisThrottlerStorage } from './redis/redis-throttler.storage';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    RedisModule,
     BullModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({ connection: { url: config.get<string>('REDIS_URL') || 'redis://127.0.0.1:6379', maxRetriesPerRequest: null } }),
     }),
-    ThrottlerModule.forRoot([{ name: 'default', ttl: 60_000, limit: 100 }]),
+    ThrottlerModule.forRootAsync({
+      imports: [RedisModule],
+      inject: [RedisService],
+      useFactory: (redis: RedisService) => ({
+        throttlers: [{ name: 'default', ttl: 60_000, limit: 100 }],
+        storage: new RedisThrottlerStorage(redis),
+      }),
+    }),
     PrismaModule,
     EmailModule,
     AuthModule,
