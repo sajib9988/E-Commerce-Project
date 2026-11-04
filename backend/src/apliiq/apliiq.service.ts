@@ -10,6 +10,7 @@ import { Job, Queue } from 'bullmq';
 import { PrismaService } from '../prisma/prisma.service';
 import { ApliiqClient } from './apliiq.client';
 import { mapOrderToApliiq } from './apliiq.mapper';
+import { CloudinaryService } from '../cloudinary/cloudinary.service';
 
 type CreateOrderResponse = { id: string | number };
 
@@ -21,6 +22,7 @@ export class ApliiqService extends WorkerHost implements OnModuleInit {
   constructor(
     private readonly prisma: PrismaService,
     private readonly client: ApliiqClient,
+    private readonly cloudinary: CloudinaryService,
     @InjectQueue('apliiq-fulfillment') private readonly queue: Queue,
   ) { super(); }
 
@@ -54,37 +56,81 @@ export class ApliiqService extends WorkerHost implements OnModuleInit {
     return { id: String(id), provider: result };
   }
 
-  /**
-   * Registers the already-uploaded Product image as an Apliiq Artwork.
-   * No second Cloudinary upload is performed. The admin must only call this
-   * when Product.imageUrl is a print-ready artwork file, not a shirt mockup.
-   */
-  async registerProductArtwork(productId: string) {
+  async createProductArtwork(productId: string, name: string, file: Express.Multer.File) {
+    const product = await this.prisma.product.findUnique({ where: { id: productId }, select: { id: true } });
+    if (!product) throw new NotFoundException('Product not found');
+    if (!file?.buffer) throw new BadRequestException('A print-ready artwork image file is required');
+    const uploaded = await this.cloudinary.uploadImage(file);
+    try {
+      const provider = await this.client.postArtwork<Record<string, unknown>>({
+        Name: name.trim(),
+        ImagePath: uploaded.secure_url,
+      });
+      const rawId = provider.Id ?? provider.id;
+      if (rawId === undefined || rawId === null || String(rawId).trim() === '') {
+        throw new ConflictException('Apliiq Artwork response did not include an artwork ID');
+      }
+      return await this.prisma.productArtwork.create({
+        data: {
+          productId, name: name.trim(), imageUrl: uploaded.secure_url,
+          imagePublicId: uploaded.public_id, apliiqArtworkId: String(rawId),
+          isPrimary: (await this.prisma.productArtwork.count({ where: { productId } })) === 0,
+        },
+        include: { placements: true },
+      });
+    } catch (error) {
+      await this.cloudinary.deleteImage(uploaded.public_id).catch(() => undefined);
+      throw error;
+    }
+  }
+
+  async registerProductImageAsArtwork(productId: string, name?: string) {
     const product = await this.prisma.product.findUnique({ where: { id: productId } });
     if (!product) throw new NotFoundException('Product not found');
-    if (product.apliiqArtworkId) {
-      return { productId, artworkId: product.apliiqArtworkId, reused: true, mock: this.client.isMockMode };
+    let parsed: URL;
+    try { parsed = new URL(product.imageUrl); } catch {
+      throw new BadRequestException('Product image must be a public HTTPS URL');
     }
-    let imageUrl: URL;
-    try {
-      imageUrl = new URL(product.imageUrl);
-    } catch {
-      throw new BadRequestException('Product image must be a public Cloudinary HTTPS URL');
-    }
-    if (imageUrl.protocol !== 'https:' || imageUrl.hostname !== 'res.cloudinary.com') {
-      throw new BadRequestException('Product image must be hosted on Cloudinary over HTTPS');
-    }
-    const result = await this.client.postArtwork<Record<string, unknown>>({
-      Name: product.name.trim(),
-      ImagePath: product.imageUrl,
+    if (parsed.protocol !== 'https:') throw new BadRequestException('Product image must be a public HTTPS URL');
+    const existing = await this.prisma.productArtwork.findFirst({
+      where: { productId, imageUrl: product.imageUrl }, include: { placements: true },
     });
-    const rawId = result.Id ?? result.id;
+    if (existing) return { ...existing, reused: true };
+    const provider = await this.client.postArtwork<Record<string, unknown>>({
+      Name: (name?.trim() || product.name).slice(0, 150), ImagePath: product.imageUrl,
+    });
+    const rawId = provider.Id ?? provider.id;
     if (rawId === undefined || rawId === null || String(rawId).trim() === '') {
       throw new ConflictException('Apliiq Artwork response did not include an artwork ID');
     }
-    const artworkId = String(rawId);
-    await this.prisma.product.update({ where: { id: productId }, data: { apliiqArtworkId: artworkId } });
-    return { productId, artworkId, imageUrl: product.imageUrl, reused: false, mock: this.client.isMockMode };
+    return this.prisma.productArtwork.create({
+      data: {
+        productId, name: name?.trim() || product.name, imageUrl: product.imageUrl,
+        imagePublicId: product.imagePublicId, apliiqArtworkId: String(rawId),
+        isPrimary: (await this.prisma.productArtwork.count({ where: { productId } })) === 0,
+      },
+      include: { placements: true },
+    });
+  }
+
+  async addArtworkPlacement(artworkId: string, payload: {
+    locationId: string; service: string; printColors?: number; note?: string;
+    widthInches?: number; heightInches?: number;
+  }) {
+    const artwork = await this.prisma.productArtwork.findUnique({ where: { id: artworkId }, select: { id: true } });
+    if (!artwork) throw new NotFoundException('Product artwork not found');
+    if (!payload.locationId?.trim() || !payload.service?.trim()) {
+      throw new BadRequestException('Apliiq locationId and service are required');
+    }
+    return this.prisma.productArtworkPlacement.create({
+      data: {
+        artworkId, locationId: payload.locationId.trim(), service: payload.service.trim(),
+        ...(payload.printColors !== undefined ? { printColors: payload.printColors } : {}),
+        ...(payload.note !== undefined ? { note: payload.note } : {}),
+        ...(payload.widthInches !== undefined ? { widthInches: payload.widthInches } : {}),
+        ...(payload.heightInches !== undefined ? { heightInches: payload.heightInches } : {}),
+      },
+    });
   }
 
   async createProductDesign(productId: string, payload: Record<string, unknown>) {
@@ -98,22 +144,32 @@ export class ApliiqService extends WorkerHost implements OnModuleInit {
     }
     const productCode = payload.ProductCode;
     const colorId = payload.ColorId;
-    const artworkSpecs = payload.Artworks;
+    const placementSpecs = payload.Placements;
     if (typeof productCode !== 'string' || !productCode.trim() ||
         (typeof colorId !== 'string' && typeof colorId !== 'number') ||
-        !Array.isArray(artworkSpecs) || artworkSpecs.length === 0 ||
+        !Array.isArray(placementSpecs) || placementSpecs.length === 0 ||
         !Array.isArray(payload.Locations) || payload.Locations.length === 0) {
       throw new BadRequestException('ProductCode, ColorId, Locations and at least one Artwork are required');
     }
-    if (!product.apliiqArtworkId) {
-      throw new BadRequestException('Register this Product image as an Apliiq Artwork before creating its design');
+    const artworkIds = [...new Set(placementSpecs.map((spec: any) => spec?.artworkId).filter((id: unknown): id is string => typeof id === 'string'))];
+    if (artworkIds.length === 0) throw new BadRequestException('Each placement must reference a saved Product Artwork');
+    const savedArtworks = await this.prisma.productArtwork.findMany({
+      where: { id: { in: artworkIds }, productId, apliiqArtworkId: { not: null } },
+      include: { placements: true },
+    });
+    if (savedArtworks.length !== artworkIds.length) {
+      throw new BadRequestException('One or more selected artworks are missing or not registered with Apliiq');
     }
-    const artworks = artworkSpecs.map((spec) => {
-      if (!spec || typeof spec !== 'object' || Array.isArray(spec)) {
-        throw new BadRequestException('Each Artwork entry must be an object containing print settings');
-      }
-      // Artwork identity comes from the Product record; clients cannot substitute an unrelated provider ID.
-      return { ...(spec as Record<string, unknown>), Id: product.apliiqArtworkId };
+    const artworks = placementSpecs.map((spec: any) => {
+      const artwork = savedArtworks.find((item) => item.id === spec.artworkId);
+      if (!artwork || !spec.locationId || !spec.service) throw new BadRequestException('Each placement needs artworkId, locationId and service');
+      return {
+        Id: artwork.apliiqArtworkId,
+        LocationId: spec.locationId,
+        Service: spec.service,
+        ...(spec.printColors !== undefined ? { PrintColors: spec.printColors } : {}),
+        ...(spec.note !== undefined ? { Note: spec.note } : {}),
+      };
     });
     const response = await this.client.postDesign<Record<string, unknown>>({
       ProductCode: productCode,
@@ -127,6 +183,19 @@ export class ApliiqService extends WorkerHost implements OnModuleInit {
     if (designId === undefined || designId === null) {
       throw new ConflictException('Apliiq Design response did not include a design ID');
     }
+    const mockupUrlRaw = response.ImagePath ?? response.MockupUrl ?? response.ImageUrl;
+    const mockupUrl = typeof mockupUrlRaw === 'string' && /^https:\/\//i.test(mockupUrlRaw) ? mockupUrlRaw : null;
+    await this.prisma.apliiqProductDesign.upsert({
+      where: { productId_colorId: { productId, colorId: String(colorId) } },
+      create: {
+        productId, colorId: String(colorId), productCode, apliiqDesignId: String(designId),
+        mockupUrl, providerPayload: response as any,
+      },
+      update: {
+        productCode, apliiqDesignId: String(designId), mockupUrl,
+        providerPayload: response as any,
+      },
+    });
     const providerVariants = Array.isArray(response.Variants) ? response.Variants as Array<Record<string, unknown>> : [];
     if (!providerVariants.length && !this.client.isMockMode) {
       throw new ConflictException('Apliiq Design response did not include sellable size variants');
@@ -172,6 +241,7 @@ export class ApliiqService extends WorkerHost implements OnModuleInit {
         include: { size: true },
         orderBy: { size: { sortOrder: 'asc' } },
       }),
+      mockupUrl,
       mock: this.client.isMockMode,
     };
   }
