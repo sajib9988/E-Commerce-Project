@@ -42,6 +42,16 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T | 
   }
 }
 
+export type AvailableCoupon = {
+  id: string; code: string; type: "PERCENT" | "FIXED" | "FREE_SHIPPING";
+  value: string; minOrderAmount: string | null; maxDiscountAmount: string | null;
+  startsAt: string | null; expiresAt: string | null;
+};
+
+export async function getAvailableCoupons() {
+  return request<AvailableCoupon[]>("/coupons/available");
+}
+
 export async function validateCoupon(data: {
   code: string; items: Array<{ productId: string; quantity: number }>;
 }) {
