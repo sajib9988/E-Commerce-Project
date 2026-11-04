@@ -1,0 +1,99 @@
+"use server";
+
+import { cookies } from "next/headers";
+import { revalidatePath } from "next/cache";
+
+const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL;
+const ENDPOINT = "/collections";
+
+type ApiError = { success: false; message: string; statusCode?: number };
+type CollectionQuery = {
+  featured?: boolean; page?: number; limit?: number; search?: string;
+  sortBy?: string; sortOrder?: "asc" | "desc";
+};
+
+async function getAuthHeaders() {
+  const cookieStore = await cookies();
+  const token = cookieStore.get("accessToken")?.value;
+  return {
+    "Content-Type": "application/json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+}
+
+async function safeJson<T>(response: Response): Promise<T | ApiError> {
+  try { return (await response.json()) as T; }
+  catch { return { success: false, message: "Invalid JSON response from server" }; }
+}
+
+async function request<T>(path: string, options: RequestInit = {}, authenticated = true): Promise<T | ApiError> {
+  if (!BASE_URL) return { success: false, message: "NEXT_PUBLIC_BASE_URL is not configured" };
+  try {
+    const response = await fetch(`${BASE_URL.replace(/\/+$/, "")}${path}`, {
+      ...options,
+      headers: authenticated ? await getAuthHeaders() : {},
+      cache: options.cache ?? "no-store",
+    });
+    const data = await safeJson<T>(response);
+    if (!response.ok) {
+      const message = typeof data === "object" && data !== null && "message" in data
+        ? String(data.message) : `Request failed: ${response.status}`;
+      return { success: false, statusCode: response.status, message };
+    }
+    return data;
+  } catch (error) {
+    console.error("Collection request failed:", error);
+    return { success: false, message: "Unable to connect to the server" };
+  }
+}
+
+function buildQuery(params: Record<string, string | number | boolean | undefined>) {
+  const query = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== "") query.set(key, String(value));
+  });
+  return query.size ? `?${query.toString()}` : "";
+}
+
+export async function getCollections(params: CollectionQuery = {}) {
+  return request(`${ENDPOINT}${buildQuery(params)}`, { next: { revalidate: 60 } }, false);
+}
+
+export async function getCollectionBySlug(slug: string) {
+  return request(`${ENDPOINT}/${encodeURIComponent(slug)}`, { next: { revalidate: 60 } }, false);
+}
+
+export async function getAdminCollections(params: Omit<CollectionQuery, "featured"> & {
+  isActive?: boolean; isFeatured?: boolean;
+} = {}) {
+  return request(`${ENDPOINT}/admin/list${buildQuery(params)}`);
+}
+
+export async function createCollection(data: {
+  name: string; slug: string; description?: string; bannerImage?: string;
+  thumbnail?: string; isActive?: boolean; isFeatured?: boolean; sortOrder?: number;
+}) {
+  const result = await request(ENDPOINT, { method: "POST", body: JSON.stringify(data) });
+  if (!("statusCode" in result)) {
+    revalidatePath("/admin/collections");
+    revalidatePath("/collections");
+  }
+  return result;
+}
+
+export async function updateCollection(id: string, data: Record<string, unknown>) {
+  const result = await request(`${ENDPOINT}/${encodeURIComponent(id)}`, {
+    method: "PATCH", body: JSON.stringify(data),
+  });
+  if (!("statusCode" in result)) {
+    revalidatePath("/admin/collections");
+    revalidatePath("/collections");
+  }
+  return result;
+}
+
+export async function archiveCollection(id: string) {
+  const result = await request(`${ENDPOINT}/${encodeURIComponent(id)}`, { method: "DELETE" });
+  if (!("statusCode" in result)) revalidatePath("/admin/collections");
+  return result;
+}
