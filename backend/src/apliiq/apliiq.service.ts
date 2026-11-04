@@ -39,6 +39,99 @@ export class ApliiqService extends WorkerHost implements OnModuleInit {
     await this.pollFulfillmentQueue();
   }
 
+  async uploadArtwork(payload: { Name: string; ImagePath: string }) {
+    if (!payload.Name?.trim() || !/^https:\/\//i.test(payload.ImagePath)) {
+      throw new BadRequestException('Artwork Name and a public HTTPS ImagePath are required');
+    }
+    const result = await this.client.postArtwork<Record<string, unknown>>({
+      Name: payload.Name.trim(),
+      ImagePath: payload.ImagePath,
+    });
+    const id = result.Id ?? result.id;
+    if (id === undefined || id === null) {
+      throw new ConflictException('Apliiq Artwork response did not include an artwork ID');
+    }
+    return { id: String(id), provider: result };
+  }
+
+  async createProductDesign(productId: string, payload: Record<string, unknown>) {
+    const product = await this.prisma.product.findUnique({
+      where: { id: productId },
+      include: { variants: { where: { isActive: true }, include: { size: true } } },
+    });
+    if (!product) throw new NotFoundException('Product not found');
+    if (!product.variants.length) {
+      throw new BadRequestException('Create active size variants before creating an Apliiq design');
+    }
+    const productCode = payload.ProductCode;
+    const colorId = payload.ColorId;
+    const artworks = payload.Artworks;
+    if (typeof productCode !== 'string' || !productCode.trim() ||
+        (typeof colorId !== 'string' && typeof colorId !== 'number') ||
+        !Array.isArray(artworks) || artworks.length === 0 ||
+        !Array.isArray(payload.Locations) || payload.Locations.length === 0) {
+      throw new BadRequestException('ProductCode, ColorId, Locations and at least one Artwork are required');
+    }
+    const response = await this.client.postDesign<Record<string, unknown>>({
+      ProductCode: productCode,
+      ...(payload.ProductId !== undefined ? { ProductId: payload.ProductId } : {}),
+      ColorId: colorId,
+      Locations: payload.Locations,
+      ...(payload.MockupTemplateId !== undefined ? { MockupTemplateId: payload.MockupTemplateId } : {}),
+      Artworks: artworks,
+    });
+    const designId = response.Id ?? response.id;
+    if (designId === undefined || designId === null) {
+      throw new ConflictException('Apliiq Design response did not include a design ID');
+    }
+    const providerVariants = Array.isArray(response.Variants) ? response.Variants as Array<Record<string, unknown>> : [];
+    if (!providerVariants.length && !this.client.isMockMode) {
+      throw new ConflictException('Apliiq Design response did not include sellable size variants');
+    }
+
+    const skuBySize = new Map<string, string>();
+    for (const item of providerVariants) {
+      const sizeName = typeof item.Name === 'string' ? item.Name.trim().toLowerCase() : '';
+      const sku = typeof item.SKU === 'string' ? item.SKU.trim() : '';
+      if (sizeName && sku) skuBySize.set(sizeName, sku);
+    }
+    const unmatched: string[] = [];
+    for (const variant of product.variants) {
+      const key = variant.size.label.trim().toLowerCase();
+      const providerSku = skuBySize.get(key);
+      if (providerSku) {
+        await this.prisma.productVariant.update({
+          where: { id: variant.id },
+          data: { apliiqVariantSku: providerSku },
+        });
+      } else if (this.client.isMockMode) {
+        await this.prisma.productVariant.update({
+          where: { id: variant.id },
+          data: { apliiqVariantSku: `MOCK-${String(designId)}-${variant.size.normalizedKey}` },
+        });
+      } else {
+        unmatched.push(variant.size.label);
+      }
+    }
+    if (unmatched.length) {
+      throw new ConflictException(`Apliiq returned no SKU for local size(s): ${unmatched.join(', ')}. No order should be placed until variants are mapped.`);
+    }
+    await this.prisma.product.update({
+      where: { id: productId },
+      data: { apliiqDesignId: String(designId) },
+    });
+    return {
+      productId,
+      apliiqDesignId: String(designId),
+      variants: await this.prisma.productVariant.findMany({
+        where: { productId, isActive: true },
+        include: { size: true },
+        orderBy: { size: { sortOrder: 'asc' } },
+      }),
+      mock: this.client.isMockMode,
+    };
+  }
+
   async submitPaidOrder(orderId: string) {
     const order = await this.prisma.order.findUnique({ where: { id: orderId }, include: { fulfillments: true } });
     if (!order) throw new NotFoundException('Order not found');
