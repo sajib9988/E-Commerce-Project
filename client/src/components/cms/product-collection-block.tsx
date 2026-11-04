@@ -15,6 +15,7 @@ type CollectionProduct = {
   id: string;
   name: string;
   imageUrl?: string | null;
+  apliiqDesigns?: Array<{ colorId: string; mockupUrl?: string | null }>;
   regularPrice?: string | number | null;
   salePrice?: string | number | null;
   collections?: unknown[];
@@ -203,7 +204,8 @@ export function PublicProductCollectionBlock({
       <h2 className="text-2xl font-semibold">{heading}</h2>
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
         {products.map((product) => {
-          const imageUrl = product.imageUrl ? safeMediaUrl(product.imageUrl) : null;
+          const designMockup = product.apliiqDesigns?.find((design) => design.mockupUrl)?.mockupUrl;
+          const imageUrl = designMockup ? safeMediaUrl(designMockup) : product.imageUrl ? safeMediaUrl(product.imageUrl) : null;
           const price = product.salePrice ?? product.regularPrice;
           const formattedPrice = price === null || price === undefined
             ? null
