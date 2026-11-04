@@ -1,4 +1,4 @@
-ALTER TABLE "products" ADD COLUMN "apliiqDesignId" TEXT;
+ALTER TABLE "product_variants" ADD COLUMN "apliiqDesignId" TEXT;
 ALTER TABLE "product_variants" ADD COLUMN "colorName" TEXT;
 ALTER TABLE "product_variants" ADD COLUMN "colorHex" TEXT;
 ALTER TABLE "product_variants" ADD COLUMN "apliiqColorId" TEXT;
