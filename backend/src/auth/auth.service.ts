@@ -26,6 +26,8 @@ import type { ResetPasswordDto } from './dto/reset-password.dto';
 import type { ChangePasswordDto } from './dto/change-password.dto';
 import type { CreateUserDto } from './dto/create-user.dto';
 import type { UpdateUserDto } from './dto/update-user.dto';
+import { createHash, randomBytes } from 'node:crypto';
+import type { OAuthLoginDto } from './dto/oauth-login.dto';
 import { RedisService } from '../redis/redis.service';
 
 export const ACCESS_TOKEN_TTL_SECONDS = 30 * 60;
@@ -167,6 +169,70 @@ export class AuthService {
     return this.issueSessionTokens(user);
   }
 
+  async oauthLogin(providerInput: string, dto: OAuthLoginDto) {
+    const provider = providerInput.toLowerCase();
+    if (provider !== 'google' && provider !== 'facebook') {
+      throw new BadRequestException('OAuth provider must be google or facebook');
+    }
+
+    let profile: { id: string; email: string; name: string; emailVerified: boolean };
+    try {
+      const endpoint = provider === 'google'
+        ? 'https://openidconnect.googleapis.com/v1/userinfo'
+        : 'https://graph.facebook.com/me?fields=id,name,email';
+      const response = await fetch(endpoint, {
+        headers: { Authorization: `Bearer ${dto.accessToken}` },
+        signal: AbortSignal.timeout(8_000),
+      });
+      if (!response.ok) throw new Error('Provider rejected access token');
+      const data = await response.json() as Record<string, unknown>;
+      const id = typeof data.sub === 'string' ? data.sub : typeof data.id === 'string' ? data.id : '';
+      const email = typeof data.email === 'string' ? data.email.trim().toLowerCase() : '';
+      const name = typeof data.name === 'string' ? data.name.trim() : '';
+      const emailVerified = provider === 'google' ? data.email_verified === true : Boolean(email);
+      if (!id || !email || !name || !emailVerified) throw new Error('Provider profile is incomplete or email is not verified');
+      profile = { id, email, name, emailVerified };
+    } catch {
+      throw new UnauthorizedException('OAuth access token is invalid or provider profile is unavailable');
+    }
+
+    const linked = await this.prisma.oAuthAccount.findFirst({
+      where: { provider, providerAccountId: profile.id },
+      include: { user: true },
+    });
+    if (linked) return this.issueSessionTokens(linked.user);
+
+    let user = await this.prisma.user.findUnique({ where: { email: profile.email } });
+    if (user && !user.emailVerified) {
+      throw new ConflictException('Verify this email with the existing account before linking OAuth');
+    }
+    if (!user) {
+      user = await this.prisma.user.create({
+        data: {
+          name: profile.name,
+          email: profile.email,
+          password: await hashPassword(randomBytes(48).toString('base64url')),
+          role: UserRole.USER,
+          emailVerified: true,
+        },
+      });
+    }
+
+    try {
+      await this.prisma.oAuthAccount.create({
+        data: { userId: user.id, provider, providerAccountId: profile.id },
+      });
+    } catch (error) {
+      if (!(error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002')) throw error;
+      const concurrentLink = await this.prisma.oAuthAccount.findFirst({
+        where: { provider, providerAccountId: profile.id }, include: { user: true },
+      });
+      if (!concurrentLink) throw new ConflictException('This OAuth account is already linked to another user');
+      user = concurrentLink.user;
+    }
+    return this.issueSessionTokens(user);
+  }
+
   async forgetPassword(emailInput: string, turnstileToken?: string) {
     const isTurnstileValid = await verifyTurnstileToken(turnstileToken ?? '');
     if (!isTurnstileValid) throw new BadRequestException('Turnstile verification failed');
@@ -196,6 +262,7 @@ export class AuthService {
       data: { password: await hashPassword(dto.newPassword), resetToken: null, resetTokenExpiresAt: null,
         verificationCode: null, verificationCodeExpiresAt: null },
     });
+    await this.prisma.refreshSession.updateMany({ where: { userId: user.id, revokedAt: null }, data: { revokedAt: new Date() } });
     await this.redis.del(this.otpAttemptKey(user.id));
     return { success: true, message: 'Password reset successfully.' };
   }
@@ -209,6 +276,7 @@ export class AuthService {
       where: { id: userId },
       data: { password: await hashPassword(dto.newPassword), resetToken: null, resetTokenExpiresAt: null },
     });
+    await this.prisma.refreshSession.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: new Date() } });
     return { success: true, message: 'Password changed successfully.' };
   }
 
@@ -220,14 +288,36 @@ export class AuthService {
       throw new UnauthorizedException('Refresh token expired or invalid');
     }
     if (payload.purpose !== 'refresh') throw new UnauthorizedException('Wrong token type');
+    const tokenHash = this.hashToken(dto.refreshToken);
+    const session = await this.prisma.refreshSession.findUnique({ where: { tokenHash } });
+    if (!session || session.userId !== payload.sub || session.revokedAt || session.expiresAt <= new Date()) {
+      throw new UnauthorizedException('Refresh token has been revoked or expired');
+    }
     const user = await this.prisma.user.findUnique({ where: { id: payload.sub } });
     if (!user || !user.emailVerified) throw new UnauthorizedException('Session expired or invalid');
-    return this.issueSessionTokens(user);
+    const tokens = this.createTokenPair(user);
+    const now = new Date();
+    await this.prisma.$transaction(async (tx) => {
+      const revoked = await tx.refreshSession.updateMany({
+        where: { id: session.id, revokedAt: null, expiresAt: { gt: now } },
+        data: { revokedAt: now },
+      });
+      if (revoked.count !== 1) throw new UnauthorizedException('Refresh token was already used');
+      await tx.refreshSession.create({
+        data: { userId: user.id, tokenHash: this.hashToken(tokens.refreshToken), expiresAt: new Date(Date.now() + REFRESH_TOKEN_TTL_SECONDS * 1000) },
+      });
+    });
+    return { ...tokens, user: { id: user.id, name: user.name, email: user.email, role: user.role } };
   }
 
-  async logout() {
-    // Access/refresh JWTs are stateless; frontend must delete both HttpOnly cookies.
-    return { success: true, message: 'Logged out. Clear the accessToken and refreshToken cookies.' };
+  async logout(refreshToken?: string) {
+    if (refreshToken) {
+      await this.prisma.refreshSession.updateMany({
+        where: { tokenHash: this.hashToken(refreshToken), revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+    }
+    return { success: true, message: 'Refresh session revoked. Clear the accessToken and refreshToken cookies.' };
   }
 
   async me(userId: string) {
@@ -280,7 +370,7 @@ export class AuthService {
       const duplicate = await this.prisma.user.findUnique({ where: { email } });
       if (duplicate && duplicate.id !== id) throw new ConflictException('A user with this email already exists');
     }
-    return this.prisma.user.update({
+    const updated = await this.prisma.user.update({
       where: { id },
       data: {
         ...(dto.name !== undefined && { name: dto.name.trim() }),
@@ -290,11 +380,17 @@ export class AuthService {
       },
       select: safeUserSelect,
     });
+    if (dto.email !== undefined || dto.role !== undefined || dto.password !== undefined) {
+      await this.prisma.refreshSession.updateMany({ where: { userId: id, revokedAt: null }, data: { revokedAt: new Date() } });
+    }
+    return updated;
   }
 
   async updateUserRole(id: string, role: UserRole) {
     await this.findOneUser(id);
-    return this.prisma.user.update({ where: { id }, data: { role }, select: safeUserSelect });
+    const updated = await this.prisma.user.update({ where: { id }, data: { role }, select: safeUserSelect });
+    await this.prisma.refreshSession.updateMany({ where: { userId: id, revokedAt: null }, data: { revokedAt: new Date() } });
+    return updated;
   }
 
   async removeUser(id: string) {
@@ -336,18 +432,32 @@ export class AuthService {
     await this.redis.incrementWithExpiry(this.otpAttemptKey(userId), OTP_TTL_SECONDS);
   }
 
-  private issueSessionTokens(user: {
-    id: string;
-    email: string;
-    name: string;
-    role: AuthTokenPayload['role'];
+  private createTokenPair(user: {
+    id: string; email: string; name: string; role: AuthTokenPayload['role'];
   }) {
     const base = { sub: user.id, email: user.email, name: user.name, role: user.role };
     return {
       accessToken: this.signToken(base, 'access', ACCESS_TOKEN_TTL_SECONDS),
       refreshToken: this.signToken(base, 'refresh', REFRESH_TOKEN_TTL_SECONDS),
-      user: { id: user.id, name: user.name, email: user.email, role: user.role },
     };
+  }
+
+  private async issueSessionTokens(user: {
+    id: string; email: string; name: string; role: AuthTokenPayload['role'];
+  }) {
+    const tokens = this.createTokenPair(user);
+    await this.prisma.refreshSession.create({
+      data: {
+        userId: user.id,
+        tokenHash: this.hashToken(tokens.refreshToken),
+        expiresAt: new Date(Date.now() + REFRESH_TOKEN_TTL_SECONDS * 1000),
+      },
+    });
+    return { ...tokens, user: { id: user.id, name: user.name, email: user.email, role: user.role } };
+  }
+
+  private hashToken(token: string) {
+    return createHash('sha256').update(token).digest('hex');
   }
 
   private signToken(base: Omit<AuthTokenPayload, 'purpose'>, purpose: AuthTokenPayload['purpose'], expiresInSeconds: number) {
