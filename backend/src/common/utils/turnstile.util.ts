@@ -5,19 +5,17 @@ type TurnstileVerifyResponse = {
   'error-codes'?: string[];
 };
 
-// Verifies a Cloudflare Turnstile token server-side, per Cloudflare's own
-// docs (the token must always be checked by the backend, never trusted from
-// the client alone). Falls back to allowing the request through — logged by
-// the caller — when TURNSTILE_SECRET_KEY isn't configured, so local dev/testing
-// isn't blocked on having real Cloudflare credentials.
+// Verify Turnstile server-side. Missing secrets fail closed in production;
+// local development may omit the secret to avoid blocking local-only testing.
 export async function verifyTurnstileToken(
   token: string,
   remoteIp?: string,
 ): Promise<boolean> {
   const secret = process.env.TURNSTILE_SECRET_KEY;
   if (!secret) {
-    return true;
+    return process.env.NODE_ENV !== 'production';
   }
+  if (!token.trim()) return false;
 
   const body = new URLSearchParams({ secret, response: token });
   if (remoteIp) {
