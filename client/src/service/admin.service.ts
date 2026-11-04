@@ -1,0 +1,147 @@
+"use server";
+
+import { cookies } from "next/headers";
+import { revalidatePath } from "next/cache";
+
+const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL;
+type ApiError = { success: false; message: string; statusCode?: number };
+type UserInput = { name: string; email: string; password: string; role?: "USER" | "ADMIN" | "SUPER_ADMIN" };
+
+async function getAuthHeaders() {
+  const store = await cookies();
+  const token = store.get("accessToken")?.value;
+  return { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) };
+}
+async function safeJson<T>(response: Response): Promise<T | ApiError> {
+  try { return (await response.json()) as T; }
+  catch { return { success: false, message: "Invalid JSON response from server" }; }
+}
+function isApiError(value: unknown): value is ApiError {
+  return typeof value === "object" && value !== null && "statusCode" in value;
+}
+async function request<T>(path: string, options: RequestInit = {}): Promise<T | ApiError> {
+  if (!BASE_URL) return { success: false, message: "NEXT_PUBLIC_BASE_URL is not configured" };
+  try {
+    const response = await fetch(`${BASE_URL.replace(/\/+$/, "")}${path}`, {
+      ...options, headers: await getAuthHeaders(), cache: "no-store",
+    });
+    const data = await safeJson<T>(response);
+    if (!response.ok) {
+      const message = typeof data === "object" && data !== null && "message" in data
+        ? String(data.message) : `Request failed: ${response.status}`;
+      return { success: false, statusCode: response.status, message };
+    }
+    return data;
+  } catch (error) {
+    console.error("Admin request failed:", error);
+    return { success: false, message: "Unable to connect to the server" };
+  }
+}
+function buildQuery(params: { search?: string; page?: number; limit?: number }) {
+  const query = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== "") query.set(key, String(value));
+  });
+  return query.size ? `?${query.toString()}` : "";
+}
+
+// User administration endpoints are SUPER_ADMIN-only in the NestJS backend.
+export async function getAdminUsers(params: { search?: string; page?: number; limit?: number } = {}) {
+  return request(`/users${buildQuery(params)}`);
+}
+export async function getAdminUserById(id: string) {
+  return request(`/users/${encodeURIComponent(id)}`);
+}
+export async function createAdminUser(data: UserInput) {
+  const result = await request("/users", { method: "POST", body: JSON.stringify(data) });
+  if (!isApiError(result)) revalidatePath("/admin/users");
+  return result;
+}
+export async function updateAdminUser(id: string, data: Partial<UserInput>) {
+  const result = await request(`/users/${encodeURIComponent(id)}`, {
+    method: "PATCH", body: JSON.stringify(data),
+  });
+  if (!isApiError(result)) revalidatePath("/admin/users");
+  return result;
+}
+export async function updateAdminUserRole(id: string, role: "USER" | "ADMIN" | "SUPER_ADMIN") {
+  const result = await request(`/users/${encodeURIComponent(id)}/role`, {
+    method: "PATCH", body: JSON.stringify({ role }),
+  });
+  if (!isApiError(result)) revalidatePath("/admin/users");
+  return result;
+}
+export async function deleteAdminUser(id: string) {
+  const result = await request(`/users/${encodeURIComponent(id)}`, { method: "DELETE" });
+  if (!isApiError(result)) revalidatePath("/admin/users");
+  return result;
+}
+
+// Category endpoints are admin-managed and are grouped here to avoid another tiny service.
+export async function getCategories() {
+  return request("/categories");
+}
+export async function createCategory(data: Record<string, unknown>) {
+  const result = await request("/categories", { method: "POST", body: JSON.stringify(data) });
+  if (!isApiError(result)) revalidatePath("/admin/products");
+  return result;
+}
+export async function updateCategory(id: string, data: Record<string, unknown>) {
+  const result = await request(`/categories/${encodeURIComponent(id)}`, {
+    method: "PATCH", body: JSON.stringify(data),
+  });
+  if (!isApiError(result)) revalidatePath("/admin/products");
+  return result;
+}
+export async function deleteCategory(id: string) {
+  const result = await request(`/categories/${encodeURIComponent(id)}`, { method: "DELETE" });
+  if (!isApiError(result)) revalidatePath("/admin/products");
+  return result;
+}
+export async function createSubcategory(categoryId: string, data: { name: string; slug?: string }) {
+  const result = await request(`/categories/${encodeURIComponent(categoryId)}/subcategories`, {
+    method: "POST", body: JSON.stringify(data),
+  });
+  if (!isApiError(result)) revalidatePath("/admin/products");
+  return result;
+}
+export async function updateSubcategory(id: string, data: Record<string, unknown>) {
+  const result = await request(`/categories/subcategories/${encodeURIComponent(id)}`, {
+    method: "PATCH", body: JSON.stringify(data),
+  });
+  if (!isApiError(result)) revalidatePath("/admin/products");
+  return result;
+}
+export async function deleteSubcategory(id: string) {
+  const result = await request(`/categories/subcategories/${encodeURIComponent(id)}`, { method: "DELETE" });
+  if (!isApiError(result)) revalidatePath("/admin/products");
+  return result;
+}
+
+// Apliiq artwork and design management endpoints.
+export async function createApliiqArtwork(productId: string, formData: FormData) {
+  if (!BASE_URL) return { success: false as const, message: "NEXT_PUBLIC_BASE_URL is not configured" };
+  try {
+    const store = await cookies();
+    const token = store.get("accessToken")?.value;
+    const response = await fetch(`${BASE_URL.replace(/\/+$/, "")}/admin/apliiq/products/${encodeURIComponent(productId)}/artworks`, {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: formData,
+      cache: "no-store",
+    });
+    const result = await safeJson(response);
+    if (response.ok) revalidatePath("/admin/products");
+    return result;
+  } catch (error) {
+    console.error("Apliiq artwork request failed:", error);
+    return { success: false as const, message: "Unable to connect to the server" };
+  }
+}
+export async function createApliiqDesign(productId: string, data: Record<string, unknown>) {
+  const result = await request(`/admin/apliiq/products/${encodeURIComponent(productId)}/designs`, {
+    method: "POST", body: JSON.stringify(data),
+  });
+  if (!isApiError(result)) revalidatePath("/admin/products");
+  return result;
+}
