@@ -42,7 +42,7 @@ export class ReviewsService {
       select: {
         id: true, productId: true, rating: true, title: true, body: true, status: true,
         moderationNote: true, createdAt: true, updatedAt: true,
-        product: { select: { name: true, slug: true, images: { take: 1, orderBy: { sortOrder: 'asc' }, select: { url: true } } } },
+        product: { select: { name: true } },
       },
       orderBy: { createdAt: 'desc' },
     });
