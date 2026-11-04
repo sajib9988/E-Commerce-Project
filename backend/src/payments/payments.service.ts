@@ -61,7 +61,7 @@ export class PaymentsService {
     if (order.status !== OrderStatus.PENDING_PAYMENT) {
       throw new BadRequestException('Order is not awaiting payment');
     }
-    if (!order.stockReservation || order.stockReservation.status !== 'RESERVED') {
+    if (!order.stockReservation || order.stockReservation.status !== 'RESERVED' || order.stockReservation.expiresAt <= new Date()) {
       throw new ConflictException('The stock reservation has expired. Create a new order to continue.');
     }
     if (!order.items.length) {
@@ -112,13 +112,29 @@ export class PaymentsService {
       if (!reservation || reservation.status !== 'RESERVED') {
         throw new ConflictException('The stock reservation has expired. Create a new order to continue.');
       }
-      await tx.stockReservation.update({ where: { id: reservation.id }, data: { expiresAt: checkoutExpiresAt } });
+      if (reservation.expiresAt <= new Date()) throw new ConflictException('The stock reservation has expired. Create a new order to continue.');
       const active = await tx.paymentAttempt.findFirst({
         where: { orderId: order.id, status: PaymentAttemptStatus.CREATED },
         orderBy: { createdAt: 'desc' },
       });
-      if (active) return active;
+      if (active) {
+        const stableExpiry = active.checkoutExpiresAt ?? checkoutExpiresAt;
+        if (!active.checkoutExpiresAt) {
+          await tx.paymentAttempt.update({ where: { id: active.id }, data: { checkoutExpiresAt: stableExpiry } });
+        }
+        const extended = await tx.stockReservation.updateMany({
+          where: { id: reservation.id, status: 'RESERVED', expiresAt: { gt: new Date() } },
+          data: { expiresAt: stableExpiry },
+        });
+        if (extended.count !== 1) throw new ConflictException('Stock reservation expired while starting payment');
+        return { ...active, checkoutExpiresAt: stableExpiry };
+      }
 
+      const extended = await tx.stockReservation.updateMany({
+        where: { id: reservation.id, status: 'RESERVED', expiresAt: { gt: new Date() } },
+        data: { expiresAt: checkoutExpiresAt },
+      });
+      if (extended.count !== 1) throw new ConflictException('Stock reservation expired while starting payment');
       return tx.paymentAttempt.create({
         data: {
           orderId: order.id,
@@ -126,17 +142,19 @@ export class PaymentsService {
           status: PaymentAttemptStatus.CREATED,
           amount: order.totalAmount,
           currency: order.currency.toLowerCase(),
+          checkoutExpiresAt,
         },
       });
     });
 
+    const sessionExpiresAt = attempt.checkoutExpiresAt ?? checkoutExpiresAt;
     try {
       const amount = this.toMinorUnits(order.totalAmount);
       const session = await this.stripe.checkout.sessions.create(
         {
           mode: 'payment',
           payment_method_types: ['card'],
-          expires_at: Math.floor(checkoutExpiresAt.getTime() / 1000),
+          expires_at: Math.floor(sessionExpiresAt.getTime() / 1000),
           line_items: [
             {
               price_data: {
