@@ -15,7 +15,7 @@ export class CollectionsService {
   async findBySlug(slug: string) {
     const collection = await this.prisma.collection.findFirst({
       where: { slug, isActive: true },
-      include: { products: { where: { product: { isActive: true } }, orderBy: { sortOrder: 'asc' }, include: { product: { include: { category: true, subcategory: true, variants: { where: { isActive: true }, include: { size: true } } } } } } },
+      include: { products: { where: { product: { isActive: true } }, orderBy: { sortOrder: 'asc' }, include: { product: { include: { category: true, subcategory: true, variants: { where: { isActive: true }, include: { size: true } }, apliiqDesigns: { orderBy: { createdAt: 'asc' } } } } } } },
     });
     if (!collection) throw new NotFoundException('Collection not found');
     return collection;
