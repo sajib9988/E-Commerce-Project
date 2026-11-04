@@ -421,7 +421,8 @@ model ProductArtworkPlacement {
   artwork     ProductArtwork @relation(fields: [artworkId], references: [id], onDelete: Cascade)
   locationId  String
   service     String
-  printColors Int?
+  printColors String?
+  boxId       Int?
   note        String?
   widthInches Decimal?       @db.Decimal(6, 2)
   heightInches Decimal?      @db.Decimal(6, 2)
@@ -440,6 +441,7 @@ model ApliiqProductDesign {
   productCode     String
   apliiqDesignId  String
   mockupUrl       String?
+  mockupUrls      String[] @default([])
   providerPayload Json?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
