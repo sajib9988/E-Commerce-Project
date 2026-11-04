@@ -17,8 +17,12 @@ export class CollectionsService {
     const include = { _count: { select: { products: true } }, products: { where: { product: { isActive: true } }, orderBy: { sortOrder: 'asc' as const }, include: { product: { include: { category: true, subcategory: true, variants: { where: { isActive: true }, include: { size: true } }, apliiqDesigns: { orderBy: { createdAt: 'asc' as const } } } } } } };
     const sortBy = params.sortBy === 'name' || params.sortBy === 'createdAt' ? params.sortBy : 'sortOrder';
     const sortOrder = params.sortOrder === 'desc' ? 'desc' : 'asc';
+    const orderBy: Prisma.CollectionOrderByWithRelationInput[] = [
+      sortBy === 'name' ? { name: sortOrder } : sortBy === 'createdAt' ? { createdAt: sortOrder } : { sortOrder },
+      { name: 'asc' },
+    ];
     if (params.page === undefined && params.limit === undefined) {
-      return this.prisma.collection.findMany({ where, orderBy: [{ [sortBy]: sortOrder }, { name: 'asc' }], include });
+      return this.prisma.collection.findMany({ where, orderBy, include });
     }
     const page = Number.isFinite(params.page) ? Math.max(1, Math.floor(params.page!)) : 1;
     const limit = Number.isFinite(params.limit) ? Math.min(100, Math.max(1, Math.floor(params.limit!))) : 20;
@@ -42,6 +46,10 @@ export class CollectionsService {
     const limit = Number.isFinite(params.limit) ? Math.min(100, Math.max(1, Math.floor(params.limit!))) : 20;
     const sortBy = params.sortBy === 'name' || params.sortBy === 'createdAt' ? params.sortBy : 'sortOrder';
     const sortOrder = params.sortOrder === 'desc' ? 'desc' : 'asc';
+    const orderBy: Prisma.CollectionOrderByWithRelationInput[] = [
+      sortBy === 'name' ? { name: sortOrder } : sortBy === 'createdAt' ? { createdAt: sortOrder } : { sortOrder },
+      { name: 'asc' },
+    ];
     const [items, total] = await this.prisma.$transaction([
       this.prisma.collection.findMany({ where, orderBy: [{ [sortBy]: sortOrder }, { name: 'asc' }], skip: (page - 1) * limit, take: limit,
         include: { _count: { select: { products: true } }, products: { include: { product: { include: { variants: { include: { size: true } } } } } } } }),
