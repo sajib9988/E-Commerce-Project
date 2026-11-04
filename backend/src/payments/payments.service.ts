@@ -304,7 +304,6 @@ export class PaymentsService {
             },
           });
         }
-        confirmation = { email: attempt.order.customerEmail, orderNumber: attempt.order.orderNumber, customerName: attempt.order.customerName, totalAmount: attempt.amount.toString(), currency: attempt.currency };
         return;
       }
 
@@ -333,7 +332,6 @@ export class PaymentsService {
           where: { id: orderId },
           data: { paymentStatus: PaymentStatus.PAID, paidAt: new Date() },
         });
-        confirmation = { email: attempt.order.customerEmail, orderNumber: attempt.order.orderNumber, customerName: attempt.order.customerName, totalAmount: attempt.amount.toString(), currency: attempt.currency };
         return;
       }
 
