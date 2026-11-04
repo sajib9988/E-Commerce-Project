@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Prisma } from '../../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CloudinaryService } from '../cloudinary/cloudinary.service';
 import { CreateProductDto } from './dto/create-product.dto';
@@ -8,21 +9,78 @@ import { UpdateProductDto } from './dto/update-product.dto';
 export class ProductsService {
   constructor(private readonly prisma: PrismaService, private readonly cloudinaryService: CloudinaryService) {}
 
-  async findAll(filters: { collectionSlug?: string } = {}) {
-    return this.prisma.product.findMany({
-      where: {
-        isActive: true,
-        ...(filters.collectionSlug && { collections: { some: { collection: { slug: filters.collectionSlug, isActive: true } } } }),
-      },
-      include: {
-        category: true, subcategory: true,
-        variants: { where: { isActive: true }, include: { size: true } },
-        collections: { include: { collection: true }, orderBy: { sortOrder: 'asc' } },
-        artworks: { include: { placements: true }, orderBy: { isPrimary: 'desc' } },
-        apliiqDesigns: true,
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+  async findAll(filters: { collectionSlug?: string; page?: number; limit?: number; search?: string; categoryId?: string; sortBy?: string; sortOrder?: string; minPrice?: number; maxPrice?: number } = {}) {
+    const where: Prisma.ProductWhereInput = {
+      isActive: true,
+      ...(filters.collectionSlug && { collections: { some: { collection: { slug: filters.collectionSlug, isActive: true } } } }),
+      ...(filters.categoryId && { categoryId: filters.categoryId }),
+      ...(filters.search?.trim() && { OR: [
+        { name: { contains: filters.search.trim(), mode: 'insensitive' } },
+        { description: { contains: filters.search.trim(), mode: 'insensitive' } },
+        { brand: { contains: filters.search.trim(), mode: 'insensitive' } },
+      ] }),
+      ...(filters.minPrice !== undefined || filters.maxPrice !== undefined ? {
+        regularPrice: {
+          ...(filters.minPrice !== undefined && { gte: filters.minPrice }),
+          ...(filters.maxPrice !== undefined && { lte: filters.maxPrice }),
+        },
+      } : {}),
+    };
+    const sortField = ['createdAt', 'updatedAt', 'name', 'regularPrice'].includes(filters.sortBy ?? '')
+      ? filters.sortBy as 'createdAt' | 'updatedAt' | 'name' | 'regularPrice' : 'createdAt';
+    const sortOrder = filters.sortOrder === 'asc' ? 'asc' : 'desc';
+    const orderBy: Prisma.ProductOrderByWithRelationInput = sortField === 'name'
+      ? { name: sortOrder } : sortField === 'updatedAt'
+        ? { updatedAt: sortOrder } : sortField === 'regularPrice'
+          ? { regularPrice: sortOrder } : { createdAt: sortOrder };
+    const include = {
+      category: true, subcategory: true,
+      variants: { where: { isActive: true }, include: { size: true } },
+      collections: { include: { collection: true }, orderBy: { sortOrder: 'asc' as const } },
+      artworks: { include: { placements: true }, orderBy: { isPrimary: 'desc' as const } },
+      apliiqDesigns: true,
+    } as const;
+    // Keep the legacy array response when pagination is not requested.
+    if (filters.page === undefined && filters.limit === undefined) {
+      return this.prisma.product.findMany({ where, include, orderBy });
+    }
+    const page = Number.isFinite(filters.page) ? Math.max(1, Math.floor(filters.page!)) : 1;
+    const limit = Number.isFinite(filters.limit) ? Math.min(100, Math.max(1, Math.floor(filters.limit!))) : 20;
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.product.findMany({ where, include, orderBy, skip: (page - 1) * limit, take: limit }),
+      this.prisma.product.count({ where }),
+    ]);
+    return { items, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } };
+  }
+
+  async findAllForAdmin(params: { page?: number; limit?: number; search?: string; categoryId?: string; isActive?: boolean; sortBy?: string; sortOrder?: string } = {}) {
+    const where: Prisma.ProductWhereInput = {
+      ...(params.isActive !== undefined && { isActive: params.isActive }),
+      ...(params.categoryId && { categoryId: params.categoryId }),
+      ...(params.search?.trim() && { OR: [
+        { name: { contains: params.search.trim(), mode: 'insensitive' } },
+        { description: { contains: params.search.trim(), mode: 'insensitive' } },
+        { brand: { contains: params.search.trim(), mode: 'insensitive' } },
+      ] }),
+    };
+    const page = Math.max(1, Math.floor(params.page ?? 1));
+    const limit = Math.min(100, Math.max(1, Math.floor(params.limit ?? 20)));
+    const sortField = ['createdAt', 'updatedAt', 'name', 'regularPrice'].includes(params.sortBy ?? '')
+      ? params.sortBy as 'createdAt' | 'updatedAt' | 'name' | 'regularPrice' : 'createdAt';
+    const sortOrder = params.sortOrder === 'asc' ? 'asc' : 'desc';
+    const orderBy: Prisma.ProductOrderByWithRelationInput = sortField === 'name'
+      ? { name: sortOrder } : sortField === 'updatedAt'
+        ? { updatedAt: sortOrder } : sortField === 'regularPrice'
+          ? { regularPrice: sortOrder } : { createdAt: sortOrder };
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.product.findMany({
+        where, orderBy, skip: (page - 1) * limit, take: limit,
+        include: { category: true, subcategory: true, variants: { include: { size: true } },
+          collections: { include: { collection: true } }, artworks: { include: { placements: true } }, apliiqDesigns: true },
+      }),
+      this.prisma.product.count({ where }),
+    ]);
+    return { items, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } };
   }
 
   async findOne(id: string) {

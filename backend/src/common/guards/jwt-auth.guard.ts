@@ -9,6 +9,7 @@ import { JwtService } from '@nestjs/jwt';
 import type { Request } from 'express';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 import type { AuthTokenPayload } from '../types/auth-token-payload';
+import { PrismaService } from '../../prisma/prisma.service';
 
 // Applied globally (see app.module.ts APP_GUARD provider). Stateless Bearer
 // auth — expects `Authorization: Bearer <token>`, set by the Admin app from
@@ -19,9 +20,10 @@ export class JwtAuthGuard implements CanActivate {
   constructor(
     private readonly jwtService: JwtService,
     private readonly reflector: Reflector,
+    private readonly prisma: PrismaService,
   ) {}
 
-  canActivate(context: ExecutionContext): boolean {
+  async canActivate(context: ExecutionContext): Promise<boolean> {
     const isPublic = this.reflector.getAllAndOverride<boolean>(
       IS_PUBLIC_KEY,
       [context.getHandler(), context.getClass()],
@@ -39,12 +41,17 @@ export class JwtAuthGuard implements CanActivate {
 
     try {
       const payload = this.jwtService.verify<AuthTokenPayload>(token);
-      if (payload.purpose !== 'access') {
-        throw new UnauthorizedException('Wrong token type');
-      }
-      request.user = payload;
+      if (payload.purpose !== 'access') throw new UnauthorizedException('Wrong token type');
+      // Never authorize from a stale role claim: fetch current account state on every request.
+      const user = await this.prisma.user.findUnique({
+        where: { id: payload.sub },
+        select: { id: true, email: true, name: true, role: true, emailVerified: true },
+      });
+      if (!user || !user.emailVerified) throw new UnauthorizedException('Account is unavailable');
+      request.user = { ...payload, email: user.email, name: user.name, role: user.role };
       return true;
-    } catch {
+    } catch (error) {
+      if (error instanceof UnauthorizedException) throw error;
       throw new UnauthorizedException('Session expired or invalid');
     }
   }

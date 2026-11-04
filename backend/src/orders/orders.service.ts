@@ -5,13 +5,14 @@ import { Prisma } from '../../generated/prisma/client';
 import { CouponType, OrderStatus, PaymentAttemptStatus, StockReservationStatus } from '../../generated/prisma/enums';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateOrderDto } from './dto/create-order.dto';
+import { PaymentsService } from '../payments/payments.service';
 
 const RESERVATION_MINUTES = 30;
 const MAX_TRANSACTION_ATTEMPTS = 3;
 
 @Injectable()
 export class OrdersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, private readonly payments: PaymentsService) {}
 
   private async serializableRetry<T>(work: () => Promise<T>): Promise<T> {
     for (let attempt = 1; ; attempt++) {
@@ -323,7 +324,7 @@ export class OrdersService {
     const [items, total] = await this.prisma.$transaction([
       this.prisma.order.findMany({
         where: { userId },
-        include: { items: true, fulfillments: true },
+        include: { items: true, fulfillments: { select: { id: true, provider: true, submissionStatus: true, providerStatus: true, trackingCompany: true, trackingNumbers: true, trackingUrls: true, submittedAt: true, shippedAt: true, createdAt: true, updatedAt: true } } },
         orderBy: { createdAt: 'desc' },
         skip, take,
       }),
@@ -335,13 +336,20 @@ export class OrdersService {
   async findMyOrder(userId: string, orderId: string) {
     const order = await this.prisma.order.findFirst({
       where: { id: orderId, userId },
-      include: { items: true, paymentAttempts: { select: { id: true, status: true, amount: true, currency: true, paidAt: true } }, fulfillments: true },
+      include: { items: true, paymentAttempts: { select: { id: true, status: true, amount: true, currency: true, paidAt: true } }, fulfillments: { select: { id: true, provider: true, submissionStatus: true, providerStatus: true, trackingCompany: true, trackingNumbers: true, trackingUrls: true, submittedAt: true, shippedAt: true, createdAt: true, updatedAt: true } } },
     });
     if (!order) throw new NotFoundException('Order not found');
     return order;
   }
 
   async cancelMyOrder(userId: string, orderId: string) {
+    const existing = await this.prisma.order.findFirst({ where: { id: orderId, userId }, select: { status: true, paymentStatus: true } });
+    if (!existing) throw new NotFoundException('Order not found');
+    if (existing.status !== 'PENDING_PAYMENT' || existing.paymentStatus !== 'PENDING') {
+      throw new ConflictException('Only unpaid pending orders can be cancelled');
+    }
+    // Expire the remote Stripe session first. If Stripe cannot confirm, keep the order/reservation intact.
+    await this.payments.expireCheckoutSessionsForOrder(orderId);
     return this.prisma.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT "id" FROM "orders" WHERE "id" = ${orderId} FOR UPDATE`;
       const order = await tx.order.findFirst({ where: { id: orderId, userId } });

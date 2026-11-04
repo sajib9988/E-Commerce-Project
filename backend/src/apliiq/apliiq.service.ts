@@ -11,6 +11,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ApliiqClient } from './apliiq.client';
 import { mapOrderToApliiq } from './apliiq.mapper';
 import { CloudinaryService } from '../cloudinary/cloudinary.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 type CreateOrderResponse = { id: string | number };
 
@@ -23,6 +24,7 @@ export class ApliiqService extends WorkerHost implements OnModuleInit {
     private readonly prisma: PrismaService,
     private readonly client: ApliiqClient,
     private readonly cloudinary: CloudinaryService,
+    private readonly notifications: NotificationsService,
     @InjectQueue('apliiq-fulfillment') private readonly queue: Queue,
   ) { super(); }
 
@@ -308,6 +310,10 @@ export class ApliiqService extends WorkerHost implements OnModuleInit {
         });
         if (claimed.count === 1) await this.submitClaimedFulfillment(item.id, item.orderId);
       }
+    } catch (error) {
+      // Let BullMQ record/retry transient database failures; provider submission
+      // ambiguity is handled separately as UNKNOWN in submitClaimedFulfillment.
+      throw error;
     }
   }
 
@@ -390,7 +396,7 @@ export class ApliiqService extends WorkerHost implements OnModuleInit {
     const trackingUrls = readStringArray('tracking_urls');
     const isShipped = ['success', 'shipped'].includes(providerStatus.toLowerCase());
 
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const fulfillment = await tx.fulfillment.findUnique({
         where: { externalOrderId },
         include: { order: true },
@@ -433,7 +439,17 @@ export class ApliiqService extends WorkerHost implements OnModuleInit {
         });
       }
 
-      return updated;
+      return { updated, order: fulfillment.order, notify: isShipped && !fulfillment.shippedAt };
     });
+    if (result.notify) {
+      await this.notifications.orderShipped({
+        email: result.order.customerEmail,
+        orderNumber: result.order.orderNumber,
+        trackingCompany: result.updated.trackingCompany,
+        trackingNumbers: result.updated.trackingNumbers,
+        trackingUrls: result.updated.trackingUrls,
+      });
+    }
+    return result.updated;
   }
 }

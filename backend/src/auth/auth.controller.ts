@@ -28,6 +28,7 @@ import { ForgetPasswordDto } from './dto/forget-password.dto';
 import { UpdateUserRoleDto } from './dto/update-user-role.dto';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { OAuthLoginDto } from './dto/oauth-login.dto';
 
 const AUTH_THROTTLE = { default: { limit: 5, ttl: 60_000 } };
 
@@ -41,6 +42,14 @@ export class AuthController {
   @Post('auth/register')
   register(@Body() dto: RegisterDto) {
     return this.authService.register(dto);
+  }
+
+  @Public()
+  @Throttle(AUTH_THROTTLE)
+  @HttpCode(200)
+  @Post('auth/oauth/:provider')
+  oauthLogin(@Param('provider') provider: string, @Body() dto: OAuthLoginDto) {
+    return this.authService.oauthLogin(provider, dto);
   }
 
   @Public()
@@ -110,8 +119,8 @@ export class AuthController {
   @Public()
   @HttpCode(200)
   @Post('auth/logout')
-  logout() {
-    return this.authService.logout();
+  logout(@Body() dto: RefreshDto) {
+    return this.authService.logout(dto.refreshToken);
   }
 
   @Post('auth/change-password')

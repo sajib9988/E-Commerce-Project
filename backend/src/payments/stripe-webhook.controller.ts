@@ -11,10 +11,12 @@ import { Request } from 'express';
 import Stripe from 'stripe';
 import { PaymentsService } from './payments.service';
 import { Public } from '../common/decorators/public.decorator';
+import { SkipThrottle } from '@nestjs/throttler';
 
 type RawBodyRequest = Request & { rawBody?: Buffer };
 
 @Public()
+@SkipThrottle()
 @Controller('webhooks/stripe')
 export class StripeWebhookController {
   private readonly stripe: Stripe;

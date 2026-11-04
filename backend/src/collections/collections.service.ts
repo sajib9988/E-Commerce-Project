@@ -5,12 +5,57 @@ import { CreateCollectionDto, UpdateCollectionDto } from './dto/collection.dto';
 @Injectable()
 export class CollectionsService {
   constructor(private readonly prisma: PrismaService) {}
-  findAll(featuredOnly = false) {
-    return this.prisma.collection.findMany({
-      where: { isActive: true, ...(featuredOnly && { isFeatured: true }) },
-      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
-      include: { _count: { select: { products: true } }, products: { where: { product: { isActive: true } }, orderBy: { sortOrder: 'asc' }, include: { product: { include: { category: true, subcategory: true, variants: { where: { isActive: true }, include: { size: true } }, apliiqDesigns: { orderBy: { createdAt: 'asc' } } } } } } },
-    });
+  async findAll(featuredOnly = false, params: { page?: number; limit?: number; search?: string; sortBy?: string; sortOrder?: string } = {}) {
+    const where: Prisma.CollectionWhereInput = {
+      isActive: true,
+      ...(featuredOnly && { isFeatured: true }),
+      ...(params.search?.trim() && { OR: [
+        { name: { contains: params.search.trim(), mode: 'insensitive' } },
+        { description: { contains: params.search.trim(), mode: 'insensitive' } },
+      ] }),
+    };
+    const include = { _count: { select: { products: true } }, products: { where: { product: { isActive: true } }, orderBy: { sortOrder: 'asc' as const }, include: { product: { include: { category: true, subcategory: true, variants: { where: { isActive: true }, include: { size: true } }, apliiqDesigns: { orderBy: { createdAt: 'asc' as const } } } } } } } as const;
+    const sortBy = params.sortBy === 'name' || params.sortBy === 'createdAt' ? params.sortBy : 'sortOrder';
+    const sortOrder = params.sortOrder === 'desc' ? 'desc' : 'asc';
+    const orderBy: Prisma.CollectionOrderByWithRelationInput[] = [
+      sortBy === 'name' ? { name: sortOrder } : sortBy === 'createdAt' ? { createdAt: sortOrder } : { sortOrder },
+      { name: 'asc' },
+    ];
+    if (params.page === undefined && params.limit === undefined) {
+      return this.prisma.collection.findMany({ where, orderBy, include });
+    }
+    const page = Number.isFinite(params.page) ? Math.max(1, Math.floor(params.page!)) : 1;
+    const limit = Number.isFinite(params.limit) ? Math.min(100, Math.max(1, Math.floor(params.limit!))) : 20;
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.collection.findMany({ where, orderBy, include, skip: (page - 1) * limit, take: limit }),
+      this.prisma.collection.count({ where }),
+    ]);
+    return { items, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } };
+  }
+
+  async findAllForAdmin(params: { page?: number; limit?: number; search?: string; isActive?: boolean; isFeatured?: boolean; sortBy?: string; sortOrder?: string } = {}) {
+    const where: Prisma.CollectionWhereInput = {
+      ...(params.isActive !== undefined && { isActive: params.isActive }),
+      ...(params.isFeatured !== undefined && { isFeatured: params.isFeatured }),
+      ...(params.search?.trim() && { OR: [
+        { name: { contains: params.search.trim(), mode: 'insensitive' } },
+        { description: { contains: params.search.trim(), mode: 'insensitive' } },
+      ] }),
+    };
+    const page = Number.isFinite(params.page) ? Math.max(1, Math.floor(params.page!)) : 1;
+    const limit = Number.isFinite(params.limit) ? Math.min(100, Math.max(1, Math.floor(params.limit!))) : 20;
+    const sortBy = params.sortBy === 'name' || params.sortBy === 'createdAt' ? params.sortBy : 'sortOrder';
+    const sortOrder = params.sortOrder === 'desc' ? 'desc' : 'asc';
+    const orderBy: Prisma.CollectionOrderByWithRelationInput[] = [
+      sortBy === 'name' ? { name: sortOrder } : sortBy === 'createdAt' ? { createdAt: sortOrder } : { sortOrder },
+      { name: 'asc' },
+    ];
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.collection.findMany({ where, orderBy, skip: (page - 1) * limit, take: limit,
+        include: { _count: { select: { products: true } }, products: { include: { product: { include: { variants: { include: { size: true } } } } } } } }),
+      this.prisma.collection.count({ where }),
+    ]);
+    return { items, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } };
   }
   async findBySlug(slug: string) {
     const collection = await this.prisma.collection.findFirst({
