@@ -47,7 +47,7 @@ export class ProductsService {
     const page = Number.isFinite(filters.page) ? Math.max(1, Math.floor(filters.page!)) : 1;
     const limit = Number.isFinite(filters.limit) ? Math.min(100, Math.max(1, Math.floor(filters.limit!))) : 20;
     const [items, total] = await this.prisma.$transaction([
-      this.prisma.product.findMany({ where, include, orderBy: { [sortField]: sortOrder }, skip: (page - 1) * limit, take: limit }),
+      this.prisma.product.findMany({ where, include, orderBy, skip: (page - 1) * limit, take: limit }),
       this.prisma.product.count({ where }),
     ]);
     return { items, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } };
@@ -74,7 +74,7 @@ export class ProductsService {
           ? { regularPrice: sortOrder } : { createdAt: sortOrder };
     const [items, total] = await this.prisma.$transaction([
       this.prisma.product.findMany({
-        where, orderBy: { [sortField]: sortOrder }, skip: (page - 1) * limit, take: limit,
+        where, orderBy, skip: (page - 1) * limit, take: limit,
         include: { category: true, subcategory: true, variants: { include: { size: true } },
           collections: { include: { collection: true } }, artworks: { include: { placements: true } }, apliiqDesigns: true },
       }),
