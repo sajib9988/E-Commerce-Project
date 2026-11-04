@@ -177,6 +177,30 @@ export class AuthService {
 
     let profile: { id: string; email: string; name: string; emailVerified: boolean };
     try {
+      if (provider === 'google') {
+        const clientId = process.env.GOOGLE_CLIENT_ID;
+        if (!clientId) throw new Error('GOOGLE_CLIENT_ID is not configured');
+        const tokenInfoUrl = new URL('https://oauth2.googleapis.com/tokeninfo');
+        tokenInfoUrl.searchParams.set('access_token', dto.accessToken);
+        const tokenInfoResponse = await fetch(tokenInfoUrl, { signal: AbortSignal.timeout(8_000) });
+        const tokenInfo = await tokenInfoResponse.json() as Record<string, unknown>;
+        if (!tokenInfoResponse.ok || tokenInfo.aud !== clientId || tokenInfo.email_verified !== 'true' && tokenInfo.email_verified !== true) {
+          throw new Error('Google access token audience or email verification is invalid');
+        }
+      } else {
+        const appId = process.env.FACEBOOK_APP_ID;
+        const appSecret = process.env.FACEBOOK_APP_SECRET;
+        if (!appId || !appSecret) throw new Error('Facebook OAuth credentials are not configured');
+        const debugUrl = new URL('https://graph.facebook.com/debug_token');
+        debugUrl.searchParams.set('input_token', dto.accessToken);
+        debugUrl.searchParams.set('access_token', `${appId}|${appSecret}`);
+        const debugResponse = await fetch(debugUrl, { signal: AbortSignal.timeout(8_000) });
+        const debugPayload = await debugResponse.json() as { data?: { is_valid?: boolean; app_id?: string; user_id?: string } };
+        if (!debugResponse.ok || !debugPayload.data?.is_valid || debugPayload.data.app_id !== appId) {
+          throw new Error('Facebook access token is invalid for this application');
+        }
+      }
+
       const endpoint = provider === 'google'
         ? 'https://openidconnect.googleapis.com/v1/userinfo'
         : 'https://graph.facebook.com/me?fields=id,name,email';
