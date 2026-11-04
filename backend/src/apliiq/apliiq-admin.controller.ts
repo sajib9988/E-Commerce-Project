@@ -1,4 +1,6 @@
-import { Body, Controller, Param, Post } from '@nestjs/common';
+import { Body, Controller, Param, Post, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { productImageUploadOptions } from '../products/upload';
 import { UserRole } from '../../generated/prisma/enums';
 import { Roles } from '../common/decorators/roles.decorator';
 import { ApliiqService } from './apliiq.service';
@@ -8,14 +10,30 @@ import { ApliiqService } from './apliiq.service';
 export class ApliiqAdminController {
   constructor(private readonly apliiq: ApliiqService) {}
 
-  @Post('artworks')
-  uploadArtwork(@Body() body: { Name: string; ImagePath: string }) {
-    return this.apliiq.uploadArtwork(body);
+  @Post('products/:productId/artworks')
+  @UseInterceptors(FileInterceptor('image', productImageUploadOptions))
+  createArtwork(
+    @Param('productId') productId: string,
+    @Body('name') name: string,
+    @UploadedFile() file?: Express.Multer.File,
+  ) {
+    return this.apliiq.createProductArtwork(productId, name, file as Express.Multer.File);
   }
 
-  @Post('products/:productId/artwork')
-  registerProductArtwork(@Param('productId') productId: string) {
-    return this.apliiq.registerProductArtwork(productId);
+  @Post('products/:productId/artworks/use-product-image')
+  registerProductImage(
+    @Param('productId') productId: string,
+    @Body('name') name?: string,
+  ) {
+    return this.apliiq.registerProductImageAsArtwork(productId, name);
+  }
+
+  @Post('artworks/:artworkId/placements')
+  addPlacement(
+    @Param('artworkId') artworkId: string,
+    @Body() body: { locationId: string; service: string; printColors?: number; note?: string; widthInches?: number; heightInches?: number },
+  ) {
+    return this.apliiq.addArtworkPlacement(artworkId, body);
   }
 
   @Post('products/:productId/designs')
