@@ -57,11 +57,11 @@ export class ApliiqService extends WorkerHost implements OnModuleInit {
   async createProductDesign(productId: string, payload: Record<string, unknown>) {
     const product = await this.prisma.product.findUnique({
       where: { id: productId },
-      include: { variants: { where: { isActive: true }, include: { size: true } } },
+      include: { variants: { where: { isActive: true, apliiqColorId: String(payload.ColorId) }, include: { size: true } } },
     });
     if (!product) throw new NotFoundException('Product not found');
     if (!product.variants.length) {
-      throw new BadRequestException('Create active size variants before creating an Apliiq design');
+      throw new BadRequestException('Create active size variants for this Apliiq color before creating its design');
     }
     const productCode = payload.ProductCode;
     const colorId = payload.ColorId;
