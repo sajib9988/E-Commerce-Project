@@ -41,7 +41,7 @@ export default async function CustomerCouponsPage() {
                   <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Promotion code</p>
                   <h2 className="mt-1 text-xl font-bold tracking-wide text-slate-950">{coupon.code}</h2>
                 </div>
-                <button type="button" onClick={undefined} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700" aria-label={`Coupon code ${coupon.code}`}>Use at checkout</button>
+                <span className="rounded-lg border border-dashed border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-500">Enter at checkout</span>
               </div>
               <p className="mt-4 text-2xl font-bold text-emerald-700">{formatAmount(coupon.value, coupon.type)}</p>
               {coupon.minOrderAmount && <p className="mt-2 text-sm text-slate-600">Minimum order: {new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(Number(coupon.minOrderAmount))}</p>}
