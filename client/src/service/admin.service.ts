@@ -146,3 +146,25 @@ export async function createApliiqDesign(productId: string, data: Record<string,
   if (!isApiError(result)) revalidatePath("/admin/products");
   return result;
 }
+
+export async function registerProductImageAsApliiqArtwork(productId: string, name?: string) {
+  const result = await request(`/admin/apliiq/products/${encodeURIComponent(productId)}/artworks/use-product-image`, {
+    method: "POST", body: JSON.stringify({ name }),
+  });
+  if (!isApiError(result)) revalidatePath("/admin/products");
+  return result;
+}
+
+export async function addApliiqArtworkPlacement(
+  artworkId: string,
+  data: {
+    locationId: string; service: string; printColors?: string; boxId?: number;
+    note?: string; widthInches?: number; heightInches?: number;
+  },
+) {
+  const result = await request(`/admin/apliiq/artworks/${encodeURIComponent(artworkId)}/placements`, {
+    method: "POST", body: JSON.stringify(data),
+  });
+  if (!isApiError(result)) revalidatePath("/admin/products");
+  return result;
+}
