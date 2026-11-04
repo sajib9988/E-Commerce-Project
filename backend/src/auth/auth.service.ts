@@ -159,7 +159,7 @@ export class AuthService {
       throw new UnauthorizedException('Incorrect code');
     }
 
-    this.otpAttempts.delete(user.id);
+    await this.redis.del(this.otpAttemptKey(user.id));
     await this.prisma.user.update({
       where: { id: user.id },
       data: { verificationCode: null, verificationCodeExpiresAt: null },
@@ -196,7 +196,7 @@ export class AuthService {
       data: { password: await hashPassword(dto.newPassword), resetToken: null, resetTokenExpiresAt: null,
         verificationCode: null, verificationCodeExpiresAt: null },
     });
-    this.otpAttempts.delete(user.id);
+    await this.redis.del(this.otpAttemptKey(user.id));
     return { success: true, message: 'Password reset successfully.' };
   }
 
