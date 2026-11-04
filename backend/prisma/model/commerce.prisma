@@ -43,7 +43,6 @@ model Product {
   sizes          String[]      @default([])
   sku            String?       @unique
   apliiqDesignSku String?
-  apliiqDesignId String?
   stockQuantity  Int           @default(0)
   isActive       Boolean       @default(true)
   categoryId     String
@@ -142,6 +141,7 @@ model ProductVariant {
   salePrice        Decimal?               @db.Decimal(10, 2)
   stockQuantity    Int                    @default(0)
   apliiqVariantSku String?
+  apliiqDesignId   String?
   colorName        String?
   colorHex         String?
   apliiqColorId    String?
