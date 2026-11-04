@@ -51,8 +51,8 @@ model Product {
   subcategory    Subcategory   @relation(fields: [subcategoryId], references: [id], onDelete: Restrict)
   imageUrl       String
   imagePublicId  String?
-  // Apliiq Artwork ID registered from the existing Cloudinary product image.
-  apliiqArtworkId String?
+  artworks       ProductArtwork[]
+  apliiqDesigns   ApliiqProductDesign[]
   orderItems     OrderItem[]
   reservationItems StockReservationItem[]
   variants       ProductVariant[]
@@ -395,4 +395,56 @@ model RefundRequest {
   @@index([userId, createdAt])
   @@index([status, createdAt])
   @@map("refund_requests")
+}
+
+
+model ProductArtwork {
+  id                String                     @id @default(cuid())
+  productId         String
+  product           Product                    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  name              String
+  imageUrl          String
+  imagePublicId     String?
+  apliiqArtworkId   String?                    @unique
+  isPrimary         Boolean                    @default(false)
+  placements        ProductArtworkPlacement[]
+  createdAt         DateTime                   @default(now())
+  updatedAt         DateTime                   @updatedAt
+
+  @@index([productId, isPrimary])
+  @@map("product_artworks")
+}
+
+model ProductArtworkPlacement {
+  id          String         @id @default(cuid())
+  artworkId   String
+  artwork     ProductArtwork @relation(fields: [artworkId], references: [id], onDelete: Cascade)
+  locationId  String
+  service     String
+  printColors Int?
+  note        String?
+  widthInches Decimal?       @db.Decimal(6, 2)
+  heightInches Decimal?      @db.Decimal(6, 2)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@index([artworkId])
+  @@map("product_artwork_placements")
+}
+
+model ApliiqProductDesign {
+  id              String   @id @default(cuid())
+  productId       String
+  product         Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  colorId         String
+  productCode     String
+  apliiqDesignId  String
+  mockupUrl       String?
+  providerPayload Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([productId, colorId])
+  @@index([apliiqDesignId])
+  @@map("apliiq_product_designs")
 }
