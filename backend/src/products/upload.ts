@@ -1,5 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
-import { memoryStorage, MulterOptions } from 'multer';
+import { memoryStorage } from 'multer';
+import type { MulterOptions } from '@nestjs/platform-express/multer/interfaces/multer-options.interface';
 
 export const productImageUploadOptions: MulterOptions = {
   storage: memoryStorage(),
