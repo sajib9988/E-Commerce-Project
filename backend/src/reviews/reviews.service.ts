@@ -10,24 +10,18 @@ export class ReviewsService {
   async create(userId: string, productId: string, dto: CreateReviewDto) {
     const product = await this.prisma.product.findUnique({ where: { id: productId }, select: { id: true } });
     if (!product) throw new NotFoundException('Product not found');
-
     const purchase = await this.prisma.order.findFirst({
       where: { userId, paymentStatus: 'PAID', status: { in: ['PROCESSING', 'SHIPPED', 'DELIVERED'] }, items: { some: { productId } } },
-      orderBy: { paidAt: 'desc' },
-      select: { id: true },
+      orderBy: { paidAt: 'desc' }, select: { id: true },
     });
     if (!purchase) throw new BadRequestException('Only verified purchasers can review this product');
-
     try {
       return await this.prisma.productReview.create({
-        data: { userId, productId, orderId: purchase.id, rating: dto.rating,
-          title: dto.title?.trim(), body: dto.body.trim() },
+        data: { userId, productId, orderId: purchase.id, rating: dto.rating, title: dto.title?.trim(), body: dto.body.trim() },
         select: { id: true, productId: true, rating: true, title: true, body: true, status: true, createdAt: true },
       });
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new ConflictException('You have already reviewed this product');
-      }
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') throw new ConflictException('You have already reviewed this product');
       throw error;
     }
   }
@@ -37,9 +31,20 @@ export class ReviewsService {
     const skip = (Math.max(page, 1) - 1) * take;
     return this.prisma.productReview.findMany({
       where: { productId, status: 'APPROVED' },
-      select: { id: true, rating: true, title: true, body: true, createdAt: true,
-        user: { select: { name: true } } },
+      select: { id: true, rating: true, title: true, body: true, createdAt: true, user: { select: { name: true } } },
       orderBy: { createdAt: 'desc' }, skip, take,
+    });
+  }
+
+  findOwn(userId: string) {
+    return this.prisma.productReview.findMany({
+      where: { userId },
+      select: {
+        id: true, productId: true, rating: true, title: true, body: true, status: true,
+        moderationNote: true, createdAt: true, updatedAt: true,
+        product: { select: { name: true, slug: true, images: { take: 1, orderBy: { sortOrder: 'asc' }, select: { url: true } } } },
+      },
+      orderBy: { createdAt: 'desc' },
     });
   }
 
@@ -49,8 +54,7 @@ export class ReviewsService {
     if (review.status === 'REJECTED') throw new ConflictException('Rejected reviews cannot be edited; contact support');
     return this.prisma.productReview.update({
       where: { id: reviewId },
-      data: { rating: dto.rating, title: dto.title?.trim(), body: dto.body.trim(), status: 'PENDING',
-        moderatedAt: null, moderatedBy: null, moderationNote: null },
+      data: { rating: dto.rating, title: dto.title?.trim(), body: dto.body.trim(), status: 'PENDING', moderatedAt: null, moderatedBy: null, moderationNote: null },
       select: { id: true, productId: true, rating: true, title: true, body: true, status: true, updatedAt: true },
     });
   }
@@ -64,9 +68,7 @@ export class ReviewsService {
   findAllForAdmin(status?: 'PENDING' | 'APPROVED' | 'REJECTED') {
     return this.prisma.productReview.findMany({
       where: status ? { status } : {},
-      include: { product: { select: { id: true, name: true } },
-        user: { select: { id: true, name: true, email: true } },
-        order: { select: { id: true, orderNumber: true, paymentStatus: true } } },
+      include: { product: { select: { id: true, name: true } }, user: { select: { id: true, name: true, email: true } }, order: { select: { id: true, orderNumber: true, paymentStatus: true } } },
       orderBy: { createdAt: 'desc' },
     });
   }
@@ -76,8 +78,7 @@ export class ReviewsService {
     if (!review) throw new NotFoundException('Review not found');
     if (review.status !== 'PENDING') throw new ConflictException('Only pending reviews can be moderated');
     return this.prisma.productReview.update({
-      where: { id: reviewId },
-      data: { status, moderatedAt: new Date(), moderatedBy: adminId, moderationNote: note?.trim() },
+      where: { id: reviewId }, data: { status, moderatedAt: new Date(), moderatedBy: adminId, moderationNote: note?.trim() },
     });
   }
 }
