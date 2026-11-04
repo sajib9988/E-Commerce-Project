@@ -229,6 +229,7 @@ model PaymentAttempt {
   amount                   Decimal              @db.Decimal(10, 2)
   currency                 String
   stripeCheckoutSessionId  String?              @unique
+  checkoutExpiresAt        DateTime?
   stripePaymentIntentId    String?              @unique
   paidAt                   DateTime?
   requiresManualReview     Boolean              @default(false)
