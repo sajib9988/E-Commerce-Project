@@ -51,6 +51,8 @@ model Product {
   subcategory    Subcategory   @relation(fields: [subcategoryId], references: [id], onDelete: Restrict)
   imageUrl       String
   imagePublicId  String?
+  // Apliiq Artwork ID registered from the existing Cloudinary product image.
+  apliiqArtworkId String?
   orderItems     OrderItem[]
   reservationItems StockReservationItem[]
   variants       ProductVariant[]
