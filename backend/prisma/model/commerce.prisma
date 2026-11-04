@@ -142,14 +142,18 @@ model ProductVariant {
   salePrice        Decimal?               @db.Decimal(10, 2)
   stockQuantity    Int                    @default(0)
   apliiqVariantSku String?
+  colorName        String?
+  colorHex         String?
+  apliiqColorId    String?
   isActive         Boolean                @default(true)
   orderItems       OrderItem[]
   reservationItems StockReservationItem[]
   createdAt        DateTime               @default(now())
   updatedAt        DateTime               @updatedAt
 
-  @@unique([productId, sizeId])
+  @@unique([productId, sizeId, apliiqColorId])
   @@index([productId, isActive])
+  @@index([productId, apliiqColorId])
   @@index([sizeId, isActive])
   @@map("product_variants")
 }
