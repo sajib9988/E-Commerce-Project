@@ -308,6 +308,10 @@ export class ApliiqService extends WorkerHost implements OnModuleInit {
         });
         if (claimed.count === 1) await this.submitClaimedFulfillment(item.id, item.orderId);
       }
+    } catch (error) {
+      // Let BullMQ record/retry transient database failures; provider submission
+      // ambiguity is handled separately as UNKNOWN in submitClaimedFulfillment.
+      throw error;
     }
   }
 
