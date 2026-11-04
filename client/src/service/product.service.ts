@@ -42,7 +42,7 @@ async function request<T>(path: string, options: RequestInit = {}, authenticated
     const suppliedHeaders = new Headers(options.headers);
     suppliedHeaders.forEach((value, key) => { headers[key] = value; });
     const response = await fetch(`${BASE_URL.replace(/\/+$/, "")}${path}`, {
-      ...options, headers, cache: options.cache ?? "no-store",
+      ...options, headers, ...(options.cache || options.next ? {} : { cache: "no-store" }),
     });
     const data = await safeJson<T>(response);
     if (!response.ok) {
@@ -58,7 +58,7 @@ async function request<T>(path: string, options: RequestInit = {}, authenticated
 }
 
 function isApiError(value: unknown): value is ApiError {
-  return typeof value === "object" && value !== null && "statusCode" in value;
+  return typeof value === "object" && value !== null && "success" in value && value.success === false;
 }
 
 function buildQuery(params: object) {
