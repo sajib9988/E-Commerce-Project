@@ -42,7 +42,8 @@ function buildQuery(params: { search?: string; page?: number; limit?: number }) 
   Object.entries(params).forEach(([key, value]) => {
     if (value !== undefined && value !== "") query.set(key, String(value));
   });
-  return query.size ? `?${query.toString()}` : "";
+  const value = query.toString();
+  return value ? `?${value}` : "";
 }
 
 // User administration endpoints are SUPER_ADMIN-only in the NestJS backend.
