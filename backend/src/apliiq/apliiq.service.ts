@@ -176,7 +176,7 @@ export class ApliiqService extends WorkerHost implements OnModuleInit {
       throw new BadRequestException('Each design placement must reference a saved placementId');
     }
     const savedPlacements = await this.prisma.productArtworkPlacement.findMany({
-      where: { id: { in: placementIds }, artwork: { productId, apliiqArtworkId: { not: null } } },
+      where: { id: { in: placementIds }, artwork: { is: { productId, apliiqArtworkId: { not: null } } } },
       include: { artwork: true },
     });
     if (savedPlacements.length !== placementIds.length) {
