@@ -47,7 +47,11 @@ async function request<T>(path: string, options: RequestInit = {}, authenticated
   }
 }
 
-function isApiError(value: unknown): value is ApiError {\n  return typeof value === "object" && value !== null && "statusCode" in value;\n}\n\nfunction buildQuery(params: object) {
+function isApiError(value: unknown): value is ApiError {
+  return typeof value === "object" && value !== null && "statusCode" in value;
+}
+
+function buildQuery(params: object) {
   const query = new URLSearchParams();
   Object.entries(params).forEach(([key, value]) => {
     if (value !== undefined && value !== "") query.set(key, String(value));
