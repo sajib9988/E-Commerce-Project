@@ -2,6 +2,7 @@ import {
   Body, Controller, Delete, Get, Param, Patch, Post,
 } from '@nestjs/common';
 import { UserRole } from '../../generated/prisma/enums';
+import { Throttle } from '@nestjs/throttler';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import type { AuthTokenPayload } from '../common/types/auth-token-payload';
@@ -14,6 +15,7 @@ import { CouponsService } from './coupons.service';
 export class CouponsController {
   constructor(private readonly couponsService: CouponsService) {}
 
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post('validate')
   validate(
     @CurrentUser() user: AuthTokenPayload,
