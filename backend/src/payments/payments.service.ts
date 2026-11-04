@@ -62,7 +62,7 @@ export class PaymentsService {
     if (order.status !== OrderStatus.PENDING_PAYMENT) {
       throw new BadRequestException('Order is not awaiting payment');
     }
-    if (!order.stockReservation || order.stockReservation.status !== 'RESERVED' || order.stockReservation.expiresAt <= new Date()) {
+    if (!order.stockReservation || order.stockReservation.status !== 'RESERVED') {
       throw new ConflictException('The stock reservation has expired. Create a new order to continue.');
     }
     if (!order.items.length) {
@@ -91,7 +91,7 @@ export class PaymentsService {
       if (currentSession.status === 'open' && currentSession.url) {
         if (currentSession.expires_at) {
           const existingExpiry = new Date(currentSession.expires_at * 1000);
-          await this.prisma.$transaction([
+          const [, reservationSync] = await this.prisma.$transaction([
             this.prisma.paymentAttempt.updateMany({
               where: { id: currentAttempt.id, status: PaymentAttemptStatus.CREATED },
               data: { checkoutExpiresAt: existingExpiry },
@@ -101,6 +101,9 @@ export class PaymentsService {
               data: { expiresAt: existingExpiry },
             }),
           ]);
+          if (reservationSync.count !== 1) {
+            throw new ConflictException('Stock reservation is no longer active; contact support before paying.');
+          }
         }
         return { checkoutUrl: currentSession.url, orderId: order.id };
       }
