@@ -1,2 +1,2 @@
 ALTER TABLE "payment_attempts"
-  ADD COLUMN "checkout_expires_at" TIMESTAMP(3);
+  ADD COLUMN "checkoutExpiresAt" TIMESTAMP(3);
