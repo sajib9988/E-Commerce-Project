@@ -3,34 +3,281 @@ import {
   BadRequestException,
   NotFoundException,
   ConflictException,
-  OnModuleDestroy,
   OnModuleInit,
 } from '@nestjs/common';
+import { Processor, WorkerHost, InjectQueue } from '@nestjs/bullmq';
+import { Job, Queue } from 'bullmq';
 import { PrismaService } from '../prisma/prisma.service';
 import { ApliiqClient } from './apliiq.client';
 import { mapOrderToApliiq } from './apliiq.mapper';
+import { CloudinaryService } from '../cloudinary/cloudinary.service';
 
 type CreateOrderResponse = { id: string | number };
 
+@Processor('apliiq-fulfillment')
 @Injectable()
-export class ApliiqService implements OnModuleInit, OnModuleDestroy {
-  private pollTimer?: NodeJS.Timeout;
-  private polling = false;
+export class ApliiqService extends WorkerHost implements OnModuleInit {
   private readonly pollIntervalMs = 5_000;
   private readonly staleSubmissionMs = 5 * 60_000;
   constructor(
     private readonly prisma: PrismaService,
     private readonly client: ApliiqClient,
-  ) {}
+    private readonly cloudinary: CloudinaryService,
+    @InjectQueue('apliiq-fulfillment') private readonly queue: Queue,
+  ) { super(); }
 
-  onModuleInit() {
-    // Fulfillment rows are a durable outbox; provider I/O runs after the payment transaction commits.
-    this.pollTimer = setInterval(() => { void this.pollFulfillmentQueue().catch(() => undefined); }, this.pollIntervalMs);
-    this.pollTimer.unref?.();
-    void this.pollFulfillmentQueue().catch(() => undefined);
+  async onModuleInit() {
+    // Durable DB outbox remains the source of truth; BullMQ schedules workers to drain it.
+    await this.queue.add('drain-fulfillment-outbox', {}, {
+      jobId: 'apliiq-fulfillment-repeat', repeat: { every: this.pollIntervalMs },
+      removeOnComplete: 100, removeOnFail: 500,
+    });
+    await this.queue.add('drain-fulfillment-outbox', {}, {
+      jobId: `apliiq-fulfillment-start-${Date.now()}`, removeOnComplete: true,
+    });
   }
 
-  onModuleDestroy() { if (this.pollTimer) clearInterval(this.pollTimer); }
+  async process(_job: Job): Promise<void> {
+    await this.pollFulfillmentQueue();
+  }
+
+
+  async createProductArtwork(productId: string, name: string, file: Express.Multer.File) {
+    if (typeof name !== 'string' || !name.trim()) throw new BadRequestException('Artwork name is required');
+    const artworkName = name.trim().slice(0, 50);
+    const product = await this.prisma.product.findUnique({ where: { id: productId }, select: { id: true } });
+    if (!product) throw new NotFoundException('Product not found');
+    if (!file?.buffer) throw new BadRequestException('A print-ready artwork image file is required');
+    const uploaded = await this.cloudinary.uploadImage(file, 'ecommerce/artworks');
+
+    let provider: Record<string, unknown>;
+    try {
+      provider = await this.client.postArtwork<Record<string, unknown>>({
+        Name: artworkName,
+        ImagePath: uploaded.secure_url,
+      });
+    } catch (error) {
+      await this.cloudinary.deleteImage(uploaded.public_id).catch(() => undefined);
+      throw error;
+    }
+
+    const rawId = provider.Id ?? provider.id;
+    if (rawId === undefined || rawId === null || String(rawId).trim() === '') {
+      // Keep the Cloudinary asset: Apliiq may have accepted the request even if its response was incomplete.
+      throw new ConflictException('Apliiq Artwork response did not include an artwork ID; reconcile this upload before retrying');
+    }
+    return this.prisma.productArtwork.create({
+      data: {
+        productId, name: artworkName, imageUrl: uploaded.secure_url,
+        imagePublicId: uploaded.public_id, apliiqArtworkId: String(rawId),
+        isPrimary: (await this.prisma.productArtwork.count({ where: { productId } })) === 0,
+      },
+      include: { placements: true },
+    });
+  }
+
+  async registerProductImageAsArtwork(productId: string, name?: string) {
+    const product = await this.prisma.product.findUnique({ where: { id: productId } });
+    if (!product) throw new NotFoundException('Product not found');
+    let parsed: URL;
+    try { parsed = new URL(product.imageUrl); } catch {
+      throw new BadRequestException('Product image must be a public HTTPS URL');
+    }
+    if (parsed.protocol !== 'https:' || parsed.hostname !== 'res.cloudinary.com') {
+      throw new BadRequestException('Product image must be hosted on Cloudinary over HTTPS');
+    }
+    const existing = await this.prisma.productArtwork.findFirst({
+      where: { productId, imageUrl: product.imageUrl }, include: { placements: true },
+    });
+    if (existing) return { ...existing, reused: true };
+    const provider = await this.client.postArtwork<Record<string, unknown>>({
+      Name: (name?.trim() || product.name).slice(0, 50), ImagePath: product.imageUrl,
+    });
+    const rawId = provider.Id ?? provider.id;
+    if (rawId === undefined || rawId === null || String(rawId).trim() === '') {
+      throw new ConflictException('Apliiq Artwork response did not include an artwork ID');
+    }
+    return this.prisma.productArtwork.create({
+      data: {
+        productId, name: (name?.trim() || product.name).slice(0, 50), imageUrl: product.imageUrl,
+        imagePublicId: product.imagePublicId, apliiqArtworkId: String(rawId),
+        isPrimary: (await this.prisma.productArtwork.count({ where: { productId } })) === 0,
+      },
+      include: { placements: true },
+    });
+  }
+
+  async addArtworkPlacement(artworkId: string, payload: {
+    locationId: string; service: string; printColors?: string; boxId?: number; note?: string;
+    widthInches?: number; heightInches?: number;
+  }) {
+    const artwork = await this.prisma.productArtwork.findUnique({ where: { id: artworkId }, select: { id: true } });
+    if (!artwork) throw new NotFoundException('Product artwork not found');
+    const allowedServices = ['print', 'applique', 'dtgprint', 'sublimation', 'embroidery', 'transfer_print'];
+    if (!payload.locationId?.trim() || !allowedServices.includes(payload.service?.trim())) {
+      throw new BadRequestException('A valid Apliiq locationId and supported decoration service are required');
+    }
+    if (['print', 'embroidery'].includes(payload.service.trim())) {
+      const colors = (payload.printColors ?? '').split(',').map((color) => color.trim()).filter(Boolean);
+      if (colors.length < 1 || colors.length > 6 || colors.some((color) => !/^#[0-9a-f]{6}$/i.test(color))) {
+        throw new BadRequestException('Screen print and embroidery require 1–6 comma-separated hex colors');
+      }
+    }
+    if (payload.boxId !== undefined && (!Number.isInteger(payload.boxId) || payload.boxId < 1)) {
+      throw new BadRequestException('boxId must be a positive integer');
+    }
+    if ([payload.widthInches, payload.heightInches].some((value) => value !== undefined && (!Number.isFinite(value) || value <= 0))) {
+      throw new BadRequestException('Artwork physical dimensions must be positive numbers');
+    }
+    return this.prisma.productArtworkPlacement.create({
+      data: {
+        artworkId, locationId: payload.locationId.trim(), service: payload.service.trim(),
+        ...(payload.printColors !== undefined ? { printColors: payload.printColors } : {}),
+        ...(payload.boxId !== undefined ? { boxId: payload.boxId } : {}),
+        ...(payload.note !== undefined ? { note: payload.note } : {}),
+        ...(payload.widthInches !== undefined ? { widthInches: payload.widthInches } : {}),
+        ...(payload.heightInches !== undefined ? { heightInches: payload.heightInches } : {}),
+      },
+    });
+  }
+
+  async createProductDesign(productId: string, payload: Record<string, unknown>) {
+    const product = await this.prisma.product.findUnique({
+      where: { id: productId },
+      include: { variants: { where: { isActive: true, apliiqColorId: String(payload.ColorId) }, include: { size: true } } },
+    });
+    if (!product) throw new NotFoundException('Product not found');
+    if (!product.variants.length) {
+      throw new BadRequestException('Create active size variants for this Apliiq color before creating its design');
+    }
+    const productCode = payload.ProductCode;
+    const colorId = payload.ColorId;
+    const placementSpecs = payload.Placements;
+    if (typeof productCode !== 'string' || !productCode.trim() ||
+        (typeof colorId !== 'string' && typeof colorId !== 'number') ||
+        !Array.isArray(placementSpecs) || placementSpecs.length === 0 ||
+        !Array.isArray(payload.Locations) || payload.Locations.length === 0) {
+      throw new BadRequestException('ProductCode, ColorId, Locations and saved Placements are required');
+    }
+    const placementIds = [...new Set(placementSpecs.map((spec: any) => spec?.placementId).filter((id: unknown): id is string => typeof id === 'string'))];
+    if (placementIds.length !== placementSpecs.length || placementIds.length === 0) {
+      throw new BadRequestException('Each design placement must reference a saved placementId');
+    }
+    const savedPlacements = await this.prisma.productArtworkPlacement.findMany({
+      where: { id: { in: placementIds }, artwork: { is: { productId, apliiqArtworkId: { not: null } } } },
+      include: { artwork: true },
+    });
+    if (savedPlacements.length !== placementIds.length) {
+      throw new BadRequestException('One or more saved artwork placements are missing or not registered with Apliiq');
+    }
+    const locationSpecs = payload.Locations as Array<Record<string, unknown>>;
+    const locationById = new Map<string, Record<string, unknown>>();
+    for (const location of locationSpecs) {
+      const rawId = location?.Id;
+      const id = typeof rawId === 'string' || typeof rawId === 'number' ? String(rawId) : '';
+      const imagePath = typeof location?.ImagePath === 'string' ? location.ImagePath : '';
+      if (!id || !/^https:\/\//i.test(imagePath)) {
+        throw new BadRequestException('Each Apliiq location requires its catalog Id and a public HTTPS mockup ImagePath');
+      }
+      locationById.set(id, location);
+    }
+    for (const placement of savedPlacements) {
+      if (!locationById.has(placement.locationId)) {
+        throw new BadRequestException(`Apliiq location ${placement.locationId} is missing from Locations`);
+      }
+    }
+    const locations = [...locationById.entries()].map(([locationId, location]) => ({
+      Id: location.Id,
+      ImagePath: location.ImagePath,
+      Artworks: savedPlacements.filter((placement) => placement.locationId === locationId).map((placement) => {
+        if (!placement.artwork.apliiqArtworkId) throw new BadRequestException('Artwork placement is not linked to an Apliiq Artwork');
+        return {
+          Id: placement.artwork.apliiqArtworkId,
+          Service: placement.service,
+          ...(placement.printColors ? { PrintColors: placement.printColors } : {}),
+          ...(placement.note ? { Note: placement.note } : {}),
+          ...(placement.boxId !== null ? { BoxId: placement.boxId } : {}),
+        };
+      }),
+    })).filter((location) => location.Artworks.length > 0);
+    const response = await this.client.postDesign<Record<string, unknown>>({
+      ProductCode: productCode,
+      ...(payload.ProductId !== undefined ? { ProductId: payload.ProductId } : {}),
+      ColorId: colorId,
+      Locations: locations,
+      ...(payload.MockupTemplateId !== undefined ? { MockupTemplateId: payload.MockupTemplateId } : {}),
+    });
+    const designId = response.Id ?? response.id;
+    if (designId === undefined || designId === null) {
+      throw new ConflictException('Apliiq Design response did not include a design ID');
+    }
+    const responseLocations = Array.isArray(response.Locations) ? response.Locations as Array<Record<string, unknown>> : [];
+    const mockupUrls = [...new Set(responseLocations
+      .map((location) => location.ImagePath)
+      .filter((url): url is string => typeof url === 'string')
+      .map((url) => url.startsWith('//') ? `https:${url}` : url)
+      .filter((url) => /^https:\/\//i.test(url)))];
+    const mockupUrl = mockupUrls[0] ?? null;
+    const providerVariants = Array.isArray(response.Variants) ? response.Variants as Array<Record<string, unknown>> : [];
+    if (!providerVariants.length && !this.client.isMockMode) {
+      throw new ConflictException('Apliiq Design response did not include sellable size variants');
+    }
+
+    const skuBySize = new Map<string, string>();
+    for (const item of providerVariants) {
+      const sizeName = typeof item.Name === 'string' ? item.Name.trim().toLowerCase() : '';
+      const sku = typeof item.SKU === 'string' ? item.SKU.trim() : '';
+      if (sizeName && sku) skuBySize.set(sizeName, sku);
+    }
+    const skuUpdates: Array<{ id: string; sku: string; designId: string }> = [];
+    const unmatched: string[] = [];
+    for (const variant of product.variants) {
+      const key = variant.size.label.trim().toLowerCase();
+      const providerSku = skuBySize.get(key);
+      if (providerSku) {
+        skuUpdates.push({ id: variant.id, sku: providerSku, designId: String(designId) });
+      } else if (this.client.isMockMode) {
+        skuUpdates.push({
+          id: variant.id,
+          sku: `MOCK-${String(designId)}-${variant.size.normalizedKey}`,
+          designId: String(designId),
+        });
+      } else {
+        unmatched.push(variant.size.label);
+      }
+    }
+    if (unmatched.length) {
+      throw new ConflictException(`Apliiq returned no SKU for local size(s): ${unmatched.join(', ')}. No order should be placed until variants are mapped.`);
+    }
+    await this.prisma.$transaction([
+      this.prisma.apliiqProductDesign.upsert({
+        where: { productId_colorId: { productId, colorId: String(colorId) } },
+        create: {
+          productId, colorId: String(colorId), productCode, apliiqDesignId: String(designId),
+          mockupUrl, mockupUrls, providerPayload: response as any,
+        },
+        update: {
+          productCode, apliiqDesignId: String(designId), mockupUrl, mockupUrls,
+          providerPayload: response as any,
+        },
+      }),
+      ...skuUpdates.map((item) => this.prisma.productVariant.update({
+        where: { id: item.id },
+        data: { apliiqVariantSku: item.sku, apliiqDesignId: item.designId },
+      })),
+    ]);
+    return {
+      productId,
+      apliiqDesignId: String(designId),
+      variants: await this.prisma.productVariant.findMany({
+        where: { productId, isActive: true, apliiqColorId: String(colorId) },
+        include: { size: true },
+        orderBy: { size: { sortOrder: 'asc' } },
+      }),
+      mockupUrl,
+      mock: this.client.isMockMode,
+    };
+  }
 
   async submitPaidOrder(orderId: string) {
     const order = await this.prisma.order.findUnique({ where: { id: orderId }, include: { fulfillments: true } });
@@ -38,12 +285,12 @@ export class ApliiqService implements OnModuleInit, OnModuleDestroy {
     if (order.paymentStatus !== 'PAID') throw new ConflictException('Only paid orders can be submitted to Apliiq');
     const existing = order.fulfillments.find((item) => item.provider === 'APLIIQ');
     if (existing) return existing;
-    return this.prisma.fulfillment.create({ data: { orderId: order.id, provider: 'APLIIQ', submissionStatus: 'QUEUED' } });
+    const fulfillment = await this.prisma.fulfillment.create({ data: { orderId: order.id, provider: 'APLIIQ', submissionStatus: 'QUEUED' } });
+    await this.queue.add('drain-fulfillment-outbox', {}, { removeOnComplete: true });
+    return fulfillment;
   }
 
   private async pollFulfillmentQueue() {
-    if (this.polling) return;
-    this.polling = true;
     try {
       const staleBefore = new Date(Date.now() - this.staleSubmissionMs);
       await this.prisma.fulfillment.updateMany({
@@ -61,7 +308,7 @@ export class ApliiqService implements OnModuleInit, OnModuleDestroy {
         });
         if (claimed.count === 1) await this.submitClaimedFulfillment(item.id, item.orderId);
       }
-    } finally { this.polling = false; }
+    }
   }
 
   private async submitClaimedFulfillment(fulfillmentId: string, orderId: string) {

@@ -22,7 +22,7 @@ export class CloudinaryService {
     });
   }
 
-  async uploadImage(file: Express.Multer.File) {
+  async uploadImage(file: Express.Multer.File, folder = 'ecommerce/products') {
     if (!file?.buffer) {
       throw new InternalServerErrorException(
         'Image file is missing',
@@ -35,7 +35,7 @@ export class CloudinaryService {
     }>((resolve, reject) => {
       const stream = cloudinary.uploader.upload_stream(
         {
-          folder: 'ecommerce/products',
+          folder,
           resource_type: 'image',
         },
         (error, result) => {

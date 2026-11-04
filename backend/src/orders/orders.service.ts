@@ -2,7 +2,7 @@ import {
   BadRequestException, ConflictException, Injectable, NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '../../generated/prisma/client';
-import { CouponType, PaymentAttemptStatus, StockReservationStatus } from '../../generated/prisma/enums';
+import { CouponType, OrderStatus, PaymentAttemptStatus, StockReservationStatus } from '../../generated/prisma/enums';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 
@@ -39,15 +39,17 @@ export class OrdersService {
     if (!userId) throw new BadRequestException('Authenticated user required');
 
     // Merge repeated product IDs before checking/decrementing stock.
-    const quantities = new Map<string, number>();
+    const quantities = new Map<string, { productId: string; variantId?: string; quantity: number }>();
     for (const line of dto.items) {
       if (!Number.isInteger(line.quantity) || line.quantity < 1 || line.quantity > 99) {
         throw new BadRequestException('Quantity must be between 1 and 99');
       }
-      quantities.set(line.productId, (quantities.get(line.productId) ?? 0) + line.quantity);
+      const key = `${line.productId}:${line.variantId ?? 'legacy'}`;
+      const previous = quantities.get(key);
+      quantities.set(key, { productId: line.productId, variantId: line.variantId, quantity: (previous?.quantity ?? 0) + line.quantity });
     }
-    for (const quantity of quantities.values()) {
-      if (quantity > 99) throw new BadRequestException('Maximum 99 units per product');
+    for (const item of quantities.values()) {
+      if (item.quantity > 99) throw new BadRequestException('Maximum 99 units per product');
     }
 
     const currency = 'usd';
@@ -66,30 +68,56 @@ export class OrdersService {
             return prior;
           }
 
-          const ids = [...quantities.keys()];
-          const products = await tx.product.findMany({ where: { id: { in: ids } } });
+          const requested = [...quantities.values()];
+          const ids = [...new Set(requested.map((item) => item.productId))];
+          const products = await tx.product.findMany({ where: { id: { in: ids } }, include: { variants: { select: { id: true } } } });
           if (products.length !== ids.length) throw new NotFoundException('One or more products were not found');
-
           const byId = new Map(products.map((product) => [product.id, product]));
+          const variantIds = requested.flatMap((item) => item.variantId ? [item.variantId] : []);
+          const variants = variantIds.length ? await tx.productVariant.findMany({
+            where: { id: { in: variantIds } }, include: { size: true },
+          }) : [];
+          if (variants.length !== variantIds.length) throw new NotFoundException('One or more product variants were not found');
+          const variantById = new Map(variants.map((variant) => [variant.id, variant]));
           const lineItems: Array<{
-            productId: string; productName: string; sku: string | null; apliiqDesignSku: string | null;
+            productId: string; variantId: string | null; variantSnapshot: Prisma.InputJsonValue | undefined;
+            productName: string; sku: string | null; apliiqDesignSku: string | null;
             unitPrice: Prisma.Decimal; quantity: number; lineTotal: Prisma.Decimal;
             imageUrl: string | null;
           }> = [];
           let subtotal = new Prisma.Decimal(0);
 
-          for (const [productId, quantity] of quantities) {
-            const product = byId.get(productId)!;
+          for (const item of requested) {
+            const product = byId.get(item.productId)!;
             if (!product.isActive) throw new BadRequestException('A selected product is unavailable');
-            const unitPrice = new Prisma.Decimal((product.salePrice ?? product.regularPrice).toString());
+            let unitPrice: Prisma.Decimal;
+            let sku: string | null;
+            let apliiqDesignSku: string | null;
+            let variantSnapshot: Prisma.InputJsonValue | undefined;
+            if (item.variantId) {
+              const variant = variantById.get(item.variantId)!;
+              if (variant.productId !== product.id || !variant.isActive || !variant.size.isActive) {
+                throw new BadRequestException('Selected product variant is unavailable');
+              }
+              if (variant.apliiqColorId && !variant.apliiqVariantSku) {
+                throw new BadRequestException('This Apliiq color/size has not been configured as a sellable Design yet');
+              }
+              unitPrice = new Prisma.Decimal((variant.salePrice ?? variant.regularPrice).toString());
+              sku = variant.sku;
+              apliiqDesignSku = variant.apliiqVariantSku ?? null;
+              variantSnapshot = { id: variant.id, sizeId: variant.sizeId, sizeLabel: variant.size.label, colorName: variant.colorName, colorHex: variant.colorHex, apliiqColorId: variant.apliiqColorId, apliiqDesignId: variant.apliiqDesignId, sku: variant.sku, apliiqVariantSku: variant.apliiqVariantSku } as Prisma.InputJsonValue;
+            } else {
+              // Legacy simple products only; variant-managed products must use a variantId.
+              if (product.variants?.length) throw new BadRequestException('Choose a size/variant for this product');
+              unitPrice = new Prisma.Decimal((product.salePrice ?? product.regularPrice).toString());
+              sku = product.sku ?? null;
+              apliiqDesignSku = product.apliiqDesignSku ?? null;
+            }
             if (unitPrice.lessThan(0)) throw new BadRequestException('Invalid product price');
-            const lineTotal = unitPrice.mul(quantity);
+            const lineTotal = unitPrice.mul(item.quantity);
             subtotal = subtotal.add(lineTotal);
-            lineItems.push({
-              productId, productName: product.name, sku: product.sku ?? null,
-              apliiqDesignSku: product.apliiqDesignSku ?? null,
-              unitPrice, quantity, lineTotal, imageUrl: product.imageUrl ?? null,
-            });
+            lineItems.push({ productId: product.id, variantId: item.variantId ?? null, variantSnapshot,
+              productName: product.name, sku, apliiqDesignSku, unitPrice, quantity: item.quantity, lineTotal, imageUrl: product.imageUrl ?? null });
           }
 
           let shipping = this.calculateShipping(subtotal);
@@ -149,10 +177,9 @@ export class OrdersService {
 
           // Atomic inventory reservation. If any line fails, the transaction rolls back all decrements.
           for (const line of lineItems) {
-            const result = await tx.product.updateMany({
-              where: { id: line.productId, isActive: true, stockQuantity: { gte: line.quantity } },
-              data: { stockQuantity: { decrement: line.quantity } },
-            });
+            const result = line.variantId
+              ? await tx.productVariant.updateMany({ where: { id: line.variantId, productId: line.productId, isActive: true, stockQuantity: { gte: line.quantity } }, data: { stockQuantity: { decrement: line.quantity } } })
+              : await tx.product.updateMany({ where: { id: line.productId, isActive: true, stockQuantity: { gte: line.quantity } }, data: { stockQuantity: { decrement: line.quantity } } });
             if (result.count !== 1) {
               throw new ConflictException('Insufficient stock for one or more products');
             }
@@ -186,7 +213,8 @@ export class OrdersService {
               couponCode: coupon?.code ?? null, idempotencyKey,
               items: { create: lineItems.map((line) => ({
                 productId: line.productId, productName: line.productName, sku: line.sku,
-                apliiqDesignSku: line.apliiqDesignSku,
+                apliiqDesignSku: line.apliiqDesignSku, variantId: line.variantId,
+                variantSnapshot: line.variantSnapshot,
                 unitPrice: line.unitPrice, quantity: line.quantity, lineTotal: line.lineTotal,
                 imageUrl: line.imageUrl,
               })) },
@@ -197,7 +225,7 @@ export class OrdersService {
               stockReservation: { create: {
                 status: StockReservationStatus.RESERVED, expiresAt,
                 items: { create: lineItems.map((line) => ({
-                  productId: line.productId, quantity: line.quantity,
+                  productId: line.productId, variantId: line.variantId, quantity: line.quantity,
                 })) },
               } },
               ...(coupon ? { couponRedemption: { create: {
@@ -264,10 +292,11 @@ export class OrdersService {
       });
       if (claimed.count === 1) {
         for (const item of reservation.items) {
-          await tx.product.update({
-            where: { id: item.productId },
-            data: { stockQuantity: { increment: item.quantity } },
-          });
+          if (item.variantId) {
+            await tx.productVariant.update({ where: { id: item.variantId }, data: { stockQuantity: { increment: item.quantity } } });
+          } else {
+            await tx.product.update({ where: { id: item.productId }, data: { stockQuantity: { increment: item.quantity } } });
+          }
         }
       }
     }
@@ -285,5 +314,93 @@ export class OrdersService {
         });
       }
     }
+  }
+
+
+  async findMyOrders(userId: string, page = 1, limit = 20) {
+    const take = Math.min(Math.max(limit, 1), 50);
+    const skip = (Math.max(page, 1) - 1) * take;
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.order.findMany({
+        where: { userId },
+        include: { items: true, fulfillments: true },
+        orderBy: { createdAt: 'desc' },
+        skip, take,
+      }),
+      this.prisma.order.count({ where: { userId } }),
+    ]);
+    return { items, pagination: { page: Math.max(page, 1), limit: take, total, pages: Math.ceil(total / take) } };
+  }
+
+  async findMyOrder(userId: string, orderId: string) {
+    const order = await this.prisma.order.findFirst({
+      where: { id: orderId, userId },
+      include: { items: true, paymentAttempts: { select: { id: true, status: true, amount: true, currency: true, paidAt: true } }, fulfillments: true },
+    });
+    if (!order) throw new NotFoundException('Order not found');
+    return order;
+  }
+
+  async cancelMyOrder(userId: string, orderId: string) {
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "orders" WHERE "id" = ${orderId} FOR UPDATE`;
+      const order = await tx.order.findFirst({ where: { id: orderId, userId } });
+      if (!order) throw new NotFoundException('Order not found');
+      if (order.status !== 'PENDING_PAYMENT' || order.paymentStatus !== 'PENDING') {
+        throw new ConflictException('Only unpaid pending orders can be cancelled');
+      }
+      await this.releaseReservations(tx, orderId);
+      return tx.order.update({
+        where: { id: orderId },
+        data: { status: 'CANCELLED' },
+        include: { items: true },
+      });
+    });
+  }
+
+  async findAllForAdmin(page = 1, limit = 20, status?: string) {
+    const take = Math.min(Math.max(limit, 1), 100);
+    const skip = (Math.max(page, 1) - 1) * take;
+    const allowedStatuses = Object.values(OrderStatus) as string[];
+    if (status && !allowedStatuses.includes(status)) throw new BadRequestException('Invalid order status filter');
+    const where: Prisma.OrderWhereInput = status ? { status: status as OrderStatus } : {};
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.order.findMany({
+        where, include: { items: true, user: { select: { id: true, name: true, email: true } } },
+        orderBy: { createdAt: 'desc' }, skip, take,
+      }),
+      this.prisma.order.count({ where }),
+    ]);
+    return { items, pagination: { page: Math.max(page, 1), limit: take, total, pages: Math.ceil(total / take) } };
+  }
+
+  async findOneForAdmin(orderId: string) {
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      include: { items: true, user: { select: { id: true, name: true, email: true } },
+        paymentAttempts: true, stockReservation: { include: { items: true } }, fulfillments: true },
+    });
+    if (!order) throw new NotFoundException('Order not found');
+    return order;
+  }
+
+  async updateStatusByAdmin(orderId: string, nextStatus: string) {
+    const transitions: Record<string, string[]> = {
+      PROCESSING: ['SHIPPED'],
+      SHIPPED: ['DELIVERED'],
+    };
+    return this.prisma.$transaction(async (tx) => {
+      const order = await tx.order.findUnique({ where: { id: orderId } });
+      if (!order) throw new NotFoundException('Order not found');
+      if (!transitions[order.status]?.includes(nextStatus)) {
+        throw new ConflictException(`Invalid order status transition: ${order.status} -> ${nextStatus}`);
+      }
+      const changed = await tx.order.updateMany({
+        where: { id: orderId, status: order.status },
+        data: { status: nextStatus as OrderStatus },
+      });
+      if (changed.count !== 1) throw new ConflictException('Order status changed concurrently; refresh and retry');
+      return tx.order.findUnique({ where: { id: orderId }, include: { items: true } });
+    });
   }
 }

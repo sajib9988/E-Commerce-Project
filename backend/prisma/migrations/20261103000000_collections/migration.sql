@@ -1,0 +1,7 @@
+CREATE TABLE "collections" ("id" TEXT NOT NULL, "name" TEXT NOT NULL, "slug" TEXT NOT NULL, "description" TEXT, "bannerImage" TEXT, "thumbnail" TEXT, "isActive" BOOLEAN NOT NULL DEFAULT true, "isFeatured" BOOLEAN NOT NULL DEFAULT false, "sortOrder" INTEGER NOT NULL DEFAULT 0, "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "updatedAt" TIMESTAMP(3) NOT NULL, CONSTRAINT "collections_pkey" PRIMARY KEY ("id"));
+CREATE TABLE "product_collections" ("productId" TEXT NOT NULL, "collectionId" TEXT NOT NULL, "sortOrder" INTEGER NOT NULL DEFAULT 0, "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, CONSTRAINT "product_collections_pkey" PRIMARY KEY ("productId", "collectionId"));
+CREATE UNIQUE INDEX "collections_slug_key" ON "collections"("slug");
+CREATE INDEX "collections_isActive_isFeatured_sortOrder_idx" ON "collections"("isActive", "isFeatured", "sortOrder");
+CREATE INDEX "product_collections_collectionId_sortOrder_idx" ON "product_collections"("collectionId", "sortOrder");
+ALTER TABLE "product_collections" ADD CONSTRAINT "product_collections_productId_fkey" FOREIGN KEY ("productId") REFERENCES "products"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "product_collections" ADD CONSTRAINT "product_collections_collectionId_fkey" FOREIGN KEY ("collectionId") REFERENCES "collections"("id") ON DELETE CASCADE ON UPDATE CASCADE;

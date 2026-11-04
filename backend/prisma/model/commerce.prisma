@@ -22,6 +22,8 @@ model Subcategory {
   categoryId  String
   category    Category  @relation(fields: [categoryId], references: [id], onDelete: Restrict)
   products    Product[]
+  sizeTemplateId String?
+  sizeTemplate SizeTemplate? @relation(fields: [sizeTemplateId], references: [id], onDelete: SetNull)
   isActive    Boolean   @default(true)
   sortOrder   Int       @default(0)
   createdAt   DateTime  @default(now())
@@ -49,8 +51,13 @@ model Product {
   subcategory    Subcategory   @relation(fields: [subcategoryId], references: [id], onDelete: Restrict)
   imageUrl       String
   imagePublicId  String?
+  artworks       ProductArtwork[]
+  apliiqDesigns   ApliiqProductDesign[]
   orderItems     OrderItem[]
   reservationItems StockReservationItem[]
+  variants       ProductVariant[]
+  reviews        ProductReview[]
+  collections    ProductCollection[]
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
@@ -58,6 +65,99 @@ model Product {
   @@index([subcategoryId])
   @@index([isActive, createdAt])
   @@map("products")
+}
+
+
+model Collection {
+  id          String              @id @default(cuid())
+  name        String
+  slug        String              @unique
+  description String?
+  bannerImage String?
+  thumbnail   String?
+  isActive    Boolean             @default(true)
+  isFeatured  Boolean             @default(false)
+  sortOrder   Int                 @default(0)
+  products    ProductCollection[]
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  @@index([isActive, isFeatured, sortOrder])
+  @@map("collections")
+}
+
+model ProductCollection {
+  productId    String
+  collectionId String
+  product      Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  collection   Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  sortOrder    Int        @default(0)
+  createdAt    DateTime   @default(now())
+
+  @@id([productId, collectionId])
+  @@index([collectionId, sortOrder])
+  @@map("product_collections")
+}
+
+model SizeTemplate {
+  id            String            @id @default(cuid())
+  name          String
+  slug          String            @unique
+  description   String?
+  isActive      Boolean           @default(true)
+  sortOrder     Int               @default(0)
+  subcategories Subcategory[]
+  sizes         ProductSize[]
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  @@index([isActive, sortOrder])
+  @@map("size_templates")
+}
+
+model ProductSize {
+  id             String            @id @default(cuid())
+  templateId     String
+  template       SizeTemplate      @relation(fields: [templateId], references: [id], onDelete: Restrict)
+  label          String
+  normalizedKey  String
+  sortOrder      Int               @default(0)
+  isActive       Boolean           @default(true)
+  variants       ProductVariant[]
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  @@unique([templateId, normalizedKey])
+  @@index([templateId, isActive, sortOrder])
+  @@map("product_sizes")
+}
+
+model ProductVariant {
+  id               String                 @id @default(cuid())
+  productId        String
+  product          Product                @relation(fields: [productId], references: [id], onDelete: Restrict)
+  sizeId           String
+  size             ProductSize            @relation(fields: [sizeId], references: [id], onDelete: Restrict)
+  sku              String                 @unique
+  regularPrice     Decimal                @db.Decimal(10, 2)
+  salePrice        Decimal?               @db.Decimal(10, 2)
+  stockQuantity    Int                    @default(0)
+  apliiqVariantSku String?
+  apliiqDesignId   String?
+  colorName        String?
+  colorHex         String?
+  apliiqColorId    String?
+  isActive         Boolean                @default(true)
+  orderItems       OrderItem[]
+  reservationItems StockReservationItem[]
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+
+  @@unique([productId, sizeId, apliiqColorId])
+  @@index([productId, isActive])
+  @@index([productId, apliiqColorId])
+  @@index([sizeId, isActive])
+  @@map("product_variants")
 }
 
 model Order {
@@ -86,6 +186,8 @@ model Order {
   stockReservation StockReservation?
   couponRedemption CouponRedemption?
   fulfillments     Fulfillment[]
+  reviews          ProductReview[]
+  refundRequests   RefundRequest[]
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
 
@@ -101,6 +203,8 @@ model OrderItem {
   productId      String
   product        Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
   productName    String
+  variantId      String?
+  variant        ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
   sku            String?
   apliiqDesignSku String?
   unitPrice      Decimal  @db.Decimal(10, 2)
@@ -112,6 +216,7 @@ model OrderItem {
 
   @@index([orderId])
   @@index([productId])
+  @@index([variantId])
   @@map("order_items")
 }
 
@@ -160,11 +265,14 @@ model StockReservationItem {
   reservation   StockReservation @relation(fields: [reservationId], references: [id], onDelete: Cascade)
   productId     String
   product       Product          @relation(fields: [productId], references: [id], onDelete: Restrict)
+  variantId     String?
+  variant       ProductVariant?  @relation(fields: [variantId], references: [id], onDelete: Restrict)
   quantity      Int
   createdAt     DateTime         @default(now())
 
-  @@unique([reservationId, productId])
+  @@unique([reservationId, variantId])
   @@index([productId])
+  @@index([variantId])
   @@map("stock_reservation_items")
 }
 
@@ -239,4 +347,106 @@ model Fulfillment {
   @@unique([orderId, provider])
   @@index([submissionStatus, updatedAt])
   @@map("fulfillments")
+}
+
+
+model ProductReview {
+  id          String       @id @default(cuid())
+  productId   String
+  product     Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orderId     String
+  order       Order        @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  rating      Int
+  title       String?
+  body        String
+  status      ReviewStatus @default(PENDING)
+  moderatedAt DateTime?
+  moderatedBy String?
+  moderationNote String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@unique([userId, productId])
+  @@index([productId, status, createdAt])
+  @@index([userId, createdAt])
+  @@map("product_reviews")
+}
+
+model RefundRequest {
+  id              String              @id @default(cuid())
+  orderId         String
+  order           Order               @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  userId          String
+  user            User                @relation(fields: [userId], references: [id], onDelete: Restrict)
+  status          RefundRequestStatus @default(PENDING)
+  reason          String
+  customerNote    String?
+  adminNote       String?
+  amount          Decimal             @db.Decimal(10, 2)
+  stripeRefundId  String?             @unique
+  reviewedBy      String?
+  reviewedAt      DateTime?
+  processedAt     DateTime?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+  @@map("refund_requests")
+}
+
+
+model ProductArtwork {
+  id                String                     @id @default(cuid())
+  productId         String
+  product           Product                    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  name              String
+  imageUrl          String
+  imagePublicId     String?
+  apliiqArtworkId   String?                    @unique
+  isPrimary         Boolean                    @default(false)
+  placements        ProductArtworkPlacement[]
+  createdAt         DateTime                   @default(now())
+  updatedAt         DateTime                   @updatedAt
+
+  @@index([productId, isPrimary])
+  @@map("product_artworks")
+}
+
+model ProductArtworkPlacement {
+  id          String         @id @default(cuid())
+  artworkId   String
+  artwork     ProductArtwork @relation(fields: [artworkId], references: [id], onDelete: Cascade)
+  locationId  String
+  service     String
+  printColors String?
+  boxId       Int?
+  note        String?
+  widthInches Decimal?       @db.Decimal(6, 2)
+  heightInches Decimal?      @db.Decimal(6, 2)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@index([artworkId])
+  @@map("product_artwork_placements")
+}
+
+model ApliiqProductDesign {
+  id              String   @id @default(cuid())
+  productId       String
+  product         Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  colorId         String
+  productCode     String
+  apliiqDesignId  String
+  mockupUrl       String?
+  mockupUrls      String[] @default([])
+  providerPayload Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([productId, colorId])
+  @@index([apliiqDesignId])
+  @@map("apliiq_product_designs")
 }

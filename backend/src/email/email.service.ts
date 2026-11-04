@@ -1,4 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 import * as nodemailer from 'nodemailer';
 
 @Injectable()
@@ -7,7 +9,7 @@ export class EmailService {
   private readonly transporter: nodemailer.Transporter | null;
   private readonly fromAddress?: string;
 
-  constructor() {
+  constructor(@InjectQueue('email') private readonly emailQueue: Queue) {
     const {
       GMAIL_CLIENT_ID,
       GMAIL_CLIENT_SECRET,
@@ -49,6 +51,13 @@ export class EmailService {
   }
 
   async sendOtp(email: string, code: string, purpose: 'verify-email' | 'login' | 'reset-password' = 'login'): Promise<void> {
+    await this.emailQueue.add('send-otp', { email, code, purpose }, {
+      attempts: 5, backoff: { type: 'exponential', delay: 2_000 },
+      removeOnComplete: 500, removeOnFail: 2_000,
+    });
+  }
+
+  async sendOtpNow(email: string, code: string, purpose: 'verify-email' | 'login' | 'reset-password' = 'login'): Promise<void> {
     const subject = purpose === 'verify-email'
       ? 'Verify your email address'
       : purpose === 'reset-password'

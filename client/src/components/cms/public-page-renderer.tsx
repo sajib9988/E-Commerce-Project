@@ -8,6 +8,7 @@ import {
 
 import { safeLinkUrl, safeMediaUrl } from "@/lib/safe-url";
 import { renderLexical } from "./lexical-renderer";
+import { PublicProductCollectionBlock } from "./product-collection-block";
 
 type Props = {
   page: CmsPage;
@@ -306,6 +307,29 @@ function BlockRenderer({ block }: { block: ContentBlock }) {
             </details>
           ))}
         </div>
+      );
+    }
+
+    case "PRODUCT_COLLECTION": {
+      const slug = typeof content.collectionSlug === "string"
+        ? content.collectionSlug
+        : "";
+      if (!slug) return null;
+
+      const title = typeof content.title === "string"
+        ? content.title
+        : undefined;
+      const rawLimit = typeof content.limit === "number" && Number.isFinite(content.limit)
+        ? Math.floor(content.limit)
+        : 8;
+      const limit = Math.min(24, Math.max(1, rawLimit));
+
+      return (
+        <PublicProductCollectionBlock
+          slug={slug}
+          title={title}
+          limit={limit}
+        />
       );
     }
 
