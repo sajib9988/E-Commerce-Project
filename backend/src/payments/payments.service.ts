@@ -12,7 +12,8 @@ import Stripe from 'stripe';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 
-const CHECKOUT_SESSION_TTL_SECONDS = 30 * 60;
+// Keep a one-minute buffer above Stripe's 30-minute minimum expiry.
+const CHECKOUT_SESSION_TTL_SECONDS = 31 * 60;
 
 @Injectable()
 export class PaymentsService {
@@ -88,6 +89,19 @@ export class PaymentsService {
       }
 
       if (currentSession.status === 'open' && currentSession.url) {
+        if (currentSession.expires_at) {
+          const existingExpiry = new Date(currentSession.expires_at * 1000);
+          await this.prisma.$transaction([
+            this.prisma.paymentAttempt.updateMany({
+              where: { id: currentAttempt.id, status: PaymentAttemptStatus.CREATED },
+              data: { checkoutExpiresAt: existingExpiry },
+            }),
+            this.prisma.stockReservation.updateMany({
+              where: { orderId: order.id, status: 'RESERVED' },
+              data: { expiresAt: existingExpiry },
+            }),
+          ]);
+        }
         return { checkoutUrl: currentSession.url, orderId: order.id };
       }
       if (currentSession.status === 'complete') {
