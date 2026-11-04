@@ -29,16 +29,20 @@ export class ProductsService {
     const sortField = ['createdAt', 'updatedAt', 'name', 'regularPrice'].includes(filters.sortBy ?? '')
       ? filters.sortBy as 'createdAt' | 'updatedAt' | 'name' | 'regularPrice' : 'createdAt';
     const sortOrder = filters.sortOrder === 'asc' ? 'asc' : 'desc';
+    const orderBy: Prisma.ProductOrderByWithRelationInput = sortField === 'name'
+      ? { name: sortOrder } : sortField === 'updatedAt'
+        ? { updatedAt: sortOrder } : sortField === 'regularPrice'
+          ? { regularPrice: sortOrder } : { createdAt: sortOrder };
     const include = {
       category: true, subcategory: true,
       variants: { where: { isActive: true }, include: { size: true } },
       collections: { include: { collection: true }, orderBy: { sortOrder: 'asc' as const } },
       artworks: { include: { placements: true }, orderBy: { isPrimary: 'desc' as const } },
       apliiqDesigns: true,
-    };
+    } as const;
     // Keep the legacy array response when pagination is not requested.
     if (filters.page === undefined && filters.limit === undefined) {
-      return this.prisma.product.findMany({ where, include, orderBy: { [sortField]: sortOrder } });
+      return this.prisma.product.findMany({ where, include, orderBy });
     }
     const page = Number.isFinite(filters.page) ? Math.max(1, Math.floor(filters.page!)) : 1;
     const limit = Number.isFinite(filters.limit) ? Math.min(100, Math.max(1, Math.floor(filters.limit!))) : 20;
@@ -64,6 +68,10 @@ export class ProductsService {
     const sortField = ['createdAt', 'updatedAt', 'name', 'regularPrice'].includes(params.sortBy ?? '')
       ? params.sortBy as 'createdAt' | 'updatedAt' | 'name' | 'regularPrice' : 'createdAt';
     const sortOrder = params.sortOrder === 'asc' ? 'asc' : 'desc';
+    const orderBy: Prisma.ProductOrderByWithRelationInput = sortField === 'name'
+      ? { name: sortOrder } : sortField === 'updatedAt'
+        ? { updatedAt: sortOrder } : sortField === 'regularPrice'
+          ? { regularPrice: sortOrder } : { createdAt: sortOrder };
     const [items, total] = await this.prisma.$transaction([
       this.prisma.product.findMany({
         where, orderBy: { [sortField]: sortOrder }, skip: (page - 1) * limit, take: limit,
