@@ -44,48 +44,6 @@ export class ApliiqClient {
   }
 
   async postOrder<T>(payload: unknown): Promise<T> {
-    // Mock is a hard network boundary: never fall through to fetch in this mode.
-    if (this.mode === 'mock') {
-      const mockOrderId = `mock_${randomUUID()}`;
-      return {
-        id: mockOrderId,
-        mock: true,
-        acceptedAt: new Date().toISOString(),
-      } as T;
-    }
-
-    // Sign the exact JSON string that is sent in the request body.
-    const bodyJson = JSON.stringify(payload);
-    const response = await fetch(`${this.baseUrl}/v1/Order`, {
-      method: 'POST',
-      headers: {
-        Authorization: this.authorizationHeader(bodyJson),
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-      },
-      body: bodyJson,
-      signal: AbortSignal.timeout(15_000),
-    }).catch(() => {
-      throw new ServiceUnavailableException('Apliiq API request failed');
-    });
-
-    const responseText = await response.text();
-    let data: unknown = null;
-    try {
-      data = responseText ? JSON.parse(responseText) : null;
-    } catch {
-      data = { message: 'Apliiq returned a non-JSON response' };
-    }
-
-    if (!response.ok) {
-      // Do not log credentials, HMAC headers, addresses, or full payloads.
-      throw new ServiceUnavailableException({
-        message: 'Apliiq rejected the order request',
-        providerStatus: response.status,
-        providerResponse: data,
-      });
-    }
-
-    return data as T;
+    return this.post<T>('Order', payload);
   }
 }
