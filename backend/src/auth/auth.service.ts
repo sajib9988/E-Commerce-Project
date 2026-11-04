@@ -106,9 +106,11 @@ export class AuthService {
     const user = await this.prisma.user.findUnique({ where: { email } });
     if (!user) throw new BadRequestException('Invalid email or verification code');
     if (user.emailVerified) return { success: true, message: 'Email is already verified' };
+    await this.checkAttemptLimit(user.id);
     if (!user.verificationCode || !user.verificationCodeExpiresAt ||
         user.verificationCodeExpiresAt.getTime() < Date.now() ||
         !compareOtp(dto.otp, user.verificationCode)) {
+      await this.recordFailedAttempt(user.id);
       throw new BadRequestException('Invalid or expired verification code');
     }
 
@@ -286,6 +288,7 @@ export class AuthService {
     const email = emailInput.trim().toLowerCase();
     const user = await this.prisma.user.findUnique({ where: { email } });
     if (user) {
+      await this.redis.del(this.otpAttemptKey(user.id));
       const code = generateOtp();
       await this.prisma.user.update({
         where: { id: user.id },
@@ -299,9 +302,12 @@ export class AuthService {
   async resetPassword(dto: ResetPasswordDto) {
     const email = dto.email.trim().toLowerCase();
     const user = await this.prisma.user.findUnique({ where: { email } });
-    if (!user || !user.resetToken || !user.resetTokenExpiresAt ||
+    if (!user) throw new BadRequestException('Invalid or expired reset code');
+    await this.checkAttemptLimit(user.id);
+    if (!user.resetToken || !user.resetTokenExpiresAt ||
         user.resetTokenExpiresAt.getTime() < Date.now() ||
         !compareOtp(dto.otp, user.resetToken)) {
+      await this.recordFailedAttempt(user.id);
       throw new BadRequestException('Invalid or expired reset code');
     }
     await this.prisma.user.update({
@@ -476,7 +482,10 @@ export class AuthService {
   }
 
   private async recordFailedAttempt(userId: string) {
-    await this.redis.incrementWithExpiry(this.otpAttemptKey(userId), OTP_TTL_SECONDS);
+    const attempts = await this.redis.incrementWithExpiry(this.otpAttemptKey(userId), OTP_TTL_SECONDS);
+    if (attempts > OTP_MAX_ATTEMPTS) {
+      throw new ForbiddenException('Too many incorrect attempts. Request a new code.');
+    }
   }
 
   private createTokenPair(user: {
