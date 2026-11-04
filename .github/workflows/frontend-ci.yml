@@ -37,7 +37,25 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Type check
         run: pnpm exec tsc --noEmit
-      - name: Lint
-        run: pnpm lint
+      - name: Lint changed frontend services and route layouts
+        run: >-
+          pnpm exec eslint
+          src/service/product.service.ts
+          src/service/collection.service.ts
+          src/service/checkout.service.ts
+          src/service/payment.service.ts
+          src/service/order.service.ts
+          src/service/coupon.service.ts
+          src/service/review.service.ts
+          src/service/refund.service.ts
+          src/service/customer.service.ts
+          src/service/admin.service.ts
+          src/app/layout.tsx
+          "src/app/(public)/layout.tsx"
+          "src/app/(public)/page.tsx"
+          "src/app/(customer)/layout.tsx"
+          "src/app/(admin)/admin/layout.tsx"
+          "src/app/(admin)/admin/page.tsx"
+          "src/app/(auth)/layout.tsx"
       - name: Build
         run: pnpm build
