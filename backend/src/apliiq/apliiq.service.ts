@@ -95,19 +95,18 @@ export class ApliiqService extends WorkerHost implements OnModuleInit {
       const sku = typeof item.SKU === 'string' ? item.SKU.trim() : '';
       if (sizeName && sku) skuBySize.set(sizeName, sku);
     }
+    const skuUpdates: Array<{ id: string; sku: string; designId: string }> = [];
     const unmatched: string[] = [];
     for (const variant of product.variants) {
       const key = variant.size.label.trim().toLowerCase();
       const providerSku = skuBySize.get(key);
       if (providerSku) {
-        await this.prisma.productVariant.update({
-          where: { id: variant.id },
-          data: { apliiqVariantSku: providerSku },
-        });
+        skuUpdates.push({ id: variant.id, sku: providerSku, designId: String(designId) });
       } else if (this.client.isMockMode) {
-        await this.prisma.productVariant.update({
-          where: { id: variant.id },
-          data: { apliiqVariantSku: `MOCK-${String(designId)}-${variant.size.normalizedKey}` },
+        skuUpdates.push({
+          id: variant.id,
+          sku: `MOCK-${String(designId)}-${variant.size.normalizedKey}`,
+          designId: String(designId),
         });
       } else {
         unmatched.push(variant.size.label);
@@ -116,10 +115,12 @@ export class ApliiqService extends WorkerHost implements OnModuleInit {
     if (unmatched.length) {
       throw new ConflictException(`Apliiq returned no SKU for local size(s): ${unmatched.join(', ')}. No order should be placed until variants are mapped.`);
     }
-    await this.prisma.product.update({
-      where: { id: productId },
-      data: { apliiqDesignId: String(designId) },
-    });
+    await this.prisma.$transaction(
+      skuUpdates.map((item) => this.prisma.productVariant.update({
+        where: { id: item.id },
+        data: { apliiqVariantSku: item.sku, apliiqDesignId: item.designId },
+      })),
+    );
     return {
       productId,
       apliiqDesignId: String(designId),
