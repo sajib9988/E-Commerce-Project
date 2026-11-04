@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata } from "next";\nimport type { ReactNode } from "react";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -21,7 +21,7 @@ export const metadata: Metadata = {
     "Discover everyday essentials and thoughtfully selected products at Commerce.",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (
     <html
       lang="en"
