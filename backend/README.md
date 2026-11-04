@@ -73,7 +73,7 @@ With Mau, you can deploy your application in just a few clicks, allowing you to 
 
 ## Project backend configuration
 
-> The existing backend lockfile was out of sync with five dependencies already declared in `package.json`. CI currently installs with `--no-frozen-lockfile` to regenerate it; use the synchronized lockfile before restoring frozen installs.
+> The backend pnpm lockfile is synchronized with `package.json`; use `pnpm install --frozen-lockfile` for repeatable installs.
 
 
 Copy `.env.example` to `.env` and configure the services below before running the API:
