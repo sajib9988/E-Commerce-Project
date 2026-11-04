@@ -64,9 +64,16 @@ export class CouponsService {
       },
       orderBy: { expiresAt: 'asc' },
     });
-    return coupons
-      .filter((coupon) => coupon.usageLimit === null || coupon.usageCount < coupon.usageLimit)
-      .map((coupon) => ({ id: coupon.id, ...CouponMapper.toPublic(coupon) }));
+    const available = [];
+    for (const coupon of coupons) {
+      if (coupon.usageLimit !== null && coupon.usageCount >= coupon.usageLimit) continue;
+      const usedByUser = await this.prisma.couponRedemption.count({
+        where: { couponId: coupon.id, userId, status: { in: ['RESERVED', 'REDEEMED'] } },
+      });
+      if (usedByUser >= coupon.perUserLimit) continue;
+      available.push({ id: coupon.id, ...CouponMapper.toPublic(coupon) });
+    }
+    return available;
   }
 
   async findOneForAdmin(id: string) {
