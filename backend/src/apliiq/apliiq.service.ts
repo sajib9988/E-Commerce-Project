@@ -98,13 +98,23 @@ export class ApliiqService extends WorkerHost implements OnModuleInit {
     }
     const productCode = payload.ProductCode;
     const colorId = payload.ColorId;
-    const artworks = payload.Artworks;
+    const artworkSpecs = payload.Artworks;
     if (typeof productCode !== 'string' || !productCode.trim() ||
         (typeof colorId !== 'string' && typeof colorId !== 'number') ||
-        !Array.isArray(artworks) || artworks.length === 0 ||
+        !Array.isArray(artworkSpecs) || artworkSpecs.length === 0 ||
         !Array.isArray(payload.Locations) || payload.Locations.length === 0) {
       throw new BadRequestException('ProductCode, ColorId, Locations and at least one Artwork are required');
     }
+    if (!product.apliiqArtworkId) {
+      throw new BadRequestException('Register this Product image as an Apliiq Artwork before creating its design');
+    }
+    const artworks = artworkSpecs.map((spec) => {
+      if (!spec || typeof spec !== 'object' || Array.isArray(spec)) {
+        throw new BadRequestException('Each Artwork entry must be an object containing print settings');
+      }
+      // Artwork identity comes from the Product record; clients cannot substitute an unrelated provider ID.
+      return { ...(spec as Record<string, unknown>), Id: product.apliiqArtworkId };
+    });
     const response = await this.client.postDesign<Record<string, unknown>>({
       ProductCode: productCode,
       ...(payload.ProductId !== undefined ? { ProductId: payload.ProductId } : {}),
