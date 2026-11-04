@@ -12,6 +12,8 @@ import Stripe from 'stripe';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
+const CHECKOUT_SESSION_TTL_SECONDS = 30 * 60;
+
 export class PaymentsService {
   private readonly stripe: Stripe;
   private readonly frontendUrl: string;
@@ -47,7 +49,7 @@ export class PaymentsService {
   async createCheckoutSession(userId: string, orderId: string) {
     const order = await this.prisma.order.findFirst({
       where: { id: orderId, userId },
-      include: { items: true },
+      include: { items: true, stockReservation: { select: { status: true, expiresAt: true } } },
     });
 
     if (!order) throw new NotFoundException('Order not found');
@@ -56,6 +58,9 @@ export class PaymentsService {
     }
     if (order.status !== OrderStatus.PENDING_PAYMENT) {
       throw new BadRequestException('Order is not awaiting payment');
+    }
+    if (!order.stockReservation || order.stockReservation.status !== 'RESERVED') {
+      throw new ConflictException('The stock reservation has expired. Create a new order to continue.');
     }
     if (!order.items.length) {
       throw new BadRequestException('Cannot pay for an empty order');
@@ -98,8 +103,14 @@ export class PaymentsService {
     // Lock the order row so simultaneous requests reuse one attempt.
     // Stripe's idempotency key below makes concurrent calls for that attempt converge
     // on the same Checkout Session even if both requests reach Stripe together.
+    const checkoutExpiresAt = new Date(Date.now() + CHECKOUT_SESSION_TTL_SECONDS * 1000);
     const attempt = await this.prisma.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT "id" FROM "orders" WHERE "id" = ${order.id} FOR UPDATE`;
+      const reservation = await tx.stockReservation.findUnique({ where: { orderId: order.id } });
+      if (!reservation || reservation.status !== 'RESERVED') {
+        throw new ConflictException('The stock reservation has expired. Create a new order to continue.');
+      }
+      await tx.stockReservation.update({ where: { id: reservation.id }, data: { expiresAt: checkoutExpiresAt } });
       const active = await tx.paymentAttempt.findFirst({
         where: { orderId: order.id, status: PaymentAttemptStatus.CREATED },
         orderBy: { createdAt: 'desc' },
@@ -123,6 +134,7 @@ export class PaymentsService {
         {
           mode: 'payment',
           payment_method_types: ['card'],
+          expires_at: Math.floor(checkoutExpiresAt.getTime() / 1000),
           line_items: [
             {
               price_data: {
@@ -163,6 +175,36 @@ export class PaymentsService {
       throw new ServiceUnavailableException(
         'Could not confirm Stripe Checkout creation. Please retry the same order.',
       );
+    }
+  }
+
+  async expireCheckoutSessionsForOrder(orderId: string): Promise<void> {
+    const attempts = await this.prisma.paymentAttempt.findMany({
+      where: { orderId, status: PaymentAttemptStatus.CREATED, stripeCheckoutSessionId: { not: null } },
+      select: { id: true, stripeCheckoutSessionId: true },
+    });
+    for (const attempt of attempts) {
+      if (!attempt.stripeCheckoutSessionId) continue;
+      let session: Stripe.Checkout.Session;
+      try {
+        session = await this.stripe.checkout.sessions.retrieve(attempt.stripeCheckoutSessionId);
+      } catch {
+        throw new ServiceUnavailableException('Could not verify the current Stripe session; order was not cancelled.');
+      }
+      if (session.status === 'complete') {
+        throw new ConflictException('Payment has already completed or is processing; the order cannot be cancelled.');
+      }
+      if (session.status === 'open') {
+        try {
+          await this.stripe.checkout.sessions.expire(session.id);
+        } catch {
+          throw new ServiceUnavailableException('Could not expire the Stripe Checkout Session; order was not cancelled.');
+        }
+      }
+      await this.prisma.paymentAttempt.updateMany({
+        where: { id: attempt.id, status: PaymentAttemptStatus.CREATED },
+        data: { status: PaymentAttemptStatus.CANCELLED },
+      });
     }
   }
 
