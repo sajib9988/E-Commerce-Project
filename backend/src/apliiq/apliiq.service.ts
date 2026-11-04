@@ -57,10 +57,11 @@ export class ApliiqService extends WorkerHost implements OnModuleInit {
   }
 
   async createProductArtwork(productId: string, name: string, file: Express.Multer.File) {
+    if (typeof name !== 'string' || !name.trim()) throw new BadRequestException('Artwork name is required');
     const product = await this.prisma.product.findUnique({ where: { id: productId }, select: { id: true } });
     if (!product) throw new NotFoundException('Product not found');
     if (!file?.buffer) throw new BadRequestException('A print-ready artwork image file is required');
-    const uploaded = await this.cloudinary.uploadImage(file);
+    const uploaded = await this.cloudinary.uploadImage(file, 'ecommerce/artworks');
     try {
       const provider = await this.client.postArtwork<Record<string, unknown>>({
         Name: name.trim(),
