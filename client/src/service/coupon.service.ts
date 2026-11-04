@@ -57,8 +57,13 @@ export async function validateCoupon(data: {
 }) {
   return request("/coupons/validate", { method: "POST", body: JSON.stringify(data) });
 }
+export type AdminCoupon = AvailableCoupon & {
+  isActive: boolean; usageLimit: number | null; usageCount: number; perUserLimit: number;
+  userId: string | null; createdAt: string; updatedAt: string;
+};
+
 export async function getCoupons() {
-  return request("/coupons");
+  return request<AdminCoupon[]>("/coupons");
 }
 export async function getCouponById(id: string) {
   return request(`/coupons/${encodeURIComponent(id)}`);
