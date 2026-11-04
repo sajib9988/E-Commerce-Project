@@ -215,7 +215,7 @@ export class AuthService {
       const id = typeof data.sub === 'string' ? data.sub : typeof data.id === 'string' ? data.id : '';
       const email = typeof data.email === 'string' ? data.email.trim().toLowerCase() : '';
       const name = typeof data.name === 'string' ? data.name.trim() : '';
-      const emailVerified = provider === 'google' ? data.email_verified === true : Boolean(email);
+      const emailVerified = provider === 'google' && data.email_verified === true;
       if (!id || !email || !name || !emailVerified || (provider === 'facebook' && id !== verifiedFacebookUserId)) {
         throw new Error('Provider profile is incomplete, unverified, or does not match the validated token');
       }
@@ -228,11 +228,21 @@ export class AuthService {
       where: { provider, providerAccountId: profile.id },
       include: { user: true },
     });
-    if (linked) return this.issueSessionTokens(linked.user);
+    if (linked) {
+      if (!linked.user.emailVerified) {
+        throw new ForbiddenException('Verify the email address associated with this OAuth account before signing in');
+      }
+      return this.issueSessionTokens(linked.user);
+    }
 
     let user = await this.prisma.user.findUnique({ where: { email: profile.email } });
     if (user && !user.emailVerified) {
       throw new ConflictException('Verify this email with the existing account before linking OAuth');
+    }
+    // Facebook's Graph profile does not provide a trustworthy email-verification
+    // claim. Never attach it to an existing account or mark its email verified.
+    if (user && !profile.emailVerified) {
+      throw new ConflictException('Sign in to your existing account and link Facebook from account settings');
     }
     if (!user) {
       user = await this.prisma.user.create({
@@ -241,7 +251,7 @@ export class AuthService {
           email: profile.email,
           password: await hashPassword(randomBytes(48).toString('base64url')),
           role: UserRole.USER,
-          emailVerified: true,
+          emailVerified: profile.emailVerified,
         },
       });
     }
@@ -257,6 +267,15 @@ export class AuthService {
       });
       if (!concurrentLink) throw new ConflictException('This OAuth account is already linked to another user');
       user = concurrentLink.user;
+    }
+
+    if (!user.emailVerified) {
+      await this.issueAndSendOtp(user.id, user.email, 'verify-email');
+      return {
+        success: true,
+        requiresEmailVerification: true,
+        message: 'Check your email for a verification code before signing in.',
+      };
     }
     return this.issueSessionTokens(user);
   }
