@@ -31,7 +31,7 @@ export class ApliiqAdminController {
   @Post('artworks/:artworkId/placements')
   addPlacement(
     @Param('artworkId') artworkId: string,
-    @Body() body: { locationId: string; service: string; printColors?: number; note?: string; widthInches?: number; heightInches?: number },
+    @Body() body: { locationId: string; service: string; printColors?: string; boxId?: number; note?: string; widthInches?: number; heightInches?: number },
   ) {
     return this.apliiq.addArtworkPlacement(artworkId, body);
   }
