@@ -41,20 +41,6 @@ export class ApliiqService extends WorkerHost implements OnModuleInit {
     await this.pollFulfillmentQueue();
   }
 
-  async uploadArtwork(payload: { Name: string; ImagePath: string }) {
-    if (!payload.Name?.trim() || !/^https:\/\//i.test(payload.ImagePath)) {
-      throw new BadRequestException('Artwork Name and a public HTTPS ImagePath are required');
-    }
-    const result = await this.client.postArtwork<Record<string, unknown>>({
-      Name: payload.Name.trim(),
-      ImagePath: payload.ImagePath,
-    });
-    const id = result.Id ?? result.id;
-    if (id === undefined || id === null) {
-      throw new ConflictException('Apliiq Artwork response did not include an artwork ID');
-    }
-    return { id: String(id), provider: result };
-  }
 
   async createProductArtwork(productId: string, name: string, file: Express.Multer.File) {
     if (typeof name !== 'string' || !name.trim()) throw new BadRequestException('Artwork name is required');
@@ -97,7 +83,9 @@ export class ApliiqService extends WorkerHost implements OnModuleInit {
     try { parsed = new URL(product.imageUrl); } catch {
       throw new BadRequestException('Product image must be a public HTTPS URL');
     }
-    if (parsed.protocol !== 'https:') throw new BadRequestException('Product image must be a public HTTPS URL');
+    if (parsed.protocol !== 'https:' || parsed.hostname !== 'res.cloudinary.com') {
+      throw new BadRequestException('Product image must be hosted on Cloudinary over HTTPS');
+    }
     const existing = await this.prisma.productArtwork.findFirst({
       where: { productId, imageUrl: product.imageUrl }, include: { placements: true },
     });
