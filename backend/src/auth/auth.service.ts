@@ -176,6 +176,7 @@ export class AuthService {
     }
 
     let profile: { id: string; email: string; name: string; emailVerified: boolean };
+    let verifiedFacebookUserId: string | undefined;
     try {
       if (provider === 'google') {
         const clientId = process.env.GOOGLE_CLIENT_ID;
@@ -196,9 +197,10 @@ export class AuthService {
         debugUrl.searchParams.set('access_token', `${appId}|${appSecret}`);
         const debugResponse = await fetch(debugUrl, { signal: AbortSignal.timeout(8_000) });
         const debugPayload = await debugResponse.json() as { data?: { is_valid?: boolean; app_id?: string; user_id?: string } };
-        if (!debugResponse.ok || !debugPayload.data?.is_valid || debugPayload.data.app_id !== appId) {
+        if (!debugResponse.ok || !debugPayload.data?.is_valid || debugPayload.data.app_id !== appId || !debugPayload.data.user_id) {
           throw new Error('Facebook access token is invalid for this application');
         }
+        verifiedFacebookUserId = debugPayload.data.user_id;
       }
 
       const endpoint = provider === 'google'
@@ -214,7 +216,9 @@ export class AuthService {
       const email = typeof data.email === 'string' ? data.email.trim().toLowerCase() : '';
       const name = typeof data.name === 'string' ? data.name.trim() : '';
       const emailVerified = provider === 'google' ? data.email_verified === true : Boolean(email);
-      if (!id || !email || !name || !emailVerified) throw new Error('Provider profile is incomplete or email is not verified');
+      if (!id || !email || !name || !emailVerified || (provider === 'facebook' && id !== verifiedFacebookUserId)) {
+        throw new Error('Provider profile is incomplete, unverified, or does not match the validated token');
+      }
       profile = { id, email, name, emailVerified };
     } catch {
       throw new UnauthorizedException('OAuth access token is invalid or provider profile is unavailable');
