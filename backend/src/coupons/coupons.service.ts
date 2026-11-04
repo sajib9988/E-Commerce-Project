@@ -51,6 +51,24 @@ export class CouponsService {
     return coupons.map(CouponMapper.toAdmin);
   }
 
+  async findAvailableForUser(userId: string) {
+    const now = new Date();
+    const coupons = await this.prisma.coupon.findMany({
+      where: {
+        isActive: true,
+        AND: [
+          { OR: [{ userId: null }, { userId }] },
+          { OR: [{ startsAt: null }, { startsAt: { lte: now } }] },
+          { OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] },
+        ],
+      },
+      orderBy: { expiresAt: 'asc' },
+    });
+    return coupons
+      .filter((coupon) => coupon.usageLimit === null || coupon.usageCount < coupon.usageLimit)
+      .map((coupon) => ({ id: coupon.id, ...CouponMapper.toPublic(coupon) }));
+  }
+
   async findOneForAdmin(id: string) {
     const coupon = await this.prisma.coupon.findUnique({ where: { id } });
     if (!coupon) throw new NotFoundException('Coupon not found');
