@@ -216,7 +216,7 @@ export class AuthService {
       const email = typeof data.email === 'string' ? data.email.trim().toLowerCase() : '';
       const name = typeof data.name === 'string' ? data.name.trim() : '';
       const emailVerified = provider === 'google' && data.email_verified === true;
-      if (!id || !email || !name || !emailVerified || (provider === 'facebook' && id !== verifiedFacebookUserId)) {
+      if (!id || !email || !name || (provider === 'google' && !emailVerified) || (provider === 'facebook' && id !== verifiedFacebookUserId)) {
         throw new Error('Provider profile is incomplete, unverified, or does not match the validated token');
       }
       profile = { id, email, name, emailVerified };
