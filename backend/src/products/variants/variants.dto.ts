@@ -23,6 +23,24 @@ export class CreateProductVariantDto {
   @IsOptional() @IsString() @MaxLength(160)
   apliiqVariantSku?: string | null;
 
+  @IsOptional() @IsString() @MaxLength(100)
+  colorName?: string | null;
+
+  @IsOptional() @IsString() @MaxLength(20)
+  colorHex?: string | null;
+
+  @IsOptional() @IsString() @MaxLength(100)
+  apliiqColorId?: string | null;
+
+  @IsOptional() @IsString() @MaxLength(100)
+  colorName?: string | null;
+
+  @IsOptional() @IsString() @MaxLength(20)
+  colorHex?: string | null;
+
+  @IsOptional() @IsString() @MaxLength(100)
+  apliiqColorId?: string | null;
+
   @IsOptional() @IsBoolean()
   isActive?: boolean;
 }
