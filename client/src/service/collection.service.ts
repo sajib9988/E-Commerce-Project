@@ -32,7 +32,7 @@ async function request<T>(path: string, options: RequestInit = {}, authenticated
     const response = await fetch(`${BASE_URL.replace(/\/+$/, "")}${path}`, {
       ...options,
       headers: authenticated ? await getAuthHeaders() : {},
-      cache: options.cache ?? "no-store",
+      ...(options.cache || options.next ? {} : { cache: "no-store" }),
     });
     const data = await safeJson<T>(response);
     if (!response.ok) {
@@ -48,7 +48,7 @@ async function request<T>(path: string, options: RequestInit = {}, authenticated
 }
 
 function isApiError(value: unknown): value is ApiError {
-  return typeof value === "object" && value !== null && "statusCode" in value;
+  return typeof value === "object" && value !== null && "success" in value && value.success === false;
 }
 
 function buildQuery(params: object) {
