@@ -149,26 +149,28 @@ export class ApliiqService extends WorkerHost implements OnModuleInit {
         (typeof colorId !== 'string' && typeof colorId !== 'number') ||
         !Array.isArray(placementSpecs) || placementSpecs.length === 0 ||
         !Array.isArray(payload.Locations) || payload.Locations.length === 0) {
-      throw new BadRequestException('ProductCode, ColorId, Locations and at least one Artwork are required');
+      throw new BadRequestException('ProductCode, ColorId, Locations and saved Placements are required');
     }
-    const artworkIds = [...new Set(placementSpecs.map((spec: any) => spec?.artworkId).filter((id: unknown): id is string => typeof id === 'string'))];
-    if (artworkIds.length === 0) throw new BadRequestException('Each placement must reference a saved Product Artwork');
-    const savedArtworks = await this.prisma.productArtwork.findMany({
-      where: { id: { in: artworkIds }, productId, apliiqArtworkId: { not: null } },
-      include: { placements: true },
+    const placementIds = [...new Set(placementSpecs.map((spec: any) => spec?.placementId).filter((id: unknown): id is string => typeof id === 'string'))];
+    if (placementIds.length !== placementSpecs.length || placementIds.length === 0) {
+      throw new BadRequestException('Each design placement must reference a saved placementId');
+    }
+    const savedPlacements = await this.prisma.productArtworkPlacement.findMany({
+      where: { id: { in: placementIds }, artwork: { productId, apliiqArtworkId: { not: null } } },
+      include: { artwork: true },
     });
-    if (savedArtworks.length !== artworkIds.length) {
-      throw new BadRequestException('One or more selected artworks are missing or not registered with Apliiq');
+    if (savedPlacements.length !== placementIds.length) {
+      throw new BadRequestException('One or more saved artwork placements are missing or not registered with Apliiq');
     }
-    const artworks = placementSpecs.map((spec: any) => {
-      const artwork = savedArtworks.find((item) => item.id === spec.artworkId);
-      if (!artwork || !spec.locationId || !spec.service) throw new BadRequestException('Each placement needs artworkId, locationId and service');
+    const artworks = placementIds.map((placementId) => {
+      const placement = savedPlacements.find((item) => item.id === placementId);
+      if (!placement?.artwork.apliiqArtworkId) throw new BadRequestException('Artwork placement is not linked to an Apliiq Artwork');
       return {
-        Id: artwork.apliiqArtworkId,
-        LocationId: spec.locationId,
-        Service: spec.service,
-        ...(spec.printColors !== undefined ? { PrintColors: spec.printColors } : {}),
-        ...(spec.note !== undefined ? { Note: spec.note } : {}),
+        Id: placement.artwork.apliiqArtworkId,
+        LocationId: placement.locationId,
+        Service: placement.service,
+        ...(placement.printColors !== null ? { PrintColors: placement.printColors } : {}),
+        ...(placement.note ? { Note: placement.note } : {}),
       };
     });
     const response = await this.client.postDesign<Record<string, unknown>>({
