@@ -40,8 +40,8 @@ export class ProductsService {
     if (filters.page === undefined && filters.limit === undefined) {
       return this.prisma.product.findMany({ where, include, orderBy: { [sortField]: sortOrder } });
     }
-    const page = Math.max(1, Math.floor(filters.page ?? 1));
-    const limit = Math.min(100, Math.max(1, Math.floor(filters.limit ?? 20)));
+    const page = Number.isFinite(filters.page) ? Math.max(1, Math.floor(filters.page!)) : 1;
+    const limit = Number.isFinite(filters.limit) ? Math.min(100, Math.max(1, Math.floor(filters.limit!))) : 20;
     const [items, total] = await this.prisma.$transaction([
       this.prisma.product.findMany({ where, include, orderBy: { [sortField]: sortOrder }, skip: (page - 1) * limit, take: limit }),
       this.prisma.product.count({ where }),
