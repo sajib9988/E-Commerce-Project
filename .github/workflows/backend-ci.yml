@@ -35,7 +35,13 @@ jobs:
           cache-dependency-path: backend/pnpm-lock.yaml
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile --reporter=append-only
-      - name: Upload synchronized pnpm lockfile\n        uses: actions/upload-artifact@v4\n        with:\n          name: backend-pnpm-lockfile\n          path: backend/pnpm-lock.yaml\n          if-no-files-found: error\n      - name: Validate Prisma schema
+      - name: Upload synchronized pnpm lockfile
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-pnpm-lockfile
+          path: backend/pnpm-lock.yaml
+          if-no-files-found: error
+      - name: Validate Prisma schema
         run: pnpm exec prisma validate
       - name: Generate Prisma Client and build NestJS
         run: pnpm build
