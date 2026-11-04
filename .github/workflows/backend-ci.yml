@@ -34,7 +34,7 @@ jobs:
           cache: pnpm
           cache-dependency-path: backend/pnpm-lock.yaml
       - name: Install dependencies
-        run: pnpm install --no-frozen-lockfile
+        run: pnpm install --no-frozen-lockfile --reporter=append-only
       - name: Validate Prisma schema
         run: pnpm exec prisma validate
       - name: Generate Prisma Client and build NestJS
