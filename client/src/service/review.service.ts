@@ -40,6 +40,16 @@ async function request<T>(path: string, options: RequestInit = {}, authenticated
 }
 function isError(value: unknown): value is ApiError { return isApiError(value); }
 
+export type MyReview = {
+  id: string; productId: string; rating: number; title: string | null; body: string;
+  status: "PENDING" | "APPROVED" | "REJECTED"; moderationNote: string | null;
+  createdAt: string; updatedAt: string; product: { name: string };
+};
+
+export async function getMyReviews() {
+  return request<MyReview[]>("/reviews/me");
+}
+
 export async function getProductReviews(productId: string, page = 1, limit = 20) {
   const query = new URLSearchParams({ page: String(page), limit: String(limit) });
   return request(`/products/${encodeURIComponent(productId)}/reviews?${query}`, { next: { revalidate: 60 } }, false);
