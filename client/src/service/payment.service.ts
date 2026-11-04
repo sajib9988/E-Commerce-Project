@@ -21,7 +21,7 @@ async function safeJson<T>(response: Response): Promise<T | ApiError> {
   catch { return { success: false, message: "Invalid JSON response from server" }; }
 }
 
-async function request<T>(path: string, options: RequestInit = {}): Promise<T | ApiError> {
+function isApiError(value: unknown): value is ApiError {\n  return typeof value === "object" && value !== null && "statusCode" in value;\n}\n\nasync function request<T>(path: string, options: RequestInit = {}): Promise<T | ApiError> {
   if (!BASE_URL) return { success: false, message: "NEXT_PUBLIC_BASE_URL is not configured" };
   try {
     const response = await fetch(`${BASE_URL.replace(/\/+$/, "")}${path}`, {
@@ -53,6 +53,6 @@ export async function resolvePaymentManualReview(
   const result = await request(`/payments/manual-review/${encodeURIComponent(attemptId)}/resolve`, {
     method: "POST", body: JSON.stringify(data),
   });
-  if (!("statusCode" in result)) revalidatePath("/admin/payments");
+  if (!isApiError(result)) revalidatePath("/admin/payments");
   return result;
 }
