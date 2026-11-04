@@ -125,7 +125,7 @@ export class ApliiqService extends WorkerHost implements OnModuleInit {
       productId,
       apliiqDesignId: String(designId),
       variants: await this.prisma.productVariant.findMany({
-        where: { productId, isActive: true },
+        where: { productId, isActive: true, apliiqColorId: String(colorId) },
         include: { size: true },
         orderBy: { size: { sortOrder: 'asc' } },
       }),
