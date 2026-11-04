@@ -115,7 +115,7 @@ export class ApliiqService extends WorkerHost implements OnModuleInit {
   }
 
   async addArtworkPlacement(artworkId: string, payload: {
-    locationId: string; service: string; printColors?: number; note?: string;
+    locationId: string; service: string; printColors?: string; boxId?: number; note?: string;
     widthInches?: number; heightInches?: number;
   }) {
     const artwork = await this.prisma.productArtwork.findUnique({ where: { id: artworkId }, select: { id: true } });
@@ -127,6 +127,7 @@ export class ApliiqService extends WorkerHost implements OnModuleInit {
       data: {
         artworkId, locationId: payload.locationId.trim(), service: payload.service.trim(),
         ...(payload.printColors !== undefined ? { printColors: payload.printColors } : {}),
+        ...(payload.boxId !== undefined ? { boxId: payload.boxId } : {}),
         ...(payload.note !== undefined ? { note: payload.note } : {}),
         ...(payload.widthInches !== undefined ? { widthInches: payload.widthInches } : {}),
         ...(payload.heightInches !== undefined ? { heightInches: payload.heightInches } : {}),
@@ -163,39 +164,62 @@ export class ApliiqService extends WorkerHost implements OnModuleInit {
     if (savedPlacements.length !== placementIds.length) {
       throw new BadRequestException('One or more saved artwork placements are missing or not registered with Apliiq');
     }
-    const artworks = placementIds.map((placementId) => {
-      const placement = savedPlacements.find((item) => item.id === placementId);
-      if (!placement?.artwork.apliiqArtworkId) throw new BadRequestException('Artwork placement is not linked to an Apliiq Artwork');
-      return {
-        Id: placement.artwork.apliiqArtworkId,
-        LocationId: placement.locationId,
-        Service: placement.service,
-        ...(placement.printColors !== null ? { PrintColors: placement.printColors } : {}),
-        ...(placement.note ? { Note: placement.note } : {}),
-      };
-    });
+    const locationSpecs = payload.Locations as Array<Record<string, unknown>>;
+    const locationById = new Map<string, Record<string, unknown>>();
+    for (const location of locationSpecs) {
+      const rawId = location?.Id;
+      const id = typeof rawId === 'string' || typeof rawId === 'number' ? String(rawId) : '';
+      const imagePath = typeof location?.ImagePath === 'string' ? location.ImagePath : '';
+      if (!id || !/^https:\/\//i.test(imagePath)) {
+        throw new BadRequestException('Each Apliiq location requires its catalog Id and a public HTTPS mockup ImagePath');
+      }
+      locationById.set(id, location);
+    }
+    for (const placement of savedPlacements) {
+      if (!locationById.has(placement.locationId)) {
+        throw new BadRequestException(`Apliiq location ${placement.locationId} is missing from Locations`);
+      }
+    }
+    const locations = [...locationById.entries()].map(([locationId, location]) => ({
+      Id: location.Id,
+      ImagePath: location.ImagePath,
+      Artworks: savedPlacements.filter((placement) => placement.locationId === locationId).map((placement) => {
+        if (!placement.artwork.apliiqArtworkId) throw new BadRequestException('Artwork placement is not linked to an Apliiq Artwork');
+        return {
+          Id: placement.artwork.apliiqArtworkId,
+          Service: placement.service,
+          ...(placement.printColors ? { PrintColors: placement.printColors } : {}),
+          ...(placement.note ? { Note: placement.note } : {}),
+          ...(placement.boxId !== null ? { BoxId: placement.boxId } : {}),
+        };
+      }),
+    })).filter((location) => location.Artworks.length > 0);
     const response = await this.client.postDesign<Record<string, unknown>>({
       ProductCode: productCode,
       ...(payload.ProductId !== undefined ? { ProductId: payload.ProductId } : {}),
       ColorId: colorId,
-      Locations: payload.Locations,
+      Locations: locations,
       ...(payload.MockupTemplateId !== undefined ? { MockupTemplateId: payload.MockupTemplateId } : {}),
-      Artworks: artworks,
     });
     const designId = response.Id ?? response.id;
     if (designId === undefined || designId === null) {
       throw new ConflictException('Apliiq Design response did not include a design ID');
     }
-    const mockupUrlRaw = response.ImagePath ?? response.MockupUrl ?? response.ImageUrl;
-    const mockupUrl = typeof mockupUrlRaw === 'string' && /^https:\/\//i.test(mockupUrlRaw) ? mockupUrlRaw : null;
+    const responseLocations = Array.isArray(response.Locations) ? response.Locations as Array<Record<string, unknown>> : [];
+    const mockupUrls = [...new Set(responseLocations
+      .map((location) => location.ImagePath)
+      .filter((url): url is string => typeof url === 'string')
+      .map((url) => url.startsWith('//') ? `https:${url}` : url)
+      .filter((url) => /^https:\/\//i.test(url)))];
+    const mockupUrl = mockupUrls[0] ?? null;
     await this.prisma.apliiqProductDesign.upsert({
       where: { productId_colorId: { productId, colorId: String(colorId) } },
       create: {
         productId, colorId: String(colorId), productCode, apliiqDesignId: String(designId),
-        mockupUrl, providerPayload: response as any,
+        mockupUrl, mockupUrls, providerPayload: response as any,
       },
       update: {
-        productCode, apliiqDesignId: String(designId), mockupUrl,
+        productCode, apliiqDesignId: String(designId), mockupUrl, mockupUrls,
         providerPayload: response as any,
       },
     });
