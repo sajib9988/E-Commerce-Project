@@ -102,7 +102,7 @@ export class OrdersService {
               unitPrice = new Prisma.Decimal((variant.salePrice ?? variant.regularPrice).toString());
               sku = variant.sku;
               apliiqDesignSku = variant.apliiqVariantSku ?? null;
-              variantSnapshot = { id: variant.id, sizeId: variant.sizeId, sizeLabel: variant.size.label, sku: variant.sku, apliiqVariantSku: variant.apliiqVariantSku } as Prisma.InputJsonValue;
+              variantSnapshot = { id: variant.id, sizeId: variant.sizeId, sizeLabel: variant.size.label, colorName: variant.colorName, colorHex: variant.colorHex, apliiqColorId: variant.apliiqColorId, sku: variant.sku, apliiqVariantSku: variant.apliiqVariantSku } as Prisma.InputJsonValue;
             } else {
               // Legacy simple products only; variant-managed products must use a variantId.
               if (product.variants?.length) throw new BadRequestException('Choose a size/variant for this product');
