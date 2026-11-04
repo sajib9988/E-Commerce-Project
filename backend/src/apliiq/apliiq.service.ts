@@ -58,31 +58,36 @@ export class ApliiqService extends WorkerHost implements OnModuleInit {
 
   async createProductArtwork(productId: string, name: string, file: Express.Multer.File) {
     if (typeof name !== 'string' || !name.trim()) throw new BadRequestException('Artwork name is required');
+    const artworkName = name.trim().slice(0, 50);
     const product = await this.prisma.product.findUnique({ where: { id: productId }, select: { id: true } });
     if (!product) throw new NotFoundException('Product not found');
     if (!file?.buffer) throw new BadRequestException('A print-ready artwork image file is required');
     const uploaded = await this.cloudinary.uploadImage(file, 'ecommerce/artworks');
+
+    let provider: Record<string, unknown>;
     try {
-      const provider = await this.client.postArtwork<Record<string, unknown>>({
-        Name: name.trim(),
+      provider = await this.client.postArtwork<Record<string, unknown>>({
+        Name: artworkName,
         ImagePath: uploaded.secure_url,
-      });
-      const rawId = provider.Id ?? provider.id;
-      if (rawId === undefined || rawId === null || String(rawId).trim() === '') {
-        throw new ConflictException('Apliiq Artwork response did not include an artwork ID');
-      }
-      return await this.prisma.productArtwork.create({
-        data: {
-          productId, name: name.trim(), imageUrl: uploaded.secure_url,
-          imagePublicId: uploaded.public_id, apliiqArtworkId: String(rawId),
-          isPrimary: (await this.prisma.productArtwork.count({ where: { productId } })) === 0,
-        },
-        include: { placements: true },
       });
     } catch (error) {
       await this.cloudinary.deleteImage(uploaded.public_id).catch(() => undefined);
       throw error;
     }
+
+    const rawId = provider.Id ?? provider.id;
+    if (rawId === undefined || rawId === null || String(rawId).trim() === '') {
+      // Keep the Cloudinary asset: Apliiq may have accepted the request even if its response was incomplete.
+      throw new ConflictException('Apliiq Artwork response did not include an artwork ID; reconcile this upload before retrying');
+    }
+    return this.prisma.productArtwork.create({
+      data: {
+        productId, name: artworkName, imageUrl: uploaded.secure_url,
+        imagePublicId: uploaded.public_id, apliiqArtworkId: String(rawId),
+        isPrimary: (await this.prisma.productArtwork.count({ where: { productId } })) === 0,
+      },
+      include: { placements: true },
+    });
   }
 
   async registerProductImageAsArtwork(productId: string, name?: string) {
@@ -98,7 +103,7 @@ export class ApliiqService extends WorkerHost implements OnModuleInit {
     });
     if (existing) return { ...existing, reused: true };
     const provider = await this.client.postArtwork<Record<string, unknown>>({
-      Name: (name?.trim() || product.name).slice(0, 150), ImagePath: product.imageUrl,
+      Name: (name?.trim() || product.name).slice(0, 50), ImagePath: product.imageUrl,
     });
     const rawId = provider.Id ?? provider.id;
     if (rawId === undefined || rawId === null || String(rawId).trim() === '') {
@@ -106,7 +111,7 @@ export class ApliiqService extends WorkerHost implements OnModuleInit {
     }
     return this.prisma.productArtwork.create({
       data: {
-        productId, name: name?.trim() || product.name, imageUrl: product.imageUrl,
+        productId, name: (name?.trim() || product.name).slice(0, 50), imageUrl: product.imageUrl,
         imagePublicId: product.imagePublicId, apliiqArtworkId: String(rawId),
         isPrimary: (await this.prisma.productArtwork.count({ where: { productId } })) === 0,
       },
