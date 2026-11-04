@@ -242,7 +242,7 @@ export class AuthService {
     // Facebook's Graph profile does not provide a trustworthy email-verification
     // claim. Never attach it to an existing account or mark its email verified.
     if (user && !profile.emailVerified) {
-      throw new ConflictException('Sign in to your existing account and link Facebook from account settings');
+      throw new ConflictException('Facebook cannot be safely auto-linked to an existing account. Sign in using your existing method');
     }
     if (!user) {
       user = await this.prisma.user.create({
