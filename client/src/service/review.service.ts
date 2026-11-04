@@ -73,9 +73,16 @@ export async function deleteMyReview(id: string) {
   if (!isError(result)) revalidatePath("/account/reviews");
   return result;
 }
+export type AdminReview = {
+  id: string; rating: number; title: string | null; body: string; status: "PENDING" | "APPROVED" | "REJECTED";
+  createdAt: string; product: { id: string; name: string };
+  user: { id: string; name: string | null; email: string };
+  order: { id: string; orderNumber: string; paymentStatus: string };
+};
+
 export async function getAdminReviews(status?: "PENDING" | "APPROVED" | "REJECTED") {
   const query = status ? `?status=${status}` : "";
-  return request(`/admin/reviews${query}`);
+  return request<AdminReview[]>(`/admin/reviews${query}`);
 }
 export async function moderateReview(id: string, data: { status: "APPROVED" | "REJECTED"; note?: string }) {
   const result = await request(`/admin/reviews/${encodeURIComponent(id)}/moderate`, {
