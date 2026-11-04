@@ -1,5 +1,12 @@
-import type { ThrottlerStorage, ThrottlerStorageRecord } from '@nestjs/throttler';
+import type { ThrottlerStorage } from '@nestjs/throttler';
 import { RedisService } from './redis.service';
+
+type ThrottlerStorageRecord = {
+  totalHits: number;
+  timeToExpire: number;
+  isBlocked: boolean;
+  timeToBlockExpire: number;
+};
 
 export class RedisThrottlerStorage implements ThrottlerStorage {
   constructor(private readonly redis: RedisService) {}
@@ -34,11 +41,6 @@ export class RedisThrottlerStorage implements ThrottlerStorage {
     // Nest's ThrottlerStorageRecord expresses both expiration values in seconds.
     const timeToExpire = Math.max(0, Math.ceil(Number(result[1]) / 1000));
     const timeToBlockExpire = Math.max(0, Math.ceil(Number(result[2]) / 1000));
-    return {
-      totalHits,
-      timeToExpire,
-      isBlocked: timeToBlockExpire > 0,
-      timeToBlockExpire,
-    };
+    return { totalHits, timeToExpire, isBlocked: timeToBlockExpire > 0, timeToBlockExpire };
   }
 }
