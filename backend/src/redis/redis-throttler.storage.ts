@@ -17,9 +17,12 @@ export class RedisThrottlerStorage implements ThrottlerStorage {
       if hits == 1 then redis.call('PEXPIRE', KEYS[1], ARGV[1]) end
       local hitTtl = redis.call('PTTL', KEYS[1])
       local blockTtl = redis.call('PTTL', KEYS[2])
-      if hits > tonumber(ARGV[2]) and blockTtl <= 0 then
+      if tonumber(ARGV[3]) > 0 and hits > tonumber(ARGV[2]) and blockTtl <= 0 then
         redis.call('SET', KEYS[2], '1', 'PX', ARGV[3])
         blockTtl = tonumber(ARGV[3])
+      end
+      if tonumber(ARGV[3]) <= 0 and hits > tonumber(ARGV[2]) then
+        blockTtl = hitTtl
       end
       return { hits, hitTtl, blockTtl }
     `;
@@ -28,8 +31,9 @@ export class RedisThrottlerStorage implements ThrottlerStorage {
       String(ttl), String(limit), String(blockDuration),
     ) as [number | string, number | string, number | string];
     const totalHits = Number(result[0]);
-    const timeToExpire = Math.max(0, Number(result[1]));
-    const timeToBlockExpire = Math.max(0, Number(result[2]));
+    // Nest's ThrottlerStorageRecord expresses both expiration values in seconds.
+    const timeToExpire = Math.max(0, Math.ceil(Number(result[1]) / 1000));
+    const timeToBlockExpire = Math.max(0, Math.ceil(Number(result[2]) / 1000));
     return {
       totalHits,
       timeToExpire,
