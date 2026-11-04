@@ -13,6 +13,11 @@ export class ApliiqAdminController {
     return this.apliiq.uploadArtwork(body);
   }
 
+  @Post('products/:productId/artwork')
+  registerProductArtwork(@Param('productId') productId: string) {
+    return this.apliiq.registerProductArtwork(productId);
+  }
+
   @Post('products/:productId/designs')
   createDesign(
     @Param('productId') productId: string,
