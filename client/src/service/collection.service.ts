@@ -47,7 +47,7 @@ async function request<T>(path: string, options: RequestInit = {}, authenticated
   }
 }
 
-function buildQuery(params: Record<string, string | number | boolean | undefined>) {
+function isApiError(value: unknown): value is ApiError {\n  return typeof value === "object" && value !== null && "statusCode" in value;\n}\n\nfunction buildQuery(params: object) {
   const query = new URLSearchParams();
   Object.entries(params).forEach(([key, value]) => {
     if (value !== undefined && value !== "") query.set(key, String(value));
@@ -74,7 +74,7 @@ export async function createCollection(data: {
   thumbnail?: string; isActive?: boolean; isFeatured?: boolean; sortOrder?: number;
 }) {
   const result = await request(ENDPOINT, { method: "POST", body: JSON.stringify(data) });
-  if (!("statusCode" in result)) {
+  if (!isApiError(result)) {
     revalidatePath("/admin/collections");
     revalidatePath("/collections");
   }
@@ -85,7 +85,7 @@ export async function updateCollection(id: string, data: Record<string, unknown>
   const result = await request(`${ENDPOINT}/${encodeURIComponent(id)}`, {
     method: "PATCH", body: JSON.stringify(data),
   });
-  if (!("statusCode" in result)) {
+  if (!isApiError(result)) {
     revalidatePath("/admin/collections");
     revalidatePath("/collections");
   }
@@ -94,6 +94,6 @@ export async function updateCollection(id: string, data: Record<string, unknown>
 
 export async function archiveCollection(id: string) {
   const result = await request(`${ENDPOINT}/${encodeURIComponent(id)}`, { method: "DELETE" });
-  if (!("statusCode" in result)) revalidatePath("/admin/collections");
+  if (!isApiError(result)) revalidatePath("/admin/collections");
   return result;
 }
