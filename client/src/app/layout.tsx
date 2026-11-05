@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
+import type { ReactNode } from "react";
 import { Geist, Geist_Mono } from "next/font/google";
-import { StorefrontNavbar } from "@/components/storefront/storefront-navbar";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -22,14 +22,13 @@ export const metadata: Metadata = {
     "Discover everyday essentials and thoughtfully selected products at Commerce.",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (
     <html
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col">
-        <StorefrontNavbar />
         {children}
       </body>
     </html>

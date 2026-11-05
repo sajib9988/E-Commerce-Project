@@ -1,0 +1,61 @@
+name: Frontend CI
+
+on:
+  pull_request:
+    paths:
+      - "client/**"
+      - ".github/workflows/frontend-ci.yml"
+  push:
+    branches: ['**']
+    paths:
+      - "client/**"
+      - ".github/workflows/frontend-ci.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  validate-and-build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: client
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.8.0
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: client/pnpm-lock.yaml
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Type check
+        run: pnpm exec tsc --noEmit
+      - name: Lint changed frontend services and route layouts
+        run: >-
+          pnpm exec eslint
+          src/service/product.service.ts
+          src/service/collection.service.ts
+          src/service/checkout.service.ts
+          src/service/payment.service.ts
+          src/service/order.service.ts
+          src/service/coupon.service.ts
+          src/service/review.service.ts
+          src/service/refund.service.ts
+          src/service/customer.service.ts
+          src/service/admin.service.ts
+          src/app/layout.tsx
+          "src/app/(public)/layout.tsx"
+          "src/app/(public)/page.tsx"
+          "src/app/(customer)/layout.tsx"
+          "src/app/(admin)/admin/layout.tsx"
+          "src/app/(admin)/admin/page.tsx"
+          "src/app/(auth)/layout.tsx"
+      - name: Build
+        run: pnpm build

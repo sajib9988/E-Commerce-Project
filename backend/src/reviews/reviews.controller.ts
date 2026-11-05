@@ -23,6 +23,11 @@ export class ReviewsController {
     return this.reviews.findApproved(productId, Number(page) || 1, Number(limit) || 20);
   }
 
+  @Get('reviews/me')
+  findOwn(@CurrentUser() user: AuthTokenPayload) {
+    return this.reviews.findOwn(user.sub);
+  }
+
   @Patch('reviews/:id')
   updateOwn(@CurrentUser() user: AuthTokenPayload, @Param('id') id: string, @Body() dto: CreateReviewDto) {
     return this.reviews.updateOwn(user.sub, id, dto);

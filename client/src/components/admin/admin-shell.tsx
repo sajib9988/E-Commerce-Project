@@ -16,6 +16,7 @@ const navigation = [
   { label: "Orders", href: "/admin/orders", icon: ShoppingCart },
   { label: "Customers", href: "/admin/customers", icon: Users },
   { label: "Coupons", href: "/admin/coupons", icon: Tag },
+  { label: "Reviews", href: "/admin/reviews", icon: FileText },
   { label: "Payments", href: "/admin/payments", icon: CreditCard },
   { label: "CMS Pages", href: "/admin/cms", icon: FileText },
   { label: "Media Library", href: "/admin/media", icon: ImageIcon },

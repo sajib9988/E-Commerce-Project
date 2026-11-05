@@ -24,6 +24,11 @@ export class CouponsController {
     return this.couponsService.validatePreview(user.sub, dto);
   }
 
+  @Get('available')
+  findAvailable(@CurrentUser() user: AuthTokenPayload) {
+    return this.couponsService.findAvailableForUser(user.sub);
+  }
+
   @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
   @Get()
   findAll() {
