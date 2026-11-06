@@ -136,7 +136,22 @@ export class MediaService {
       `,
     );
 
-    return { asset, pages };
+    const [products, artworks, collections] = await Promise.all([
+      this.prisma.product.findMany({
+        where: { OR: [{ imageUrl: asset.url }, ...(asset.publicId ? [{ imagePublicId: asset.publicId }] : [])] },
+        select: { id: true, name: true, sku: true },
+      }),
+      this.prisma.productArtwork.findMany({
+        where: { OR: [{ imageUrl: asset.url }, ...(asset.publicId ? [{ imagePublicId: asset.publicId }] : [])] },
+        select: { id: true, name: true, product: { select: { id: true, name: true } } },
+      }),
+      this.prisma.collection.findMany({
+        where: { OR: [{ bannerImage: asset.url }, { thumbnail: asset.url }] },
+        select: { id: true, name: true, slug: true },
+      }),
+    ]);
+
+    return { asset, pages, products, artworks, collections };
   }
 
   // Media delete
@@ -144,10 +159,14 @@ export class MediaService {
     const asset = await this.findOne(id);
     const usage = await this.findUsage(id);
 
-    if (usage.pages.length > 0 && !force) {
+    const hasReferences = usage.pages.length + usage.products.length + usage.artworks.length + usage.collections.length > 0;
+    if (hasReferences && !force) {
       throw new BadRequestException({
-        message: 'Media is currently being used by CMS pages',
+        message: 'Media is currently referenced by store content and cannot be deleted',
         pages: usage.pages,
+        products: usage.products,
+        artworks: usage.artworks,
+        collections: usage.collections,
       });
     }
 
