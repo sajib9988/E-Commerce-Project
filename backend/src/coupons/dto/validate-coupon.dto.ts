@@ -4,8 +4,11 @@ import {
 import { Type } from 'class-transformer';
 
 class CouponCartLineDto {
-  @IsString() @MaxLength(128)
-  productId!: string;
+  @IsOptional() @IsString() @MaxLength(128)
+  productId?: string;
+
+  @IsOptional() @IsString() @MaxLength(128)
+  variantId?: string;
 
   @Type(() => Number) @IsInt() @Min(1) @Max(99)
   quantity!: number;
