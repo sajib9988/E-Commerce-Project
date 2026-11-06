@@ -25,3 +25,9 @@ ALTER TYPE "FulfillmentSubmissionStatus" ADD VALUE IF NOT EXISTS 'CANCELLED';
 
 ALTER TABLE "stock_reservations"
   ADD COLUMN "restockedAt" TIMESTAMP(3);
+
+ALTER TABLE "payment_attempts"
+  ADD COLUMN "stripeRefundId" TEXT;
+
+CREATE UNIQUE INDEX "payment_attempts_stripeRefundId_key"
+  ON "payment_attempts" ("stripeRefundId");
