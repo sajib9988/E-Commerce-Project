@@ -132,7 +132,7 @@ export function AdminOperationsClient({ orders: orderData, payments: paymentData
               <td className="px-4 py-3">{date(r.createdAt)}</td>
               <td className="px-4 py-3">{str(r.status)}</td>
               <td className="px-4 py-3">
-                {r.status === "PROCESSING" || r.status === "SHIPPED" ? <select aria-label={`Update order ${str(r.orderNumber)} status`} defaultValue={str(r.status)} disabled={pending} onChange={(e) => changeOrderStatus(r, e.target.value)} className="rounded-md border px-2 py-2">
+                {r.status === "PROCESSING" || r.status === "SHIPPED" ? <select aria-label={`Update order ${str(r.orderNumber)} status`} value={str(r.status)} disabled={pending} onChange={(e) => changeOrderStatus(r, e.target.value)} className="rounded-md border px-2 py-2">
                   <option value={str(r.status)}>{str(r.status)}</option>
                   <option value={r.status === "PROCESSING" ? "SHIPPED" : "DELIVERED"}>{r.status === "PROCESSING" ? "SHIPPED" : "DELIVERED"}</option>
                 </select> : <span className="text-xs text-slate-500">No admin transition</span>}
@@ -172,7 +172,7 @@ export function AdminOperationsClient({ orders: orderData, payments: paymentData
             <div className="flex flex-wrap justify-between gap-2"><div><p className="font-semibold">{str(order.orderNumber)} · {money(r.amount, str(order.currency).toUpperCase())}</p><p className="text-xs text-slate-500">{str(customer.email)} · {date(r.createdAt)}</p></div><span className="rounded-full bg-slate-100 px-3 py-1 text-xs">{str(r.status)}</span></div>
             <p className="text-sm"><span className="font-medium">Reason:</span> {str(r.reason)}</p>
             {r.customerNote ? <p className="text-sm text-slate-600">{str(r.customerNote)}</p> : null}
-            {canResolve && <><textarea value={note(id)} onChange={(e) => setNotes(old => ({ ...old, [id]: e.target.value }))} rows={2} maxLength={500} placeholder="Admin note / rejection reason" className="w-full rounded-md border px-3 py-2 text-sm" />{errors[id] && <ErrorBox message={errors[id]} />}<div className="flex flex-wrap gap-2"><button disabled={pending} onClick={() => resolveRefund(r, "approve")} className="rounded-md bg-slate-900 px-3 py-2 text-sm text-white disabled:opacity-50">Approve refund</button><button disabled={pending} onClick={() => resolveRefund(r, "reject")} className="rounded-md border px-3 py-2 text-sm disabled:opacity-50">Reject request</button></div></>}
+            {canResolve && <><textarea value={note(id)} onChange={(e) => setNotes(old => ({ ...old, [id]: e.target.value }))} rows={2} maxLength={500} placeholder="Admin note / rejection reason" className="w-full rounded-md border px-3 py-2 text-sm" />{errors[id] && <ErrorBox message={errors[id]} />}<div className="flex flex-wrap gap-2"><button disabled={pending} onClick={() => resolveRefund(r, "approve")} className="rounded-md bg-slate-900 px-3 py-2 text-sm text-white disabled:opacity-50">Approve refund</button>{r.status === "PENDING" && <button disabled={pending} onClick={() => resolveRefund(r, "reject")} className="rounded-md border px-3 py-2 text-sm disabled:opacity-50">Reject request</button>}</div></>}
           </article>;
         })}
         {!refundRows.length && <p className="rounded-xl border border-dashed p-8 text-center text-sm text-slate-500">No refund requests found.</p>}
