@@ -8,7 +8,8 @@ function discountLabel(type: string, value: string) {
 
 export default async function AdminCouponsPage() {
   const result = await getCoupons();
-  const failed = typeof result === "object" && result !== null && "success" in result && result.success === false;
+  const coupons = Array.isArray(result) ? result : [];
+  const error = Array.isArray(result) ? null : result;
 
   return (
     <div className="space-y-6">
@@ -17,9 +18,9 @@ export default async function AdminCouponsPage() {
         <h1 className="mt-1 text-3xl font-bold tracking-tight text-slate-950">Coupons</h1>
         <p className="mt-2 text-sm text-slate-600">Review promotion codes, usage and activation status.</p>
       </header>
-      {failed ? (
-        <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">Could not load coupons: {result.message}</p>
-      ) : result.length === 0 ? (
+      {error ? (
+        <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">Could not load coupons: {error.message}</p>
+      ) : coupons.length === 0 ? (
         <div className="rounded-xl border border-dashed border-slate-300 bg-white p-10 text-center text-sm text-slate-500">No coupons created yet.</div>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
@@ -28,7 +29,7 @@ export default async function AdminCouponsPage() {
               <tr><th className="px-5 py-3">Code</th><th className="px-5 py-3">Discount</th><th className="px-5 py-3">Usage</th><th className="px-5 py-3">Expires</th><th className="px-5 py-3">Status</th></tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {result.map((coupon) => (
+              {coupons.map((coupon) => (
                 <tr key={coupon.id}>
                   <td className="px-5 py-4 font-semibold text-slate-900">{coupon.code}</td>
                   <td className="px-5 py-4 text-slate-700">{discountLabel(coupon.type, coupon.value)}</td>
