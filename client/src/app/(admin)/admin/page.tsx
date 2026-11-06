@@ -4,7 +4,7 @@ import { getAdminOrders } from "@/service/order.service";
 import { getAdminProducts } from "@/service/product.service";
 import { getCoupons } from "@/service/coupon.service";
 import { getAdminReviews } from "@/service/review.service";
-import { AdminResourcePage, getAdminTotal } from "@/components/admin/admin-resource-page";
+import { AdminResourcePage, getAdminRows, getAdminTotal } from "@/components/admin/admin-resource-page";
 
 function Metric({ title, value, icon: Icon, href }: { title: string; value: string; icon: typeof Package; href: string }) {
   return (
