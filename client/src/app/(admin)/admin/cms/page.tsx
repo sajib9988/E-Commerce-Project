@@ -1,10 +1,8 @@
 import { getAllPages } from "@/service/cms.service";
-import { AdminResourcePage } from "@/components/admin/admin-resource-page";
-
+import { CmsPagesClient } from "@/components/cms/cms-pages-client";
+import type { CmsPageListItem } from "@/type/cms";
 export default async function AdminCmsPage() {
   const result = await getAllPages();
-  return <AdminResourcePage title="CMS pages" description="Page records from the CMS Pages API. Editing and publishing use the existing cms.service.ts actions." result={result} columns={[
-    { label: "Page", key: "name" }, { label: "Slug", key: "slug" }, { label: "Status", key: "status" },
-    { label: "Blocks", key: "_count.blocks" }, { label: "Updated", key: "updatedAt" },
-  ]} emptyMessage="No CMS pages found." />;
+  if (result && typeof result === "object" && "success" in result && result.success === false) return <CmsPagesClient pages={[]} error={String(result.message ?? "Unable to load CMS pages")}/>;
+  return <CmsPagesClient pages={(Array.isArray(result) ? result : []) as CmsPageListItem[]}/>;
 }

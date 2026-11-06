@@ -4,13 +4,14 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import {
-  Activity, Bell, ChevronDown, CreditCard, LayoutDashboard,
+  Activity, BarChart3, Bell, ChevronDown, CreditCard, LayoutDashboard,
   Menu, Package, Search, Settings, ShoppingBag, ShoppingCart, Tag,
   Users, X, Image as ImageIcon, FileText, ShieldCheck, RotateCcw, Truck, Ruler
 } from "lucide-react";
 
 const navigation = [
   { label: "Overview", href: "/admin", icon: LayoutDashboard },
+  { label: "Analytics", href: "/admin/analytics", icon: BarChart3 },
   { label: "Products", href: "/admin/products", icon: Package },
   { label: "Variants", href: "/admin/variants", icon: Ruler },
   { label: "Collections", href: "/admin/collections", icon: ShoppingBag },
