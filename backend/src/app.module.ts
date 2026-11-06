@@ -20,6 +20,7 @@ import { PaymentsModule } from './payments/payments.module';
 import { CouponsModule } from './coupons/coupons.module';
 import { CategoriesModule } from './categories/categories.module';
 import { CollectionsModule } from './collections/collections.module';
+import { CustomersModule } from './customers/customers.module';
 import { VariantsModule } from './products/variants/variants.module';
 import { SizeTemplatesModule } from './products/size-templates/size-templates.module';
 import { ReviewsModule } from './reviews/reviews.module';
@@ -57,6 +58,7 @@ import { RedisThrottlerStorage } from './redis/redis-throttler.storage';
     CouponsModule,
     CategoriesModule,
     CollectionsModule,
+    CustomersModule,
     VariantsModule,
     SizeTemplatesModule,
     ReviewsModule,
