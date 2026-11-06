@@ -73,6 +73,37 @@ export class ApliiqClient {
     return data as T;
   }
 
+  async getOrder<T>(orderId: string): Promise<T> {
+    if (this.mode === 'mock') {
+      throw new ServiceUnavailableException('Apliiq order reconciliation is available only in live mode');
+    }
+    const response = await fetch(`${this.baseUrl}/v1/Order/${encodeURIComponent(orderId)}`, {
+      method: 'GET',
+      headers: {
+        Authorization: this.authorizationHeader(''),
+        Accept: 'application/json',
+      },
+      signal: AbortSignal.timeout(15_000),
+    }).catch(() => {
+      throw new ServiceUnavailableException('Apliiq Get Order API request failed');
+    });
+    const responseText = await response.text();
+    let data: unknown = null;
+    try {
+      data = responseText ? JSON.parse(responseText) : null;
+    } catch {
+      data = { message: 'Apliiq returned a non-JSON response' };
+    }
+    if (!response.ok) {
+      throw new ServiceUnavailableException({
+        message: 'Apliiq rejected the Get Order request',
+        providerStatus: response.status,
+        providerResponse: data,
+      });
+    }
+    return data as T;
+  }
+
   postArtwork<T>(payload: unknown): Promise<T> {
     return this.post<T>('Artwork', payload);
   }
