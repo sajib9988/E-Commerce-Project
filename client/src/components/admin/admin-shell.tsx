@@ -4,9 +4,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import {
-  Activity, BarChart3, Bell, ChevronDown, CreditCard, LayoutDashboard,
+  Activity, Bell, ChevronDown, CreditCard, LayoutDashboard,
   Menu, Package, Search, Settings, ShoppingBag, ShoppingCart, Tag,
-  Users, X, Image as ImageIcon, FileText, ShieldCheck
+  Users, X, Image as ImageIcon, FileText, ShieldCheck, RotateCcw, Truck
 } from "lucide-react";
 
 const navigation = [
@@ -14,10 +14,13 @@ const navigation = [
   { label: "Products", href: "/admin/products", icon: Package },
   { label: "Collections", href: "/admin/collections", icon: ShoppingBag },
   { label: "Orders", href: "/admin/orders", icon: ShoppingCart },
+  { label: "Inventory", href: "/admin/inventory", icon: Package },
   { label: "Customers", href: "/admin/customers", icon: Users },
   { label: "Coupons", href: "/admin/coupons", icon: Tag },
   { label: "Reviews", href: "/admin/reviews", icon: FileText },
   { label: "Payments", href: "/admin/payments", icon: CreditCard },
+  { label: "Refunds", href: "/admin/refunds", icon: RotateCcw },
+  { label: "Apliiq Fulfillment", href: "/admin/apliiq", icon: Truck },
   { label: "CMS Pages", href: "/admin/cms", icon: FileText },
   { label: "Media Library", href: "/admin/media", icon: ImageIcon },
 ];
@@ -71,7 +74,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         </nav>
         <div className="mt-4 rounded-2xl bg-slate-50 p-3">
           <div className="flex items-center gap-2"><Activity size={16} className="text-emerald-600"/><span className="text-xs font-semibold">Store overview</span></div>
-          <p className="mt-1 text-xs leading-5 text-slate-500">Connect the backend to display live store data.</p>
+          <p className="mt-1 text-xs leading-5 text-slate-500">Live store data is loaded from the NestJS APIs.</p>
         </div>
       </aside>
 
