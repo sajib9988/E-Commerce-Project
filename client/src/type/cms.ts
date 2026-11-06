@@ -41,6 +41,9 @@ export interface MediaAsset {
 export interface MediaUsage {
   asset: MediaAsset;
   pages: Array<{ id: string; name: string; slug: string }>;
+  products: Array<{ id: string; name: string; sku: string | null }>;
+  artworks: Array<{ id: string; name: string; product: { id: string; name: string } }>;
+  collections: Array<{ id: string; name: string; slug: string }>;
 }
 
 // Block content types
