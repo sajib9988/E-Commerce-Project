@@ -135,9 +135,9 @@ export function ProductForm({
     formData.append("description", values.description);
     formData.append("regularPrice", String(Number(values.regularPrice)));
     formData.append("salePrice", values.salePrice?.trim() ? String(Number(values.salePrice)) : "null");
-    formData.append("brand", values.brand.trim());
-    formData.append("sku", values.sku.trim());
-    formData.append("apliiqDesignSku", values.apliiqDesignSku.trim());
+    formData.append("brand", (values.brand ?? "").trim());
+    formData.append("sku", (values.sku ?? "").trim());
+    formData.append("apliiqDesignSku", (values.apliiqDesignSku ?? "").trim());
     formData.append("stockQuantity", String(Number(values.stockQuantity)));
     formData.append("categoryId", values.categoryId);
     formData.append("subcategoryId", values.subcategoryId);
