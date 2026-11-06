@@ -374,7 +374,7 @@ export class OrdersService {
     const where: Prisma.OrderWhereInput = status ? { status: status as OrderStatus } : {};
     const [items, total] = await this.prisma.$transaction([
       this.prisma.order.findMany({
-        where, include: { items: true, user: { select: { id: true, name: true, email: true } } },
+        where, include: { items: true, user: { select: { id: true, name: true, email: true } }, fulfillments: { where: { provider: "APLIIQ" }, select: { id: true, provider: true, submissionStatus: true, providerStatus: true, externalOrderId: true, trackingCompany: true, trackingNumbers: true, trackingUrls: true, submittedAt: true, shippedAt: true, lastErrorCode: true, createdAt: true, updatedAt: true } } },
         orderBy: { createdAt: 'desc' }, skip, take,
       }),
       this.prisma.order.count({ where }),
