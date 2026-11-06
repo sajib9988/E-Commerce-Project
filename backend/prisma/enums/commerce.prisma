@@ -10,6 +10,7 @@ enum OrderStatus {
 enum PaymentStatus {
   PENDING
   PAID
+  REFUNDED
 }
 
 enum PaymentAttemptStatus {
@@ -42,6 +43,8 @@ enum FulfillmentSubmissionStatus {
   SUBMITTING
   UNKNOWN
   ACCEPTED
+  CANCELLATION_REQUIRED
+  CANCELLED
 }
 
 enum ReviewStatus {
