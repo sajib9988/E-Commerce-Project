@@ -168,3 +168,23 @@ export async function addApliiqArtworkPlacement(
   if (!isApiError(result)) revalidatePath("/admin/products");
   return result;
 }
+
+
+// Apliiq cancellation is a provider workflow, separate from customer refunds.
+export async function reconcileApliiqOrder(orderId: string) {
+  const result = await request(`/admin/apliiq/orders/${encodeURIComponent(orderId)}/reconcile`, { method: "POST" });
+  if (!isApiError(result)) {
+    revalidatePath("/admin/apliiq");
+    revalidatePath("/admin/orders");
+  }
+  return result;
+}
+
+export async function requestApliiqCancellation(orderId: string) {
+  const result = await request(`/admin/apliiq/orders/${encodeURIComponent(orderId)}/cancel-request`, { method: "POST" });
+  if (!isApiError(result)) {
+    revalidatePath("/admin/apliiq");
+    revalidatePath("/admin/orders");
+  }
+  return result;
+}
