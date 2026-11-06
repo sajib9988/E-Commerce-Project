@@ -118,7 +118,7 @@ export function AdminOperationsClient({ orders: orderData, payments: paymentData
       {success && <p role="status" className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{success}</p>}
     </header>
 
-    <section className="space-y-4">
+    <section id="orders" className="space-y-4">
       <div><h2 className="text-xl font-semibold">Orders</h2><p className="text-sm text-slate-500">Latest orders. Only valid operational statuses should be selected.</p></div>
       <div className="overflow-x-auto rounded-xl border bg-white">
         <table className="w-full min-w-[900px] text-left text-sm">
@@ -145,8 +145,8 @@ export function AdminOperationsClient({ orders: orderData, payments: paymentData
       </div>
     </section>
 
-    <section className="space-y-4">
-      <div><h2 className="text-xl font-semibold">Stripe payment manual review</h2><p className="text-sm text-slate-500">Queue for duplicate/late captures and payment reconciliation. Refund decisions remain webhook-confirmed.</p></div>
+    <section id="payments" className="space-y-4">
+      <div><h2 className="text-xl font-semibold">Stripe payment attempts</h2><p className="text-sm text-slate-500">Full payment-attempt ledger. Manual review actions appear only for attempts requiring reconciliation.</p></div>
       <div className="space-y-3">
         {paymentRows.map((r) => {
           const order = nested(r, "order"); const id = str(r.id);
@@ -162,7 +162,7 @@ export function AdminOperationsClient({ orders: orderData, payments: paymentData
       </div>
     </section>
 
-    <section className="space-y-4">
+    <section id="refunds" className="space-y-4">
       <div><h2 className="text-xl font-semibold">Refund requests</h2><p className="text-sm text-slate-500">Approve eligible requests or reject with a reason. Stripe webhook confirms the final refund result.</p></div>
       <div className="space-y-3">
         {refundRows.map((r) => {
