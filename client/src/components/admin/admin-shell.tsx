@@ -6,7 +6,7 @@ import { useState } from "react";
 import {
   Activity, Bell, ChevronDown, CreditCard, LayoutDashboard,
   Menu, Package, Search, Settings, ShoppingBag, ShoppingCart, Tag,
-  Users, X, Image as ImageIcon, FileText, ShieldCheck, RotateCcw, Truck
+  Users, X, Image as ImageIcon, FileText, ShieldCheck, RotateCcw, Truck, Ruler
 } from "lucide-react";
 
 const navigation = [
