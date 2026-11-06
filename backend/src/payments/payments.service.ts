@@ -500,6 +500,38 @@ export class PaymentsService {
     });
   }
 
+  private async restockCommittedReservation(
+    tx: Prisma.TransactionClient,
+    orderId: string,
+  ): Promise<boolean> {
+    const reservation = await tx.stockReservation.findUnique({
+      where: { orderId },
+      include: { items: true },
+    });
+    if (!reservation || reservation.status !== 'COMMITTED' || reservation.restockedAt) return false;
+
+    const claimed = await tx.stockReservation.updateMany({
+      where: { id: reservation.id, status: 'COMMITTED', restockedAt: null },
+      data: { restockedAt: new Date() },
+    });
+    if (claimed.count !== 1) return false;
+
+    for (const item of reservation.items) {
+      if (item.variantId) {
+        await tx.productVariant.update({
+          where: { id: item.variantId },
+          data: { stockQuantity: { increment: item.quantity } },
+        });
+      } else {
+        await tx.product.update({
+          where: { id: item.productId },
+          data: { stockQuantity: { increment: item.quantity } },
+        });
+      }
+    }
+    return true;
+  }
+
   async handleChargeRefunded(charge: Stripe.Charge, eventId: string) {
     const paymentIntentId =
       typeof charge.payment_intent === 'string'
