@@ -98,6 +98,21 @@ export class ProductsService {
     return product;
   }
 
+  async findOneForAdmin(id: string) {
+    const product = await this.prisma.product.findUnique({
+      where: { id },
+      include: {
+        category: true, subcategory: true,
+        variants: { include: { size: true } },
+        collections: { include: { collection: true }, orderBy: { sortOrder: 'asc' } },
+        artworks: { include: { placements: true }, orderBy: { isPrimary: 'desc' } },
+        apliiqDesigns: true,
+      },
+    });
+    if (!product) throw new NotFoundException('Product not found');
+    return product;
+  }
+
   private async validateCategory(categoryId: string, subcategoryId: string) {
     const category = await this.prisma.category.findUnique({ where: { id: categoryId } });
     if (!category) throw new NotFoundException('Category not found');
@@ -150,7 +165,7 @@ export class ProductsService {
   }
 
   async update(id: string, dto: UpdateProductDto, file?: Express.Multer.File) {
-    const existing = await this.findOne(id);
+    const existing = await this.findOneForAdmin(id);
     const categoryId = dto.categoryId ?? existing.categoryId;
     const subcategoryId = dto.subcategoryId ?? existing.subcategoryId;
     if (dto.regularPrice !== undefined || dto.salePrice !== undefined) {

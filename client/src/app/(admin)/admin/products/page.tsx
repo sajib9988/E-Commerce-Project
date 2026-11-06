@@ -1,11 +1,16 @@
 import { getAdminProducts } from "@/service/product.service";
-import { AdminResourcePage } from "@/components/admin/admin-resource-page";
+import { getAdminRows } from "@/components/admin/admin-resource-page";
+import { AdminProductsClient } from "@/components/admin/admin-products-client";
 
 export default async function AdminProductsPage() {
   const result = await getAdminProducts({ page: 1, limit: 50, sortBy: "createdAt", sortOrder: "desc" });
-  return <AdminResourcePage title="Products" description="Products and catalog records loaded from the NestJS Products API." result={result} columns={[
-    { label: "Product", key: "name" }, { label: "Slug", key: "slug" }, { label: "SKU", key: "sku" },
-    { label: "Regular price", key: "regularPrice" }, { label: "Sale price", key: "salePrice" },
-    { label: "Active", key: "isActive" }, { label: "Created", key: "createdAt" },
-  ]} emptyMessage="No products found." />;
+  const failed = typeof result === "object" && result !== null && "success" in result && result.success === false;
+  const error = failed && "message" in result ? String(result.message) : undefined;
+  const products = getAdminRows(result) as Array<{
+    id: string; name?: string; sku?: string | null; regularPrice?: number | string;
+    salePrice?: number | string | null; stockQuantity?: number; isActive?: boolean;
+    imageUrl?: string | null; category?: { name?: string } | null;
+  }>;
+
+  return <AdminProductsClient products={products} error={error} />;
 }
