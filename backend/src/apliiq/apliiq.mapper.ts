@@ -87,7 +87,7 @@ export function mapOrderToApliiq(order: PaidOrderForApliiq) {
     line_items: lineItems,
     shipping_address: {
       first_name: firstName,
-      last_Name: lastName,
+      last_name: lastName,
       address1: address.address1,
       address2: address.address2 ?? '',
       phone: address.phone ?? order.customerPhone ?? '',
