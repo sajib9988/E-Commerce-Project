@@ -652,6 +652,27 @@ export class PaymentsService {
     });
   }
 
+  async findAllForAdmin(page = 1, limit = 30, status?: string) {
+    const take = Math.min(Math.max(limit, 1), 100);
+    const skip = (Math.max(page, 1) - 1) * take;
+    const where = status ? { status: status as PaymentAttemptStatus } : {};
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.paymentAttempt.findMany({
+        where,
+        include: {
+          order: { select: {
+            id: true, orderNumber: true, status: true, paymentStatus: true,
+            totalAmount: true, currency: true, customerEmail: true, customerName: true,
+          } },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip, take,
+      }),
+      this.prisma.paymentAttempt.count({ where }),
+    ]);
+    return { items, pagination: { page: Math.max(page, 1), limit: take, total, pages: Math.ceil(total / take) } };
+  }
+
   async findAttemptsForManualReview() {
     return this.prisma.paymentAttempt.findMany({
       where: { requiresManualReview: true },
