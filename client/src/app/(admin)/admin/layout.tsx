@@ -3,6 +3,8 @@ import { redirect } from "next/navigation";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { getMe } from "@/service/auth.service";
 
+export const instant = false;
+
 export const metadata: Metadata = {
   title: "Admin Dashboard | Store",
   description: "Store administration dashboard",
