@@ -7,7 +7,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "react-hot-toast";
-import { Archive, ImagePlus, Loader2, Pencil, Plus, Save, X } from "lucide-react";
+import { Archive, Loader2, Pencil, Plus, Save, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -76,19 +76,35 @@ export function AdminCollectionsClient({ initialResult }: { initialResult: unkno
     setSaving(true);
     const payload = {
       name: values.name.trim(), slug: values.slug.trim().toLowerCase(),
-      description: values.description.trim() || undefined,
-      bannerImage: values.bannerImage.trim() || undefined,
-      thumbnail: values.thumbnail.trim() || undefined,
+      description: values.description.trim() || null,
+      bannerImage: values.bannerImage.trim() || null,
+      thumbnail: values.thumbnail.trim() || null,
       isActive: values.isActive, isFeatured: values.isFeatured,
       sortOrder: Number(values.sortOrder),
     };
     try {
-      const result = editingId ? await updateCollection(editingId, payload) : await createCollection(payload);
+      const result = editingId
+        ? await updateCollection(editingId, payload)
+        : await createCollection({
+            ...payload,
+            description: payload.description ?? undefined,
+            bannerImage: payload.bannerImage ?? undefined,
+            thumbnail: payload.thumbnail ?? undefined,
+          });
       if (isApiError(result)) { toast.error(result.message); return; }
+
+      const saved = result as Partial<Collection>;
+      if (editingId) {
+        setCollections((current) => current.map((item) =>
+          item.id === editingId ? { ...item, ...payload } : item,
+        ));
+      } else if (saved.id) {
+        setCollections((current) => [{ ...saved, ...payload, id: saved.id! } as Collection, ...current]);
+      }
+
       toast.success(editingId ? "Collection updated." : "Collection created.");
       resetForm();
       router.refresh();
-      if (editingId) setCollections((current) => current.map((item) => item.id === editingId ? { ...item, ...payload } : item));
     } catch { toast.error("Could not save collection."); }
     finally { setSaving(false); }
   }
