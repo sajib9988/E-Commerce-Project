@@ -537,9 +537,7 @@ export class PaymentsService {
       typeof charge.payment_intent === 'string'
         ? charge.payment_intent
         : charge.payment_intent?.id;
-    if (!paymentIntentId) {
-      throw new BadRequestException('Refunded Stripe charge has no PaymentIntent');
-    }
+    if (!paymentIntentId) throw new BadRequestException('Refunded Stripe charge has no PaymentIntent');
 
     await this.prisma.$transaction(async (tx) => {
       const attempt = await tx.paymentAttempt.findFirst({
@@ -548,7 +546,6 @@ export class PaymentsService {
       });
       if (!attempt) throw new NotFoundException('No payment attempt matches the refunded Stripe PaymentIntent');
 
-      // Serialize refund reconciliation against checkout completion and other refunds.
       await tx.$queryRaw`SELECT "id" FROM "orders" WHERE "id" = ${attempt.orderId} FOR UPDATE`;
       const claimed = await tx.stripeWebhookEvent.createMany({
         data: [{ id: eventId, type: 'charge.refunded' }],
@@ -558,33 +555,70 @@ export class PaymentsService {
 
       const fullRefund = charge.amount_refunded >= charge.amount;
       const otherSuccessfulAttempts = await tx.paymentAttempt.count({
-        where: {
-          orderId: attempt.orderId,
-          id: { not: attempt.id },
-          status: PaymentAttemptStatus.SUCCEEDED,
-        },
+        where: { orderId: attempt.orderId, id: { not: attempt.id }, status: PaymentAttemptStatus.SUCCEEDED },
       });
 
+      if (!fullRefund || otherSuccessfulAttempts > 0) {
+        await tx.paymentAttempt.update({
+          where: { id: attempt.id },
+          data: {
+            requiresManualReview: true,
+            reviewReason: fullRefund
+              ? 'FULL_DUPLICATE_CAPTURE_REFUNDED_REVIEW_OTHER_CAPTURE'
+              : 'PARTIAL_REFUND_CONFIRMED_MANUAL_REVIEW_REQUIRED',
+          },
+        });
+        return;
+      }
+
+      await tx.order.update({
+        where: { id: attempt.orderId },
+        data: { paymentStatus: PaymentStatus.REFUNDED, status: OrderStatus.REFUNDED },
+      });
       await tx.paymentAttempt.update({
         where: { id: attempt.id },
-        data: {
-          requiresManualReview: true,
-          reviewReason: fullRefund
-            ? otherSuccessfulAttempts > 0
-              ? 'FULL_DUPLICATE_CAPTURE_REFUNDED_REVIEW_OTHER_CAPTURE'
-              : 'FULL_REFUND_CONFIRMED_FULFILLMENT_RECONCILIATION_REQUIRED'
-            : 'PARTIAL_REFUND_CONFIRMED_MANUAL_REVIEW_REQUIRED',
-        },
+        data: { requiresManualReview: true, reviewReason: 'FULL_REFUND_CONFIRMED_FULFILLMENT_RECONCILIATION_REQUIRED' },
       });
 
-      // Only a full refund of the only successful capture changes the order's
-      // payment state. Partial refunds and duplicate-capture refunds need review.
-      if (fullRefund && otherSuccessfulAttempts === 0) {
-        await tx.order.update({
-          where: { id: attempt.orderId },
-          data: { paymentStatus: PaymentStatus.REFUNDED, status: OrderStatus.REFUNDED },
-        });
+      const fulfillment = await tx.fulfillment.findUnique({
+        where: { orderId_provider: { orderId: attempt.orderId, provider: 'APLIIQ' } },
+      });
+
+      if (!fulfillment) {
+        await this.restockCommittedReservation(tx, attempt.orderId);
+        return;
       }
+
+      if (fulfillment.submissionStatus === 'QUEUED') {
+        await tx.fulfillment.update({
+          where: { id: fulfillment.id },
+          data: { submissionStatus: 'CANCELLED', providerStatus: 'Not submitted - Stripe refund confirmed', lastErrorCode: null },
+        });
+        await this.restockCommittedReservation(tx, attempt.orderId);
+        return;
+      }
+
+      const providerAlreadyCancelled = ['cancelled', 'canceled'].includes(
+        (fulfillment.providerStatus ?? '').trim().toLowerCase(),
+      );
+      if (providerAlreadyCancelled || fulfillment.submissionStatus === 'CANCELLED') {
+        await tx.fulfillment.update({
+          where: { id: fulfillment.id },
+          data: { submissionStatus: 'CANCELLED', lastErrorCode: null },
+        });
+        await this.restockCommittedReservation(tx, attempt.orderId);
+        return;
+      }
+
+      await tx.fulfillment.update({
+        where: { id: fulfillment.id },
+        data: {
+          submissionStatus: 'CANCELLATION_REQUIRED',
+          lastErrorCode: fulfillment.externalOrderId
+            ? 'MANUAL_APLIIQ_DASHBOARD_CANCELLATION_AND_RECONCILIATION_REQUIRED'
+            : 'APLIIQ_SUBMISSION_STATE_UNKNOWN_CHECK_PROVIDER_BEFORE_RESTOCK',
+        },
+      });
     });
   }
 
