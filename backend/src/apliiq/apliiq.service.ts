@@ -368,6 +368,79 @@ export class ApliiqService extends WorkerHost implements OnModuleInit {
     }
   }
 
+  async requestCancellation(orderId: string) {
+    const initial = await this.prisma.fulfillment.findUnique({
+      where: { orderId_provider: { orderId, provider: 'APLIIQ' } },
+      include: { order: true },
+    });
+    if (!initial) throw new NotFoundException('Apliiq fulfillment record not found');
+
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "orders" WHERE "id" = ${orderId} FOR UPDATE`;
+      let fulfillment = await tx.fulfillment.findUnique({
+        where: { id: initial.id },
+        include: { order: true },
+      });
+      if (!fulfillment) throw new NotFoundException('Apliiq fulfillment record disappeared');
+      if (fulfillment.submissionStatus === 'CANCELLED') {
+        return {
+          ...fulfillment,
+          cancellation: 'ALREADY_CANCELLED',
+          inventoryRestocked: false,
+        };
+      }
+      if (fulfillment.shippedAt || fulfillment.providerStatus?.toLowerCase() === 'shipped') {
+        throw new ConflictException('Apliiq has reported this order as shipped. Contact Apliiq support; do not restock inventory.');
+      }
+
+      // If it is still in our outbox, atomically stop the worker from submitting it.
+      const queuedClaim = await tx.fulfillment.updateMany({
+        where: { id: fulfillment.id, submissionStatus: 'QUEUED' },
+        data: {
+          submissionStatus: 'CANCELLED',
+          providerStatus: 'Not submitted - cancelled in local fulfillment queue',
+          lastErrorCode: null,
+        },
+      });
+      if (queuedClaim.count === 1) {
+        const inventoryRestocked = fulfillment.order.paymentStatus === 'REFUNDED'
+          ? await this.restockCommittedReservation(tx, orderId)
+          : false;
+        const updated = await tx.fulfillment.findUnique({ where: { id: fulfillment.id } });
+        return {
+          ...updated,
+          cancellation: 'CANCELLED_BEFORE_PROVIDER_SUBMISSION',
+          inventoryRestocked,
+        };
+      }
+
+      fulfillment = await tx.fulfillment.findUnique({
+        where: { id: initial.id },
+        include: { order: true },
+      });
+      if (!fulfillment) throw new NotFoundException('Apliiq fulfillment record disappeared');
+      if (fulfillment.submissionStatus === 'CANCELLED') {
+        return { ...fulfillment, cancellation: 'ALREADY_CANCELLED', inventoryRestocked: false };
+      }
+
+      await tx.fulfillment.update({
+        where: { id: fulfillment.id },
+        data: {
+          submissionStatus: 'CANCELLATION_REQUIRED',
+          lastErrorCode: fulfillment.externalOrderId
+            ? 'CANCEL_IN_APLIIQ_DASHBOARD_IF_ELIGIBLE_THEN_RUN_RECONCILIATION'
+            : 'PROVIDER_SUBMISSION_MAY_BE_IN_FLIGHT_OR_UNKNOWN_CHECK_APLIIQ_DASHBOARD',
+        },
+      });
+      return {
+        ...(await tx.fulfillment.findUnique({ where: { id: fulfillment.id } })),
+        cancellation: 'MANUAL_APLIIQ_CANCELLATION_REQUIRED',
+        inventoryRestocked: false,
+        nextStep: 'Cancel the order in Apliiq dashboard if provider status allows it, then call the reconcile endpoint. Inventory is restored only after Apliiq confirms cancellation and Stripe refund is confirmed.',
+      };
+    });
+  }
+
   async reconcileOrder(orderId: string) {
     const fulfillment = await this.prisma.fulfillment.findUnique({
       where: { orderId_provider: { orderId, provider: 'APLIIQ' } },
