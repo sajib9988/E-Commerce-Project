@@ -334,14 +334,138 @@ export class ApliiqService extends WorkerHost implements OnModuleInit {
         await this.prisma.fulfillment.update({ where: { id: fulfillmentId }, data: { submissionStatus: 'UNKNOWN', lastErrorCode: 'MISSING_PROVIDER_ID' } });
         return;
       }
-      await this.prisma.fulfillment.update({
-        where: { id: fulfillmentId },
-        data: { externalOrderId: String(response.id), submissionStatus: 'ACCEPTED', submittedAt: new Date(), lastErrorCode: null },
+      const externalOrderId = String(response.id);
+      const accepted = await this.prisma.fulfillment.updateMany({
+        where: { id: fulfillmentId, submissionStatus: 'SUBMITTING' },
+        data: {
+          externalOrderId,
+          submissionStatus: 'ACCEPTED',
+          submittedAt: new Date(),
+          lastErrorCode: null,
+        },
       });
+      if (accepted.count === 0) {
+        // A Stripe refund may have arrived while the provider request was in
+        // flight. Preserve the cancellation-required state but save the
+        // provider ID so an admin can reconcile/cancel it safely.
+        await this.prisma.fulfillment.updateMany({
+          where: { id: fulfillmentId, submissionStatus: 'CANCELLATION_REQUIRED' },
+          data: {
+            externalOrderId,
+            submittedAt: new Date(),
+            lastErrorCode: 'MANUAL_APLIIQ_DASHBOARD_CANCELLATION_AND_RECONCILIATION_REQUIRED',
+          },
+        });
+      }
     } catch {
       // An ambiguous timeout may mean the provider accepted the order. Never blindly retry UNKNOWN.
       await this.prisma.fulfillment.update({ where: { id: fulfillmentId }, data: { submissionStatus: 'UNKNOWN', lastErrorCode: 'SUBMISSION_UNCONFIRMED' } }).catch(() => undefined);
     }
+  }
+
+  async reconcileOrder(orderId: string) {
+    const fulfillment = await this.prisma.fulfillment.findUnique({
+      where: { orderId_provider: { orderId, provider: 'APLIIQ' } },
+      include: { order: true },
+    });
+    if (!fulfillment) throw new NotFoundException('Apliiq fulfillment record not found');
+    if (!fulfillment.externalOrderId) {
+      throw new ConflictException('Apliiq order ID is not known. Check the Apliiq dashboard before taking any inventory action.');
+    }
+
+    const raw = await this.client.getOrder<unknown>(fulfillment.externalOrderId);
+    const providerOrder = Array.isArray(raw) ? raw[0] : raw;
+    if (!providerOrder || typeof providerOrder !== 'object' || Array.isArray(providerOrder)) {
+      throw new ConflictException('Apliiq Get Order returned an unexpected response');
+    }
+
+    const data = providerOrder as Record<string, unknown>;
+    const providerStatus = typeof data.Status === 'string' ? data.Status.trim() : '';
+    if (!providerStatus) throw new ConflictException('Apliiq Get Order response has no Status');
+    const normalizedStatus = providerStatus.toLowerCase();
+    const isCancelled = ['cancelled', 'canceled'].includes(normalizedStatus);
+    const isShipped = normalizedStatus === 'shipped';
+
+    const shipNotices = Array.isArray(data.SN) ? data.SN : [];
+    const trackingNumbers = shipNotices
+      .map((notice) => notice && typeof notice === 'object' ? (notice as Record<string, unknown>).TrackingNumber : null)
+      .filter((value): value is string => typeof value === 'string' && value.trim().length > 0);
+    const trackingUrls = shipNotices
+      .map((notice) => notice && typeof notice === 'object' ? (notice as Record<string, unknown>).Carrier : null)
+      .filter((value): value is string => typeof value === 'string' && /^https:\/\//i.test(value));
+    const trackingCompany = shipNotices
+      .map((notice) => notice && typeof notice === 'object' ? (notice as Record<string, unknown>).Service : null)
+      .find((value): value is string => typeof value === 'string' && value.trim().length > 0);
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "orders" WHERE "id" = ${orderId} FOR UPDATE`;
+      const current = await tx.fulfillment.findUnique({
+        where: { id: fulfillment.id },
+        include: { order: true },
+      });
+      if (!current) throw new NotFoundException('Apliiq fulfillment record disappeared');
+
+      const updated = await tx.fulfillment.update({
+        where: { id: current.id },
+        data: {
+          providerStatus,
+          submissionStatus: isCancelled ? 'CANCELLED' : current.submissionStatus,
+          trackingNumbers,
+          trackingUrls,
+          ...(trackingCompany ? { trackingCompany } : {}),
+          ...(isShipped && !current.shippedAt ? { shippedAt: new Date() } : {}),
+          ...(isCancelled ? { lastErrorCode: null } : {}),
+        },
+      });
+
+      let inventoryRestocked = false;
+      if (isCancelled && current.order.paymentStatus === 'REFUNDED') {
+        const reservation = await tx.stockReservation.findUnique({
+          where: { orderId },
+          include: { items: true },
+        });
+        if (reservation && reservation.status === 'COMMITTED' && !reservation.restockedAt) {
+          const claimed = await tx.stockReservation.updateMany({
+            where: { id: reservation.id, status: 'COMMITTED', restockedAt: null },
+            data: { restockedAt: new Date() },
+          });
+          if (claimed.count === 1) {
+            for (const item of reservation.items) {
+              if (item.variantId) {
+                await tx.productVariant.update({
+                  where: { id: item.variantId },
+                  data: { stockQuantity: { increment: item.quantity } },
+                });
+              } else {
+                await tx.product.update({
+                  where: { id: item.productId },
+                  data: { stockQuantity: { increment: item.quantity } },
+                });
+              }
+            }
+            inventoryRestocked = true;
+          }
+        }
+      }
+
+      if (isShipped && current.order.status !== 'REFUNDED' && current.order.status !== 'CANCELLED') {
+        await tx.order.update({ where: { id: orderId }, data: { status: 'SHIPPED' } });
+      }
+
+      return { fulfillment: updated, inventoryRestocked, paymentStatus: current.order.paymentStatus };
+    });
+
+    return {
+      ...result.fulfillment,
+      inventoryRestocked: result.inventoryRestocked,
+      nextAction: isCancelled
+        ? result.paymentStatus === 'REFUNDED'
+          ? 'APLIIQ_CANCELLATION_CONFIRMED_AND_INVENTORY_RESTOCKED_IF_NOT_ALREADY'
+          : 'APLIIQ_CANCELLATION_CONFIRMED_BUT_STRIPE_REFUND_REQUIRES_SEPARATE_RECONCILIATION'
+        : fulfillment.submissionStatus === 'CANCELLATION_REQUIRED'
+          ? 'CANCEL_IN_APLIIQ_DASHBOARD_IF_ELIGIBLE_THEN_RUN_RECONCILIATION_AGAIN'
+          : 'PROVIDER_STATUS_SYNCED',
+    };
   }
 
   async processFulfillmentWebhook(body: unknown) {
