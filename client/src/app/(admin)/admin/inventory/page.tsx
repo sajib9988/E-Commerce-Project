@@ -1,10 +1,11 @@
+import { AdminInventoryClient } from "@/components/admin/admin-inventory-client";
 import { getAdminProducts } from "@/service/product.service";
-import { AdminResourcePage } from "@/components/admin/admin-resource-page";
-
-export default async function AdminInventoryPage() {
-  const result = await getAdminProducts({ page: 1, limit: 50, sortBy: "createdAt", sortOrder: "desc" });
-  return <AdminResourcePage title="Inventory" description="Inventory is sourced from product records. Variant-level stock is available from the Product Variants API; a separate stock-adjustment API is not exposed in the current backend." result={result} columns={[
-    { label: "Product", key: "name" }, { label: "SKU", key: "sku" }, { label: "Product stock", key: "stockQuantity" },
-    { label: "Active", key: "isActive" }, { label: "Variants", key: "variants" },
-  ]} emptyMessage="No inventory records found." />;
+import { getInventoryAdjustments } from "@/service/inventory.service";
+function isApiError(v:unknown):v is {success:false;message:string}{return typeof v==="object"&&v!==null&&"success"in v&&v.success===false;}
+type Product={id:string;name:string;sku?:string|null;stockQuantity:number;variants?:Array<{id:string;sku:string;stockQuantity:number;size?:{label:string};colorName?:string|null}>};
+export default async function AdminInventoryPage(){
+ const [productsResult,historyResult]=await Promise.all([getAdminProducts({page:1,limit:100,sortBy:"name",sortOrder:"asc"}),getInventoryAdjustments(1,50)]);
+ const products=productsResult&&typeof productsResult==="object"&&Array.isArray((productsResult as {items?:unknown}).items)?(productsResult as {items:Product[]}).items:[];
+ const error=isApiError(productsResult)?productsResult.message:isApiError(historyResult)?historyResult.message:undefined;
+ return <AdminInventoryClient products={products} initialHistory={historyResult} initialError={error}/>;
 }

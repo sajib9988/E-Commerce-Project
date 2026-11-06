@@ -25,6 +25,7 @@ import { VariantsModule } from './products/variants/variants.module';
 import { SizeTemplatesModule } from './products/size-templates/size-templates.module';
 import { ReviewsModule } from './reviews/reviews.module';
 import { RefundsModule } from './refunds/refunds.module';
+import { InventoryModule } from './inventory/inventory.module';
 import { RedisModule } from './redis/redis.module';
 import { RedisService } from './redis/redis.service';
 import { RedisThrottlerStorage } from './redis/redis-throttler.storage';
@@ -63,6 +64,7 @@ import { RedisThrottlerStorage } from './redis/redis-throttler.storage';
     SizeTemplatesModule,
     ReviewsModule,
     RefundsModule,
+    InventoryModule,
   ],
   controllers: [AppController],
   providers: [
