@@ -655,6 +655,8 @@ export class PaymentsService {
   async findAllForAdmin(page = 1, limit = 30, status?: string) {
     const take = Math.min(Math.max(limit, 1), 100);
     const skip = (Math.max(page, 1) - 1) * take;
+    const allowedStatuses = Object.values(PaymentAttemptStatus) as string[];
+    if (status && !allowedStatuses.includes(status)) throw new BadRequestException('Invalid payment status filter');
     const where = status ? { status: status as PaymentAttemptStatus } : {};
     const [items, total] = await this.prisma.$transaction([
       this.prisma.paymentAttempt.findMany({
