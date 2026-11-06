@@ -58,6 +58,7 @@ model Product {
   variants       ProductVariant[]
   reviews        ProductReview[]
   collections    ProductCollection[]
+  inventoryAdjustments InventoryAdjustment[]
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
@@ -150,6 +151,7 @@ model ProductVariant {
   isActive         Boolean                @default(true)
   orderItems       OrderItem[]
   reservationItems StockReservationItem[]
+  inventoryAdjustments InventoryAdjustment[]
   createdAt        DateTime               @default(now())
   updatedAt        DateTime               @updatedAt
 

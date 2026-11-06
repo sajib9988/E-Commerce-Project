@@ -16,6 +16,7 @@ model User {
   refundRequests             RefundRequest[]
   oauthAccounts              OAuthAccount[]
   refreshSessions            RefreshSession[]
+  inventoryAdjustments      InventoryAdjustment[] @relation("InventoryAdjustmentActor")
   createdAt                 DateTime  @default(now())
   updatedAt                 DateTime  @updatedAt
 
