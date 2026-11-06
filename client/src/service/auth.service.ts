@@ -111,20 +111,24 @@ export const resendLoginOtp = async (challengeToken: string) => {
 
 export const logoutUser = async () => {
   const cookieStore = await cookies();
+  const refreshToken = cookieStore.get("refreshToken")?.value;
+  const headers = await getAuthHeaders({ "Content-Type": "application/json" });
 
-  // ✅ remove token from Next.js cookie
-  cookieStore.delete("accessToken");
-  cookieStore.delete("refreshToken");
+  try {
+    if (refreshToken) {
+      await safeFetch(`${BASE_URL}/auth/logout`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ refreshToken }),
+        cache: "no-store",
+      });
+    }
+  } finally {
+    cookieStore.delete("accessToken");
+    cookieStore.delete("refreshToken");
+  }
 
-  const res = await safeFetch(`${BASE_URL}/auth/logout`, {
-    method: "POST",
-    headers: await getAuthHeaders(),
-    cache: "no-store",
-  });
-
-  if (!res) return null;
-
-  return await res.json();
+  return { success: true, message: "Logged out" };
 };
 
 
