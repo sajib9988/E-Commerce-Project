@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { deleteMedia, getMediaUsage, updateMedia, uploadMedia } from "@/service/media.service";
 import type { MediaAsset, MediaUsage } from "@/type/cms";
@@ -31,7 +31,7 @@ export function AdminMediaClient({ initialMedia }: { initialMedia: MediaAsset[] 
     return term ? media.filter((asset) => (asset.name + " " + (asset.altText ?? "")).toLowerCase().includes(term)) : media;
   }, [media, search]);
 
-  async function handleUpload(event: React.FormEvent<HTMLFormElement>) {
+  async function handleUpload(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setMessage("");
     setError("");
