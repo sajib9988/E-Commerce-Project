@@ -155,7 +155,7 @@ export function AdminOperationsClient({ orders: orderData, payments: paymentData
             <p className="text-sm text-slate-700">{str(r.reviewReason)}</p>
             {r.requiresManualReview === true && <><textarea value={note(id)} onChange={(e) => setNotes(old => ({ ...old, [id]: e.target.value }))} rows={2} maxLength={500} placeholder="Resolution note (5–500 characters)" className="w-full rounded-md border px-3 py-2 text-sm" />
             {errors[id] && <ErrorBox message={errors[id]} />}
-            <div className="flex flex-wrap gap-2"><button disabled={pending} onClick={() => resolvePayment(r, "REFUND")} className="rounded-md bg-slate-900 px-3 py-2 text-sm text-white disabled:opacity-50">Request Stripe refund</button><button disabled={pending} onClick={() => resolvePayment(r, "RESOLVE_NO_REFUND")} className="rounded-md border px-3 py-2 text-sm disabled:opacity-50">Resolve without refund</button></>}</div>
+            <div className="flex flex-wrap gap-2"><button disabled={pending} onClick={() => resolvePayment(r, "REFUND")} className="rounded-md bg-slate-900 px-3 py-2 text-sm text-white disabled:opacity-50">Request Stripe refund</button><button disabled={pending} onClick={() => resolvePayment(r, "RESOLVE_NO_REFUND")} className="rounded-md border px-3 py-2 text-sm disabled:opacity-50">Resolve without refund</button></div></>}
           </article>;
         })}
         {!paymentRows.length && <p className="rounded-xl border border-dashed p-8 text-center text-sm text-slate-500">No payment attempts currently require manual review.</p>}
