@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { RefreshCw, Ban } from "lucide-react";
 import { reconcileApliiqOrder, requestApliiqCancellation } from "@/service/admin.service";
 
@@ -22,12 +22,13 @@ type ApliiqOrder = {
 export function ApliiqOrdersTable({ orders }: { orders: ApliiqOrder[] }) {
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const [isPending, startTransition] = useTransition();
+  const [isPending, setIsPending] = useState(false);
 
-  function run(orderId: string, action: "reconcile" | "cancel") {
+  async function run(orderId: string, action: "reconcile" | "cancel") {
     setPendingId(orderId);
+    setIsPending(true);
     setMessage(null);
-    startTransition(async () => {
+    try {
       const result = action === "reconcile"
         ? await reconcileApliiqOrder(orderId)
         : await requestApliiqCancellation(orderId);
@@ -36,8 +37,12 @@ export function ApliiqOrdersTable({ orders }: { orders: ApliiqOrder[] }) {
         ? String(result.message)
         : action === "reconcile" ? "Apliiq order reconciliation completed." : "Cancellation request submitted. Check the provider result before refunding or restocking.";
       setMessage(failed ? `Request failed: ${detail}` : detail);
+    } catch {
+      setMessage("The request could not be completed. Please try again.");
+    } finally {
       setPendingId(null);
-    });
+      setIsPending(false);
+    }
   }
 
   if (orders.length === 0) {
@@ -55,7 +60,7 @@ export function ApliiqOrdersTable({ orders }: { orders: ApliiqOrder[] }) {
           <tbody className="divide-y divide-slate-100">
             {orders.map((order) => {
               const fulfillment = order.fulfillments?.[0];
-              const busy = isPending && pendingId === order.id;
+              const busy = pendingId === order.id;
               return (
                 <tr key={order.id}>
                   <td className="px-5 py-4 font-semibold text-slate-900">{order.orderNumber ?? order.id}</td>
