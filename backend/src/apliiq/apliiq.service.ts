@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { Processor, WorkerHost, InjectQueue } from '@nestjs/bullmq';
 import { Job, Queue } from 'bullmq';
+import { Prisma } from '../../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ApliiqClient } from './apliiq.client';
 import { mapOrderToApliiq } from './apliiq.mapper';
@@ -501,6 +502,42 @@ export class ApliiqService extends WorkerHost implements OnModuleInit {
     };
   }
 
+  private async restockCommittedReservation(
+    tx: Prisma.TransactionClient,
+    orderId: string,
+  ): Promise<boolean> {
+    const reservation = await tx.stockReservation.findUnique({
+      where: { orderId },
+      include: { items: true },
+    });
+    if (!reservation || reservation.status !== 'COMMITTED' || reservation.restockedAt) {
+      return false;
+    }
+
+    // Claim the one-time restock before incrementing stock. This runs in the
+    // same DB transaction, so concurrent webhook/poll events cannot double-restock.
+    const claimed = await tx.stockReservation.updateMany({
+      where: { id: reservation.id, status: 'COMMITTED', restockedAt: null },
+      data: { restockedAt: new Date() },
+    });
+    if (claimed.count !== 1) return false;
+
+    for (const item of reservation.items) {
+      if (item.variantId) {
+        await tx.productVariant.update({
+          where: { id: item.variantId },
+          data: { stockQuantity: { increment: item.quantity } },
+        });
+      } else {
+        await tx.product.update({
+          where: { id: item.productId },
+          data: { stockQuantity: { increment: item.quantity } },
+        });
+      }
+    }
+    return true;
+  }
+
   async processFulfillmentWebhook(body: unknown) {
     if (!body || typeof body !== 'object' || Array.isArray(body)) {
       throw new BadRequestException('Invalid Apliiq fulfillment payload');
@@ -508,11 +545,7 @@ export class ApliiqService extends WorkerHost implements OnModuleInit {
 
     const root = body as Record<string, unknown>;
     const rawFulfillment = root.fulfillment;
-    if (
-      !rawFulfillment ||
-      typeof rawFulfillment !== 'object' ||
-      Array.isArray(rawFulfillment)
-    ) {
+    if (!rawFulfillment || typeof rawFulfillment !== 'object' || Array.isArray(rawFulfillment)) {
       throw new BadRequestException('Missing Apliiq fulfillment object');
     }
 
@@ -522,8 +555,7 @@ export class ApliiqService extends WorkerHost implements OnModuleInit {
       typeof rawOrderId === 'string' || typeof rawOrderId === 'number'
         ? String(rawOrderId).trim()
         : '';
-    const providerStatus =
-      typeof payload.status === 'string' ? payload.status.trim() : '';
+    const providerStatus = typeof payload.status === 'string' ? payload.status.trim() : '';
 
     if (!externalOrderId || externalOrderId.length > 200 || !providerStatus || providerStatus.length > 100) {
       throw new BadRequestException('Apliiq fulfillment order_id/status is invalid');
@@ -551,44 +583,61 @@ export class ApliiqService extends WorkerHost implements OnModuleInit {
           : (() => { throw new BadRequestException('Invalid tracking_company'); })();
     const trackingNumbers = readStringArray('tracking_numbers');
     const trackingUrls = readStringArray('tracking_urls');
-    const isShipped = ['success', 'shipped'].includes(providerStatus.toLowerCase());
+    const normalizedStatus = providerStatus.toLowerCase();
+    const isShipped = ['success', 'shipped'].includes(normalizedStatus);
+    const isCancelled = ['cancelled', 'canceled'].includes(normalizedStatus);
 
     const result = await this.prisma.$transaction(async (tx) => {
-      const fulfillment = await tx.fulfillment.findUnique({
+      const initial = await tx.fulfillment.findUnique({
         where: { externalOrderId },
+        select: { id: true, orderId: true },
+      });
+      if (!initial) throw new NotFoundException('No local fulfillment matches the Apliiq order ID');
+
+      // Serialize webhook updates with Stripe refund and polling reconciliation.
+      await tx.$queryRaw`SELECT "id" FROM "orders" WHERE "id" = ${initial.orderId} FOR UPDATE`;
+      const fulfillment = await tx.fulfillment.findUnique({
+        where: { id: initial.id },
         include: { order: true },
       });
+      if (!fulfillment) throw new NotFoundException('Apliiq fulfillment record disappeared');
 
-      if (!fulfillment) {
-        throw new NotFoundException('No local fulfillment matches the Apliiq order ID');
+      // A late shipment event must never reverse a confirmed cancellation.
+      if (fulfillment.submissionStatus === 'CANCELLED' && isShipped) {
+        return { updated: fulfillment, order: fulfillment.order, notify: false, inventoryRestocked: false };
       }
 
-      const updateData: {
-        providerStatus: string;
-        trackingCompany?: string | null;
-        trackingNumbers?: string[];
-        trackingUrls?: string[];
-        shippedAt?: Date;
-      } = { providerStatus };
+      const updateData: Prisma.FulfillmentUpdateInput = {
+        providerStatus,
+        ...(isCancelled ? { submissionStatus: 'CANCELLED' } : {}),
+        ...(trackingCompany !== undefined ? { trackingCompany } : {}),
+        ...(trackingNumbers !== undefined ? { trackingNumbers } : {}),
+        ...(trackingUrls !== undefined ? { trackingUrls } : {}),
+        ...(isShipped && !fulfillment.shippedAt ? { shippedAt: new Date() } : {}),
+        ...(isCancelled && fulfillment.shippedAt
+          ? { lastErrorCode: 'CANCELLATION_REPORTED_AFTER_SHIPMENT_REQUIRES_MANUAL_REVIEW' }
+          : isCancelled && fulfillment.order.paymentStatus !== 'REFUNDED'
+            ? { lastErrorCode: 'APLIIQ_CANCELLED_AWAITING_PAYMENT_REFUND_RECONCILIATION' }
+            : isCancelled
+              ? { lastErrorCode: null }
+              : {}),
+      };
 
-      if (trackingCompany !== undefined) updateData.trackingCompany = trackingCompany;
-      if (trackingNumbers !== undefined) updateData.trackingNumbers = trackingNumbers;
-      if (trackingUrls !== undefined) updateData.trackingUrls = trackingUrls;
-      if (isShipped && !fulfillment.shippedAt) updateData.shippedAt = new Date();
-
-      // Repeated webhook deliveries are safe: applying the same values again
-      // does not create duplicate records or notify the customer twice.
       const updated = await tx.fulfillment.update({
         where: { id: fulfillment.id },
         data: updateData,
       });
 
-      // Apliiq's documented "success" payload is a shipment/tracking notification,
-      // not proof that the carrier delivered the package. Never mark DELIVERED here.
-      const terminalLocalStatuses = ['DELIVERED', 'CANCELLED', 'REFUNDED'];
+      let inventoryRestocked = false;
+      // Restock only after provider cancellation is confirmed, payment is fully
+      // refunded, and no shipment was recorded. The reservation marker is atomic.
+      if (isCancelled && fulfillment.order.paymentStatus === 'REFUNDED' && !fulfillment.shippedAt) {
+        inventoryRestocked = await this.restockCommittedReservation(tx, fulfillment.orderId);
+      }
+
       if (
         isShipped &&
-        !terminalLocalStatuses.includes(String(fulfillment.order.status))
+        !['DELIVERED', 'CANCELLED', 'REFUNDED'].includes(String(fulfillment.order.status))
       ) {
         await tx.order.update({
           where: { id: fulfillment.orderId },
@@ -596,8 +645,14 @@ export class ApliiqService extends WorkerHost implements OnModuleInit {
         });
       }
 
-      return { updated, order: fulfillment.order, notify: isShipped && !fulfillment.shippedAt };
+      return {
+        updated,
+        order: fulfillment.order,
+        notify: isShipped && !fulfillment.shippedAt,
+        inventoryRestocked,
+      };
     });
+
     if (result.notify) {
       await this.notifications.orderShipped({
         email: result.order.customerEmail,
@@ -607,6 +662,14 @@ export class ApliiqService extends WorkerHost implements OnModuleInit {
         trackingUrls: result.updated.trackingUrls,
       });
     }
-    return result.updated;
+    return {
+      ...result.updated,
+      inventoryRestocked: result.inventoryRestocked,
+      nextAction: isCancelled
+        ? result.inventoryRestocked
+          ? 'PROVIDER_CANCELLATION_CONFIRMED_AND_STOCK_RESTOCKED'
+          : result.updated.lastErrorCode ?? 'PROVIDER_CANCELLATION_CONFIRMED_REVIEW_PAYMENT_AND_SHIPMENT_STATE'
+        : 'PROVIDER_STATUS_SYNCED',
+    };
   }
 }
