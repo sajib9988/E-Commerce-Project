@@ -61,6 +61,12 @@ export class ProductsController {
     });
   }
 
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @Get('admin/:id')
+  findOneForAdmin(@Param('id') id: string) {
+    return this.productsService.findOneForAdmin(id);
+  }
+
   @Public()
   @Get(':id')
   findOne(@Param('id') id: string) {
