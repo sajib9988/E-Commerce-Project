@@ -91,9 +91,10 @@ export function AdminMediaClient({ initialMedia }: { initialMedia: MediaAsset[] 
     }
     const currentUsage = usageResult as MediaUsage;
     setUsage((old) => ({ ...old, [asset.id]: currentUsage }));
-    if (currentUsage.pages.length > 0) {
+    const referenceCount = currentUsage.pages.length + currentUsage.products.length + currentUsage.artworks.length + currentUsage.collections.length;
+    if (referenceCount > 0) {
       setBusyId(null);
-      setError("This file is used by CMS content. Remove its references before deleting it.");
+      setError("This file is referenced by store content. Remove those references before deleting it.");
       return;
     }
     if (!window.confirm("Permanently delete this media file from Cloudinary and the database?")) {
@@ -163,9 +164,12 @@ export function AdminMediaClient({ initialMedia }: { initialMedia: MediaAsset[] 
                     <button type="button" disabled={busy} onClick={() => removeAsset(asset)} className="rounded-md border border-rose-200 px-3 py-2 text-xs font-semibold text-rose-700 disabled:opacity-50">Delete</button>
                   </div>
                   {assetUsage && <div className="rounded-lg bg-slate-50 p-3 text-xs text-slate-600">
-                    <p className="font-semibold">{assetUsage.pages.length} CMS page(s) reference this asset</p>
-                    {assetUsage.pages.length > 0 && <ul className="mt-2 list-disc space-y-1 pl-4">{assetUsage.pages.map((page) => <li key={page.id}>{page.name} <span className="text-slate-400">({page.slug})</span></li>)}</ul>}
-                    {assetUsage.pages.length === 0 && <p className="mt-1 text-emerald-700">No CMS page references found. This asset can be deleted.</p>}
+                    <p className="font-semibold">{assetUsage.pages.length + assetUsage.products.length + assetUsage.artworks.length + assetUsage.collections.length} store reference(s) found</p>
+                    {assetUsage.pages.length > 0 && <div className="mt-2"><p className="font-medium">CMS pages</p><ul className="list-disc pl-4">{assetUsage.pages.map((page) => <li key={page.id}>{page.name} ({page.slug})</li>)}</ul></div>}
+                    {assetUsage.products.length > 0 && <div className="mt-2"><p className="font-medium">Products</p><ul className="list-disc pl-4">{assetUsage.products.map((product) => <li key={product.id}>{product.name}</li>)}</ul></div>}
+                    {assetUsage.artworks.length > 0 && <div className="mt-2"><p className="font-medium">Apliiq artworks</p><ul className="list-disc pl-4">{assetUsage.artworks.map((artwork) => <li key={artwork.id}>{artwork.name} · {artwork.product.name}</li>)}</ul></div>}
+                    {assetUsage.collections.length > 0 && <div className="mt-2"><p className="font-medium">Collections</p><ul className="list-disc pl-4">{assetUsage.collections.map((collection) => <li key={collection.id}>{collection.name}</li>)}</ul></div>}
+                    {assetUsage.pages.length + assetUsage.products.length + assetUsage.artworks.length + assetUsage.collections.length === 0 && <p className="mt-1 text-emerald-700">No database references found. This asset can be deleted.</p>}
                   </div>}
                 </div>
               </article>
