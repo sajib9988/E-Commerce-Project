@@ -252,6 +252,7 @@ model StockReservation {
   expiresAt   DateTime
   committedAt DateTime?
   releasedAt  DateTime?
+  restockedAt DateTime?
   items       StockReservationItem[]
   createdAt   DateTime               @default(now())
   updatedAt   DateTime               @updatedAt
