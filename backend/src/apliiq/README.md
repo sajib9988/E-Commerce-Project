@@ -92,7 +92,7 @@ Admin endpoint:
 
 `POST /api/v1/admin/apliiq/orders/:orderId/reconcile`
 
-This calls Apliiq's authenticated Get Order endpoint and syncs provider status and available tracking details. If Apliiq reports `Cancelled` / `Canceled` and the Stripe payment is already fully refunded, the committed stock reservation is restored exactly once using `stock_reservations.restockedAt`. If Apliiq reports a production or shipment status, stock remains committed and requires operational review.
+This calls Apliiq's authenticated Get Order endpoint and syncs provider status and available tracking details. If the POST response timed out before the provider order ID was saved, it first checks Apliiq's documented recent-orders endpoint and matches the local `order.id` against `StoreSystemOrderId`. If Apliiq reports `Cancelled` / `Canceled` and the Stripe payment is already fully refunded, the committed stock reservation is restored exactly once using `stock_reservations.restockedAt`. If Apliiq reports a production or shipment status, stock remains committed and requires operational review.
 
 For a refund while the fulfillment outbox is still `QUEUED`, the local outbox item is cancelled and stock can be restored immediately because no provider request was submitted. If submission is `SUBMITTING` or `UNKNOWN`, do not restock until the provider order is identified and its cancellation is confirmed.
 
