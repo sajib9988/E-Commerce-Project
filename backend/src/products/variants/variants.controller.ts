@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
 import { UserRole } from '../../../generated/prisma/enums';
 import { Public } from '../../common/decorators/public.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -13,6 +13,12 @@ export class VariantsController {
   @Get('products/:productId/variants')
   list(@Param('productId') productId: string) {
     return this.variantsService.listForProduct(productId);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @Get('products/:productId/variants/admin')
+  listForAdmin(@Param('productId') productId: string) {
+    return this.variantsService.listForProduct(productId, true);
   }
 
   @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)

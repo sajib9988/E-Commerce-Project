@@ -84,7 +84,7 @@ export async function getAdminProducts(params: AdminProductQuery = {}) {
 
 export async function createProduct(formData: FormData) {
   const result = await request(ENDPOINT, { method: "POST", body: formData });
-  if (!isApiError(result)) revalidatePath("/admin/products");
+  if (!isApiError(result)) { revalidatePath("/admin/products"); revalidatePath("/admin/variants"); }
   return result;
 }
 
@@ -99,12 +99,16 @@ export async function updateProduct(id: string, formData: FormData) {
 
 export async function deleteProduct(id: string) {
   const result = await request(`${ENDPOINT}/${encodeURIComponent(id)}`, { method: "DELETE" });
-  if (!isApiError(result)) revalidatePath("/admin/products");
+  if (!isApiError(result)) { revalidatePath("/admin/products"); revalidatePath("/admin/variants"); }
   return result;
 }
 
 export async function getProductVariants(productId: string) {
   return request(`/products/${encodeURIComponent(productId)}/variants`, { next: { revalidate: 60 } }, false);
+}
+
+export async function getAdminProductVariants(productId: string) {
+  return request(`/products/${encodeURIComponent(productId)}/variants/admin`);
 }
 
 export async function createProductVariant(data: {
@@ -113,7 +117,7 @@ export async function createProductVariant(data: {
   colorName?: string | null; colorHex?: string | null; apliiqColorId?: string | null; isActive?: boolean;
 }) {
   const result = await request("/products/variants", { method: "POST", body: JSON.stringify(data) });
-  if (!isApiError(result)) revalidatePath("/admin/products");
+  if (!isApiError(result)) { revalidatePath("/admin/products"); revalidatePath("/admin/variants"); }
   return result;
 }
 
@@ -121,13 +125,13 @@ export async function updateProductVariant(id: string, data: Record<string, unkn
   const result = await request(`/products/variants/${encodeURIComponent(id)}`, {
     method: "PATCH", body: JSON.stringify(data),
   });
-  if (!isApiError(result)) revalidatePath("/admin/products");
+  if (!isApiError(result)) { revalidatePath("/admin/products"); revalidatePath("/admin/variants"); }
   return result;
 }
 
 export async function archiveProductVariant(id: string) {
   const result = await request(`/products/variants/${encodeURIComponent(id)}/archive`, { method: "PATCH" });
-  if (!isApiError(result)) revalidatePath("/admin/products");
+  if (!isApiError(result)) { revalidatePath("/admin/products"); revalidatePath("/admin/variants"); }
   return result;
 }
 
@@ -141,7 +145,7 @@ export async function createSizeTemplate(data: {
   sizes: Array<{ label: string; sortOrder?: number }>; isActive?: boolean;
 }) {
   const result = await request("/size-templates", { method: "POST", body: JSON.stringify(data) });
-  if (!isApiError(result)) revalidatePath("/admin/products");
+  if (!isApiError(result)) { revalidatePath("/admin/products"); revalidatePath("/admin/variants"); }
   return result;
 }
 
@@ -149,7 +153,7 @@ export async function updateSizeTemplate(id: string, data: Record<string, unknow
   const result = await request(`/size-templates/${encodeURIComponent(id)}`, {
     method: "PATCH", body: JSON.stringify(data),
   });
-  if (!isApiError(result)) revalidatePath("/admin/products");
+  if (!isApiError(result)) { revalidatePath("/admin/products"); revalidatePath("/admin/variants"); }
   return result;
 }
 
@@ -157,7 +161,7 @@ export async function addTemplateSize(id: string, data: { label: string; sortOrd
   const result = await request(`/size-templates/${encodeURIComponent(id)}/sizes`, {
     method: "POST", body: JSON.stringify(data),
   });
-  if (!isApiError(result)) revalidatePath("/admin/products");
+  if (!isApiError(result)) { revalidatePath("/admin/products"); revalidatePath("/admin/variants"); }
   return result;
 }
 
@@ -165,6 +169,6 @@ export async function archiveTemplateSize(id: string, sizeId: string) {
   const result = await request(`/size-templates/${encodeURIComponent(id)}/sizes/${encodeURIComponent(sizeId)}/archive`, {
     method: "PATCH",
   });
-  if (!isApiError(result)) revalidatePath("/admin/products");
+  if (!isApiError(result)) { revalidatePath("/admin/products"); revalidatePath("/admin/variants"); }
   return result;
 }
