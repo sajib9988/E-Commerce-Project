@@ -76,14 +76,14 @@ export function AdminResourcePage({
 
   return (
     <div className="space-y-6">
-      <header className="flex flex-wrap items-end justify-between gap-4">
+      {title && <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-sm font-medium text-slate-500">Store management</p>
           <h1 className="mt-1 text-3xl font-bold tracking-tight text-slate-950">{title}</h1>
           <p className="mt-2 text-sm text-slate-600">{description}</p>
         </div>
         {actions}
-      </header>
+      </header>}
       {failed ? (
         <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
           Could not load {title.toLowerCase()}: {message}
