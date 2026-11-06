@@ -5,10 +5,10 @@ import { revalidatePath } from "next/cache";
 
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL;
 type ApiError = { success: false; message: string; statusCode?: number };
-type CouponInput = {
+export type CouponInput = {
   code: string; type: "PERCENT" | "FIXED" | "FREE_SHIPPING"; value: number;
-  minOrderAmount?: number; maxDiscountAmount?: number; startsAt?: string;
-  expiresAt?: string; isActive?: boolean; usageLimit?: number; perUserLimit?: number; userId?: string;
+  minOrderAmount?: number | null; maxDiscountAmount?: number | null; startsAt?: string | null;
+  expiresAt?: string | null; isActive?: boolean; usageLimit?: number | null; perUserLimit?: number; userId?: string | null;
 };
 
 async function getAuthHeaders() {
