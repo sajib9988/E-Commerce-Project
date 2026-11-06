@@ -26,7 +26,7 @@ export function AdminProductsClient({ products, error }: { products: ProductRow[
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   async function handleDelete(product: ProductRow) {
-    if (!window.confirm(\`Archive "\${product.name ?? "this product"}"? It will be hidden from the storefront.\`)) return;
+    if (!window.confirm(`Archive "${product.name ?? "this product"}"? It will be hidden from the storefront.`)) return;
     setDeletingId(product.id);
     try {
       const result = await deleteProduct(product.id);
@@ -79,7 +79,7 @@ export function AdminProductsClient({ products, error }: { products: ProductRow[
                   <td className="px-5 py-4 text-slate-600">{product.stockQuantity ?? 0}</td>
                   <td className="px-5 py-4"><span className={product.isActive ? "rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700" : "rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600"}>{product.isActive ? "Active" : "Archived"}</span></td>
                   <td className="px-5 py-4"><div className="flex justify-end gap-2">
-                    <Button render={<Link href={\`/admin/products/\${product.id}/edit\`} />} variant="outline" size="sm"><Edit3 /> Edit</Button>
+                    <Button render={<Link href={`/admin/products/${product.id}/edit`} />} variant="outline" size="sm"><Edit3 /> Edit</Button>
                     <Button type="button" variant="destructive" size="sm" disabled={deletingId === product.id || product.isActive === false} onClick={() => handleDelete(product)}>
                       {deletingId === product.id ? <Loader2 className="animate-spin" /> : <Trash2 />} {product.isActive === false ? "Archived" : "Archive"}
                     </Button>
