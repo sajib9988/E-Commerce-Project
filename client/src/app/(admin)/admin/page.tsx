@@ -4,7 +4,7 @@ import { getAdminOrders } from "@/service/order.service";
 import { getAdminProducts } from "@/service/product.service";
 import { getCoupons } from "@/service/coupon.service";
 import { getAdminReviews } from "@/service/review.service";
-import { AdminResourcePage, getAdminRows, getAdminTotal } from "@/components/admin/admin-resource-page";
+import { AdminResourcePage, getAdminTotal } from "@/components/admin/admin-resource-page";
 
 function Metric({ title, value, icon: Icon, href }: { title: string; value: string; icon: typeof Package; href: string }) {
   return (
@@ -26,7 +26,6 @@ export default async function AdminDashboardPage() {
     getCoupons(),
     getAdminReviews("PENDING"),
   ]);
-  const orders = getAdminRows(ordersResult);
   const coupons = getAdminRows(couponsResult);
   const reviews = getAdminRows(reviewsResult);
   const orderTotal = getAdminTotal(ordersResult);
@@ -56,7 +55,7 @@ export default async function AdminDashboardPage() {
           <div><h2 className="font-bold text-slate-950">Recent orders</h2><p className="mt-1 text-sm text-slate-500">Latest orders returned by the admin orders API.</p></div>
           <Link href="/admin/orders" className="text-sm font-semibold text-slate-700 hover:text-slate-950">View all</Link>
         </div>
-        <AdminResourcePage title="" description="" result={orders} columns={[
+        <AdminResourcePage title="" description="" result={ordersResult} columns={[
           { label: "Order", key: "orderNumber" },
           { label: "Customer", key: "customerName" },
           { label: "Email", key: "customerEmail" },
