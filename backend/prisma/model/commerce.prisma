@@ -475,3 +475,14 @@ model InventoryAdjustment {
   @@index([actorId, createdAt])
   @@map("inventory_adjustments")
 }
+
+
+model StoreSetting {
+  key         String   @id
+  value       Json
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("store_settings")
+}
