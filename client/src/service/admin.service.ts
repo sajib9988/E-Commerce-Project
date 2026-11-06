@@ -46,6 +46,15 @@ function buildQuery(params: { search?: string; page?: number; limit?: number }) 
   return value ? `?${value}` : "";
 }
 
+
+/** Customer-only endpoints; unlike user/role administration these are available to ADMIN and SUPER_ADMIN. */
+export async function getAdminCustomers(params: { search?: string; page?: number; limit?: number } = {}) {
+  return request(`/admin/customers${buildQuery(params)}`);
+}
+export async function getAdminCustomerById(id: string) {
+  return request(`/admin/customers/${encodeURIComponent(id)}`);
+}
+
 // User administration endpoints are SUPER_ADMIN-only in the NestJS backend.
 export async function getAdminUsers(params: { search?: string; page?: number; limit?: number } = {}) {
   return request(`/users${buildQuery(params)}`);
