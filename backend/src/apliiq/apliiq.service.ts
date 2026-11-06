@@ -358,8 +358,12 @@ export class ApliiqService extends WorkerHost implements OnModuleInit {
         });
       }
     } catch {
-      // An ambiguous timeout may mean the provider accepted the order. Never blindly retry UNKNOWN.
-      await this.prisma.fulfillment.update({ where: { id: fulfillmentId }, data: { submissionStatus: 'UNKNOWN', lastErrorCode: 'SUBMISSION_UNCONFIRMED' } }).catch(() => undefined);
+      // An ambiguous timeout may mean the provider accepted the order. Never
+      // overwrite a concurrent refund's CANCELLATION_REQUIRED state.
+      await this.prisma.fulfillment.updateMany({
+        where: { id: fulfillmentId, submissionStatus: 'SUBMITTING' },
+        data: { submissionStatus: 'UNKNOWN', lastErrorCode: 'SUBMISSION_UNCONFIRMED' },
+      }).catch(() => undefined);
     }
   }
 
