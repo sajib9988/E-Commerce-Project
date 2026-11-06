@@ -6,7 +6,8 @@ function formatDate(value: string) {
 
 export default async function CustomerReviewsPage() {
   const result = await getMyReviews();
-  const failed = typeof result === "object" && result !== null && "success" in result && result.success === false;
+  const reviews = Array.isArray(result) ? result : [];
+  const error = Array.isArray(result) ? null : result;
 
   return (
     <div className="mx-auto w-full max-w-5xl space-y-6 px-4 py-10 sm:px-6">
@@ -16,11 +17,11 @@ export default async function CustomerReviewsPage() {
         <p className="mt-2 text-sm text-slate-600">See the product reviews you have submitted and their moderation status.</p>
       </header>
 
-      {failed ? (
+      {error ? (
         <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
-          Could not load your reviews: {result.message}
+          Could not load your reviews: {error.message}
         </div>
-      ) : result.length === 0 ? (
+      ) : reviews.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-12 text-center">
           <h2 className="font-semibold text-slate-900">You have not written any reviews yet</h2>
           <p className="mt-2 text-sm text-slate-600">After purchasing an eligible product, you can submit a verified-purchase review from its product page.</p>
@@ -28,7 +29,7 @@ export default async function CustomerReviewsPage() {
         </div>
       ) : (
         <div className="space-y-4">
-          {result.map((review) => (
+          {reviews.map((review) => (
             <article key={review.id} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
