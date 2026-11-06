@@ -90,11 +90,11 @@ export class EmailService {
     }
     const company = typeof payload.trackingCompany === 'string' ? payload.trackingCompany : 'Carrier';
     const numbers = Array.isArray(payload.trackingNumbers) ? payload.trackingNumbers.join(', ') : '';
-    const urls = Array.isArray(payload.trackingUrls) ? payload.trackingUrls.join('\\n') : '';
+    const urls = Array.isArray(payload.trackingUrls) ? payload.trackingUrls.join('\n') : '';
     await this.transporter.sendMail({
       from: this.fromAddress, to: email,
       subject: `Your order ${orderNumber} has shipped`,
-      text: `Your order ${orderNumber} has shipped via ${company}. Tracking: ${numbers}\\n${urls}`,
+      text: `Your order ${orderNumber} has shipped via ${company}. Tracking: ${numbers}\n${urls}`,
     });
   }
 

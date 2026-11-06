@@ -476,33 +476,179 @@ export class PaymentsService {
 
     if (decision === 'REFUND') {
       if (!attempt.stripePaymentIntentId) throw new ConflictException('No Stripe PaymentIntent is recorded; refund cannot be automated');
-      await this.stripe.refunds.create(
-        {
-          payment_intent: attempt.stripePaymentIntentId,
-          reason: 'requested_by_customer',
-          metadata: { orderId: attempt.orderId, paymentAttemptId: attempt.id, reviewedBy: adminUserId, reviewNote: normalizedNote.slice(0, 450) },
-        },
-        { idempotencyKey: 'manual-review-refund:' + attempt.id },
-      );
-      const otherSuccessfulAttempts = await this.prisma.paymentAttempt.count({
-        where: { orderId: attempt.orderId, id: { not: attempt.id }, status: PaymentAttemptStatus.SUCCEEDED },
-      });
-      return this.prisma.$transaction(async (tx) => {
-        const resolved = await tx.paymentAttempt.update({
+      const refund = attempt.stripeRefundId
+        ? await this.stripe.refunds.retrieve(attempt.stripeRefundId)
+        : await this.stripe.refunds.create(
+            {
+              payment_intent: attempt.stripePaymentIntentId,
+              reason: 'requested_by_customer',
+              metadata: {
+                orderId: attempt.orderId,
+                paymentAttemptId: attempt.id,
+                reviewedBy: adminUserId,
+                reviewNote: normalizedNote.slice(0, 450),
+              },
+            },
+            { idempotencyKey: 'manual-review-refund:' + attempt.id },
+          );
+
+      if (!attempt.stripeRefundId) {
+        await this.prisma.paymentAttempt.update({
           where: { id: attempt.id },
-          data: { requiresManualReview: false, reviewResolvedAt: new Date(), reviewResolvedBy: adminUserId, reviewResolution: 'REFUND: ' + normalizedNote },
+          data: { stripeRefundId: refund.id, reviewReason: 'REFUND_REQUESTED_PENDING_STRIPE_WEBHOOK' },
         });
-        // Refunding a duplicate capture must not cancel the original paid order.
-        if (otherSuccessfulAttempts === 0) {
-          await tx.order.update({ where: { id: attempt.orderId }, data: { status: OrderStatus.REFUNDED } });
-        }
-        return resolved;
-      });
+      }
+      // Do not resolve the review or change order state from the API response.
+      // Stripe's signed charge.refunded webhook is the source of truth for reconciliation.
+      return {
+        success: true,
+        refundId: typeof refund.id === 'string' ? refund.id : undefined,
+        reconciliation: 'PENDING_STRIPE_WEBHOOK',
+        message: 'Refund requested. The order/payment state will update after Stripe confirms the refund.',
+      };
     }
 
     return this.prisma.paymentAttempt.update({
       where: { id: attempt.id },
       data: { requiresManualReview: false, reviewResolvedAt: new Date(), reviewResolvedBy: adminUserId, reviewResolution: 'NO_REFUND: ' + normalizedNote },
+    });
+  }
+
+  private async restockCommittedReservation(
+    tx: Prisma.TransactionClient,
+    orderId: string,
+  ): Promise<boolean> {
+    const reservation = await tx.stockReservation.findUnique({
+      where: { orderId },
+      include: { items: true },
+    });
+    if (!reservation || reservation.status !== 'COMMITTED' || reservation.restockedAt) return false;
+
+    const claimed = await tx.stockReservation.updateMany({
+      where: { id: reservation.id, status: 'COMMITTED', restockedAt: null },
+      data: { restockedAt: new Date() },
+    });
+    if (claimed.count !== 1) return false;
+
+    for (const item of reservation.items) {
+      if (item.variantId) {
+        await tx.productVariant.update({
+          where: { id: item.variantId },
+          data: { stockQuantity: { increment: item.quantity } },
+        });
+      } else {
+        await tx.product.update({
+          where: { id: item.productId },
+          data: { stockQuantity: { increment: item.quantity } },
+        });
+      }
+    }
+    return true;
+  }
+
+  async handleChargeRefunded(charge: Stripe.Charge, eventId: string) {
+    const paymentIntentId =
+      typeof charge.payment_intent === 'string'
+        ? charge.payment_intent
+        : charge.payment_intent?.id;
+    if (!paymentIntentId) throw new BadRequestException('Refunded Stripe charge has no PaymentIntent');
+
+    await this.prisma.$transaction(async (tx) => {
+      const attempt = await tx.paymentAttempt.findFirst({
+        where: { stripePaymentIntentId: paymentIntentId },
+        include: { order: true },
+      });
+      if (!attempt) throw new NotFoundException('No payment attempt matches the refunded Stripe PaymentIntent');
+
+      await tx.$queryRaw`SELECT "id" FROM "orders" WHERE "id" = ${attempt.orderId} FOR UPDATE`;
+      const claimed = await tx.stripeWebhookEvent.createMany({
+        data: [{ id: eventId, type: 'charge.refunded' }],
+        skipDuplicates: true,
+      });
+      if (claimed.count === 0) return;
+
+      const fullRefund = charge.amount_refunded >= charge.amount;
+      const otherSuccessfulAttempts = await tx.paymentAttempt.count({
+        where: { orderId: attempt.orderId, id: { not: attempt.id }, status: PaymentAttemptStatus.SUCCEEDED },
+      });
+
+      if (!fullRefund || otherSuccessfulAttempts > 0) {
+        await tx.paymentAttempt.update({
+          where: { id: attempt.id },
+          data: {
+            requiresManualReview: true,
+            reviewReason: fullRefund
+              ? 'FULL_DUPLICATE_CAPTURE_REFUNDED_REVIEW_OTHER_CAPTURE'
+              : 'PARTIAL_REFUND_CONFIRMED_MANUAL_REVIEW_REQUIRED',
+          },
+        });
+        return;
+      }
+
+      await tx.order.update({
+        where: { id: attempt.orderId },
+        data: { paymentStatus: PaymentStatus.REFUNDED, status: OrderStatus.REFUNDED },
+      });
+      await tx.paymentAttempt.update({
+        where: { id: attempt.id },
+        data: { requiresManualReview: true, reviewReason: 'FULL_REFUND_CONFIRMED_FULFILLMENT_RECONCILIATION_REQUIRED' },
+      });
+
+      const fulfillment = await tx.fulfillment.findUnique({
+        where: { orderId_provider: { orderId: attempt.orderId, provider: 'APLIIQ' } },
+      });
+
+      if (!fulfillment) {
+        await this.restockCommittedReservation(tx, attempt.orderId);
+        return;
+      }
+
+      if (fulfillment.submissionStatus === 'QUEUED') {
+        await tx.fulfillment.update({
+          where: { id: fulfillment.id },
+          data: { submissionStatus: 'CANCELLED', providerStatus: 'Not submitted - Stripe refund confirmed', lastErrorCode: null },
+        });
+        await this.restockCommittedReservation(tx, attempt.orderId);
+        return;
+      }
+
+      const providerAlreadyCancelled = ['cancelled', 'canceled'].includes(
+        (fulfillment.providerStatus ?? '').trim().toLowerCase(),
+      );
+      if (providerAlreadyCancelled || fulfillment.submissionStatus === 'CANCELLED') {
+        const shipped = Boolean(fulfillment.shippedAt);
+        await tx.fulfillment.update({
+          where: { id: fulfillment.id },
+          data: {
+            submissionStatus: 'CANCELLED',
+            lastErrorCode: shipped
+              ? 'PROVIDER_CANCELLATION_AFTER_SHIPMENT_REQUIRES_MANUAL_REVIEW_NO_RESTOCK'
+              : null,
+          },
+        });
+        if (!shipped) {
+          await this.restockCommittedReservation(tx, attempt.orderId);
+        } else {
+          await tx.paymentAttempt.update({
+            where: { id: attempt.id },
+            data: {
+              requiresManualReview: true,
+              reviewReason: 'REFUNDED_AFTER_SHIPMENT_REQUIRES_MANUAL_REVIEW_NO_INVENTORY_RESTOCK',
+            },
+          });
+        }
+        return;
+      }
+
+      await tx.fulfillment.update({
+        where: { id: fulfillment.id },
+        data: {
+          submissionStatus: 'CANCELLATION_REQUIRED',
+          lastErrorCode: fulfillment.externalOrderId
+            ? 'MANUAL_APLIIQ_DASHBOARD_CANCELLATION_AND_RECONCILIATION_REQUIRED'
+            : 'APLIIQ_SUBMISSION_STATE_UNKNOWN_CHECK_PROVIDER_BEFORE_RESTOCK',
+        },
+      });
     });
   }
 

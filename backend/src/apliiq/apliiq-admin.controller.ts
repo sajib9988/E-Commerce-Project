@@ -10,6 +10,16 @@ import { ApliiqService } from './apliiq.service';
 export class ApliiqAdminController {
   constructor(private readonly apliiq: ApliiqService) {}
 
+  @Post('orders/:orderId/cancel-request')
+  requestCancellation(@Param('orderId') orderId: string) {
+    return this.apliiq.requestCancellation(orderId);
+  }
+
+  @Post('orders/:orderId/reconcile')
+  reconcileOrder(@Param('orderId') orderId: string) {
+    return this.apliiq.reconcileOrder(orderId);
+  }
+
   @Post('products/:productId/artworks')
   @UseInterceptors(FileInterceptor('image', artworkImageUploadOptions))
   createArtwork(

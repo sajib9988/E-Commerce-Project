@@ -188,7 +188,7 @@ export default function LoginForm() {
 
   const handleAdminOtp = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!challengeToken || !/^\\d{6}$/.test(adminOtp)) {
+    if (!challengeToken || !/^\d{6}$/.test(adminOtp)) {
       toast.error("Enter the 6-digit login code.");
       return;
     }

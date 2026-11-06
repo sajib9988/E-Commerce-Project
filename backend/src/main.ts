@@ -24,8 +24,14 @@ async function bootstrap() {
     }),
   );
 
+  const allowedOrigins = [
+    process.env.ADMIN_ORIGIN,
+    process.env.FRONTEND_URL,
+    ...(process.env.CORS_ORIGINS ?? '').split(','),
+  ].map((origin) => origin?.trim()).filter((origin): origin is string => Boolean(origin));
+
   app.enableCors({
-    origin: process.env.ADMIN_ORIGIN,
+    origin: allowedOrigins,
     credentials: true,
   });
 

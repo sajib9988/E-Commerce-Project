@@ -13,7 +13,8 @@ function formatDate(value: string | null) {
 
 export default async function CustomerCouponsPage() {
   const result = await getAvailableCoupons();
-  const failed = typeof result === "object" && result !== null && "success" in result && result.success === false;
+  const coupons = Array.isArray(result) ? result : [];
+  const error = Array.isArray(result) ? null : result;
 
   return (
     <div className="mx-auto w-full max-w-5xl space-y-6 px-4 py-10 sm:px-6">
@@ -23,18 +24,18 @@ export default async function CustomerCouponsPage() {
         <p className="mt-2 text-sm text-slate-600">Promotion codes currently available to your account.</p>
       </header>
 
-      {failed ? (
+      {error ? (
         <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
-          Could not load coupons: {result.message}
+          Could not load coupons: {error.message}
         </div>
-      ) : result.length === 0 ? (
+      ) : coupons.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-12 text-center">
           <h2 className="font-semibold text-slate-900">No coupons available right now</h2>
           <p className="mt-2 text-sm text-slate-600">Check back later. New promotions will appear here when they are active.</p>
         </div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
-          {result.map((coupon) => (
+          {coupons.map((coupon) => (
             <article key={coupon.id} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="flex items-start justify-between gap-3">
                 <div>

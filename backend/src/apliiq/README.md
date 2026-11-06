@@ -81,3 +81,29 @@ Creating a Design maps the provider's size SKUs onto the active local ProductVar
 - Switch to `APLIIQ_MODE=live` only after configuring the real API credentials and validating ProductCode, ColorId, Location IDs, service, artwork and mockup template against your Apliiq account.
 - Apliiq documents no sandbox/development environment for API orders. Do not test the live order endpoint with a real customer order. Their published testing instructions require a real order and cancellation; coordinate with Apliiq before doing that.
 - Run `pnpm db:deploy` from the backend directory to apply the migrations, then `pnpm build` (which now runs `prisma generate` first).
+
+## 5. Apliiq order cancellation and reconciliation
+
+Apliiq's published API documents `GET /v1/Order/:OrderId` for retrieving the provider's current order status. It does **not** document an API cancellation endpoint. Cancellation must therefore be requested manually in the Apliiq dashboard when the order is still eligible; cancellation is not guaranteed once base garments have been ordered or production has started.
+
+After a Stripe full-refund webhook, the local fulfillment is marked `CANCELLATION_REQUIRED` when a provider order may exist. Inventory is deliberately **not** restored at this point.
+
+Admin cancellation workflow:
+
+1. Request cancellation locally:
+
+   `POST /api/v1/admin/apliiq/orders/:orderId/cancel-request`
+
+   This atomically stops a fulfillment that is still `QUEUED`. If a provider request may already be in flight or an Apliiq order exists, it marks the fulfillment `CANCELLATION_REQUIRED` and returns the dashboard action. It never claims that Apliiq has cancelled the order and never restores stock merely because cancellation was requested.
+
+2. Open the order in the Apliiq dashboard and request cancellation if the provider still allows it. Orders already in production or shipped may not be cancellable.
+
+3. Confirm provider state:
+
+   `POST /api/v1/admin/apliiq/orders/:orderId/reconcile`
+
+This calls Apliiq's authenticated Get Order endpoint and syncs provider status and available tracking details. If the POST response timed out before the provider order ID was saved, it first checks Apliiq's documented recent-orders endpoint and matches the local `order.id` against `StoreSystemOrderId`. If Apliiq reports `Cancelled` / `Canceled` through polling or its signed fulfillment webhook, and the Stripe payment is already fully refunded, and no shipment was recorded, the committed stock reservation is restored exactly once using `stock_reservations.restockedAt`. If Apliiq reports a production or shipment status, stock remains committed and requires operational review. A cancellation notification received after a shipment record never triggers restocking.
+
+For a refund while the fulfillment outbox is still `QUEUED`, the local outbox item is cancelled and stock can be restored immediately because no provider request was submitted. If submission is `SUBMITTING` or `UNKNOWN`, do not restock until the provider order is identified and its cancellation is confirmed.
+
+Do not treat an Apliiq cancellation as a Stripe refund. The customer's Stripe payment must independently be refunded and confirmed by the signed Stripe webhook.

@@ -70,6 +70,12 @@ export class StripeWebhookController {
           event.id,
         );
         break;
+      case 'charge.refunded':
+        await this.payments.handleChargeRefunded(
+          event.data.object as Stripe.Charge,
+          event.id,
+        );
+        break;
       default:
         // Acknowledge unrelated event types so Stripe does not retry forever.
         break;

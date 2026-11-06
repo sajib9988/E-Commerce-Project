@@ -2,7 +2,8 @@ import { getAdminReviews } from "@/service/review.service";
 
 export default async function AdminReviewsPage() {
   const result = await getAdminReviews();
-  const failed = typeof result === "object" && result !== null && "success" in result && result.success === false;
+  const reviews = Array.isArray(result) ? result : [];
+  const error = Array.isArray(result) ? null : result;
 
   return (
     <div className="space-y-6">
@@ -11,13 +12,13 @@ export default async function AdminReviewsPage() {
         <h1 className="mt-1 text-3xl font-bold tracking-tight text-slate-950">Product reviews</h1>
         <p className="mt-2 text-sm text-slate-600">Review customer feedback and monitor moderation status.</p>
       </header>
-      {failed ? (
-        <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">Could not load reviews: {result.message}</p>
-      ) : result.length === 0 ? (
+      {error ? (
+        <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">Could not load reviews: {error.message}</p>
+      ) : reviews.length === 0 ? (
         <div className="rounded-xl border border-dashed border-slate-300 bg-white p-10 text-center text-sm text-slate-500">No customer reviews found.</div>
       ) : (
         <div className="space-y-3">
-          {result.map((review) => (
+          {reviews.map((review) => (
             <article key={review.id} className="rounded-xl border border-slate-200 bg-white p-5">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div><h2 className="font-semibold text-slate-900">{review.product.name}</h2><p className="mt-1 text-sm text-slate-500">{review.user.name ?? "Customer"} · {review.user.email}</p></div>
