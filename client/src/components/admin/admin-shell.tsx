@@ -12,6 +12,7 @@ import {
 const navigation = [
   { label: "Overview", href: "/admin", icon: LayoutDashboard },
   { label: "Products", href: "/admin/products", icon: Package },
+  { label: "Variants", href: "/admin/variants", icon: Ruler },
   { label: "Collections", href: "/admin/collections", icon: ShoppingBag },
   { label: "Orders", href: "/admin/orders", icon: ShoppingCart },
   { label: "Inventory", href: "/admin/inventory", icon: Package },
