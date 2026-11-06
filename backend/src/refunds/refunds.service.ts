@@ -77,6 +77,24 @@ export class RefundsService {
       throw new ConflictException('Multiple successful captures require manual payment review');
     }
 
+    // Normal refunds are allowed only before Apliiq accepts the fulfillment.
+    // If the provider has an external order or its submission state is uncertain,
+    // stop here and require a manual provider-side cancellation/reconciliation first.
+    const fulfillment = await this.prisma.fulfillment.findUnique({
+      where: { orderId_provider: { orderId: request.orderId, provider: 'APLIIQ' } },
+    });
+    const providerCancelled = ['cancelled', 'canceled'].includes(
+      (fulfillment?.providerStatus ?? '').trim().toLowerCase(),
+    );
+    const safeBeforeProviderAcceptance = !fulfillment
+      || fulfillment.submissionStatus === 'QUEUED'
+      || (fulfillment.submissionStatus === 'CANCELLED' && providerCancelled && !fulfillment.shippedAt);
+    if (!safeBeforeProviderAcceptance || (fulfillment?.externalOrderId && !providerCancelled)) {
+      throw new ConflictException(
+        'Apliiq has accepted or may have accepted this order. Normal refund is blocked; reconcile/cancel with Apliiq and use the exceptional manual process.',
+      );
+    }
+
     // Claim PENDING before calling Stripe. A concurrent rejection can no longer
     // race past this transition; retries are allowed only for PROCESSING requests.
     const claim = await this.prisma.refundRequest.updateMany({

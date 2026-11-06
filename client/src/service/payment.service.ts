@@ -108,6 +108,15 @@ async function request<T>(
  * Admin/Super Admin: fetch payment attempts that need manual review.
  * Backend route: GET /payments/manual-review
  */
+export async function getAdminPayments(params: { page?: number; limit?: number; status?: string } = {}) {
+  const query = new URLSearchParams();
+  if (params.page) query.set("page", String(params.page));
+  if (params.limit) query.set("limit", String(params.limit));
+  if (params.status) query.set("status", params.status);
+  const suffix = query.toString() ? `?${query.toString()}` : "";
+  return request(`/payments/admin${suffix}`);
+}
+
 export async function getPaymentsForManualReview() {
   return request<PaymentManualReviewItem[]>("/payments/manual-review", {
     method: "GET",
