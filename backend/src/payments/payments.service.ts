@@ -616,11 +616,27 @@ export class PaymentsService {
         (fulfillment.providerStatus ?? '').trim().toLowerCase(),
       );
       if (providerAlreadyCancelled || fulfillment.submissionStatus === 'CANCELLED') {
+        const shipped = Boolean(fulfillment.shippedAt);
         await tx.fulfillment.update({
           where: { id: fulfillment.id },
-          data: { submissionStatus: 'CANCELLED', lastErrorCode: null },
+          data: {
+            submissionStatus: 'CANCELLED',
+            lastErrorCode: shipped
+              ? 'PROVIDER_CANCELLATION_AFTER_SHIPMENT_REQUIRES_MANUAL_REVIEW_NO_RESTOCK'
+              : null,
+          },
         });
-        await this.restockCommittedReservation(tx, attempt.orderId);
+        if (!shipped) {
+          await this.restockCommittedReservation(tx, attempt.orderId);
+        } else {
+          await tx.paymentAttempt.update({
+            where: { id: attempt.id },
+            data: {
+              requiresManualReview: true,
+              reviewReason: 'REFUNDED_AFTER_SHIPMENT_REQUIRES_MANUAL_REVIEW_NO_INVENTORY_RESTOCK',
+            },
+          });
+        }
         return;
       }
 
