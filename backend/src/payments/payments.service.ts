@@ -484,25 +484,83 @@ export class PaymentsService {
         },
         { idempotencyKey: 'manual-review-refund:' + attempt.id },
       );
-      const otherSuccessfulAttempts = await this.prisma.paymentAttempt.count({
-        where: { orderId: attempt.orderId, id: { not: attempt.id }, status: PaymentAttemptStatus.SUCCEEDED },
-      });
-      return this.prisma.$transaction(async (tx) => {
-        const resolved = await tx.paymentAttempt.update({
-          where: { id: attempt.id },
-          data: { requiresManualReview: false, reviewResolvedAt: new Date(), reviewResolvedBy: adminUserId, reviewResolution: 'REFUND: ' + normalizedNote },
-        });
-        // Refunding a duplicate capture must not cancel the original paid order.
-        if (otherSuccessfulAttempts === 0) {
-          await tx.order.update({ where: { id: attempt.orderId }, data: { status: OrderStatus.REFUNDED } });
-        }
-        return resolved;
-      });
+      const refund = await this.stripe.refunds.create(
+        {
+          payment_intent: attempt.stripePaymentIntentId,
+          reason: 'requested_by_customer',
+          metadata: { orderId: attempt.orderId, paymentAttemptId: attempt.id, reviewedBy: adminUserId, reviewNote: normalizedNote.slice(0, 450) },
+        },
+        { idempotencyKey: 'manual-review-refund:' + attempt.id },
+      );
+      // Do not resolve the review or change order state from the API response.
+      // Stripe's signed charge.refunded webhook is the source of truth for reconciliation.
+      return {
+        success: true,
+        refundId: typeof refund.id === 'string' ? refund.id : undefined,
+        reconciliation: 'PENDING_STRIPE_WEBHOOK',
+        message: 'Refund requested. The order/payment state will update after Stripe confirms the refund.',
+      };
     }
 
     return this.prisma.paymentAttempt.update({
       where: { id: attempt.id },
       data: { requiresManualReview: false, reviewResolvedAt: new Date(), reviewResolvedBy: adminUserId, reviewResolution: 'NO_REFUND: ' + normalizedNote },
+    });
+  }
+
+  async handleChargeRefunded(charge: Stripe.Charge, eventId: string) {
+    const paymentIntentId =
+      typeof charge.payment_intent === 'string'
+        ? charge.payment_intent
+        : charge.payment_intent?.id;
+    if (!paymentIntentId) {
+      throw new BadRequestException('Refunded Stripe charge has no PaymentIntent');
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      const attempt = await tx.paymentAttempt.findFirst({
+        where: { stripePaymentIntentId: paymentIntentId },
+        include: { order: true },
+      });
+      if (!attempt) throw new NotFoundException('No payment attempt matches the refunded Stripe PaymentIntent');
+
+      // Serialize refund reconciliation against checkout completion and other refunds.
+      await tx.$queryRaw`SELECT "id" FROM "orders" WHERE "id" = ${attempt.orderId} FOR UPDATE`;
+      const claimed = await tx.stripeWebhookEvent.createMany({
+        data: [{ id: eventId, type: 'charge.refunded' }],
+        skipDuplicates: true,
+      });
+      if (claimed.count === 0) return;
+
+      const fullRefund = charge.amount_refunded >= charge.amount;
+      const otherSuccessfulAttempts = await tx.paymentAttempt.count({
+        where: {
+          orderId: attempt.orderId,
+          id: { not: attempt.id },
+          status: PaymentAttemptStatus.SUCCEEDED,
+        },
+      });
+
+      await tx.paymentAttempt.update({
+        where: { id: attempt.id },
+        data: {
+          requiresManualReview: true,
+          reviewReason: fullRefund
+            ? otherSuccessfulAttempts > 0
+              ? 'FULL_DUPLICATE_CAPTURE_REFUNDED_REVIEW_OTHER_CAPTURE'
+              : 'FULL_REFUND_CONFIRMED_FULFILLMENT_RECONCILIATION_REQUIRED'
+            : 'PARTIAL_REFUND_CONFIRMED_MANUAL_REVIEW_REQUIRED',
+        },
+      });
+
+      // Only a full refund of the only successful capture changes the order's
+      // payment state. Partial refunds and duplicate-capture refunds need review.
+      if (fullRefund && otherSuccessfulAttempts === 0) {
+        await tx.order.update({
+          where: { id: attempt.orderId },
+          data: { paymentStatus: PaymentStatus.REFUNDED, status: OrderStatus.REFUNDED },
+        });
+      }
     });
   }
 
