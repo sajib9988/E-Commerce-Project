@@ -82,6 +82,10 @@ export async function getAdminProducts(params: AdminProductQuery = {}) {
   return request(`${ENDPOINT}/admin/list${buildQuery(params)}`);
 }
 
+export async function getAdminProductById(id: string) {
+  return request(`${ENDPOINT}/admin/${encodeURIComponent(id)}`);
+}
+
 export async function createProduct(formData: FormData) {
   const result = await request(ENDPOINT, { method: "POST", body: formData });
   if (!isApiError(result)) revalidatePath("/admin/products");
