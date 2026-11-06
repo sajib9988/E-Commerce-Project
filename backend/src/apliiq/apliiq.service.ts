@@ -369,11 +369,40 @@ export class ApliiqService extends WorkerHost implements OnModuleInit {
       include: { order: true },
     });
     if (!fulfillment) throw new NotFoundException('Apliiq fulfillment record not found');
-    if (!fulfillment.externalOrderId) {
-      throw new ConflictException('Apliiq order ID is not known. Check the Apliiq dashboard before taking any inventory action.');
+    let externalOrderId = fulfillment.externalOrderId;
+    if (!externalOrderId) {
+      // Apliiq's order-list endpoint exposes StoreSystemOrderId, which is the
+      // local order.id sent in our create-order payload. Use it to reconcile a
+      // timeout where Apliiq accepted the POST but our worker never saved OrderId.
+      const recentOrders = await this.client.getRecentOrders<unknown>();
+      if (!Array.isArray(recentOrders)) {
+        throw new ConflictException('Apliiq Get Orders returned an unexpected response');
+      }
+      const match = recentOrders.find((entry) =>
+        entry && typeof entry === 'object' &&
+        String((entry as Record<string, unknown>).StoreSystemOrderId ?? '') === orderId,
+      ) as Record<string, unknown> | undefined;
+      const providerId = match?.OrderId;
+      if (providerId === undefined || providerId === null) {
+        throw new ConflictException('Apliiq order is not present in the recent order list. Check the Apliiq dashboard; inventory must not be restored yet.');
+      }
+      externalOrderId = String(providerId);
+      await this.prisma.fulfillment.updateMany({
+        where: { id: fulfillment.id, externalOrderId: null },
+        data: {
+          externalOrderId,
+          submittedAt: fulfillment.submittedAt ?? new Date(),
+          submissionStatus: fulfillment.submissionStatus === 'CANCELLATION_REQUIRED'
+            ? 'CANCELLATION_REQUIRED'
+            : 'ACCEPTED',
+          lastErrorCode: fulfillment.submissionStatus === 'CANCELLATION_REQUIRED'
+            ? 'MANUAL_APLIIQ_DASHBOARD_CANCELLATION_AND_RECONCILIATION_REQUIRED'
+            : null,
+        },
+      });
     }
 
-    const raw = await this.client.getOrder<unknown>(fulfillment.externalOrderId);
+    const raw = await this.client.getOrder<unknown>(externalOrderId);
     const providerOrder = Array.isArray(raw) ? raw[0] : raw;
     if (!providerOrder || typeof providerOrder !== 'object' || Array.isArray(providerOrder)) {
       throw new ConflictException('Apliiq Get Order returned an unexpected response');
