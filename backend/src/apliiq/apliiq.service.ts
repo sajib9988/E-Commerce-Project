@@ -521,12 +521,18 @@ export class ApliiqService extends WorkerHost implements OnModuleInit {
           trackingUrls,
           ...(trackingCompany ? { trackingCompany } : {}),
           ...(isShipped && !current.shippedAt ? { shippedAt: new Date() } : {}),
-          ...(isCancelled ? { lastErrorCode: null } : {}),
+          ...(isCancelled
+            ? {
+                lastErrorCode: current.shippedAt
+                  ? 'CANCELLATION_REPORTED_AFTER_SHIPMENT_REQUIRES_MANUAL_REVIEW'
+                  : null,
+              }
+            : {}),
         },
       });
 
       let inventoryRestocked = false;
-      if (isCancelled && current.order.paymentStatus === 'REFUNDED') {
+      if (isCancelled && current.order.paymentStatus === 'REFUNDED' && !current.shippedAt) {
         const reservation = await tx.stockReservation.findUnique({
           where: { orderId },
           include: { items: true },
