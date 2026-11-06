@@ -476,14 +476,6 @@ export class PaymentsService {
 
     if (decision === 'REFUND') {
       if (!attempt.stripePaymentIntentId) throw new ConflictException('No Stripe PaymentIntent is recorded; refund cannot be automated');
-      await this.stripe.refunds.create(
-        {
-          payment_intent: attempt.stripePaymentIntentId,
-          reason: 'requested_by_customer',
-          metadata: { orderId: attempt.orderId, paymentAttemptId: attempt.id, reviewedBy: adminUserId, reviewNote: normalizedNote.slice(0, 450) },
-        },
-        { idempotencyKey: 'manual-review-refund:' + attempt.id },
-      );
       const refund = await this.stripe.refunds.create(
         {
           payment_intent: attempt.stripePaymentIntentId,
