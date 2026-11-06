@@ -150,7 +150,7 @@ export function AdminOperationsClient({ orders: orderData, payments: paymentData
         {paymentRows.map((r) => {
           const order = nested(r, "order"); const id = str(r.id);
           return <article key={id} className="space-y-3 rounded-xl border bg-white p-4">
-            <div className="flex flex-wrap justify-between gap-2"><div><p className="font-semibold">{str(order.orderNumber)} · {money(r.amount, str(r.currency).toUpperCase())}</p><p className="text-xs text-slate-500">{str(r.status)} · {date(r.updatedAt)}</p></div><span className="rounded-full bg-amber-50 px-3 py-1 text-xs text-amber-800">Manual review</span></div>
+            <div className="flex flex-wrap justify-between gap-2"><div><p className="font-semibold">{str(order.orderNumber)} · {money(r.amount, str(r.currency).toUpperCase())}</p><p className="text-xs text-slate-500">{str(r.status)} · {date(r.updatedAt)}</p></div><span className={`rounded-full px-3 py-1 text-xs ${r.requiresManualReview ? "bg-amber-50 text-amber-800" : "bg-slate-100 text-slate-700"}`}>{r.requiresManualReview ? "Manual review" : "Recorded attempt"}</span></div>
             <p className="text-sm text-slate-700">{str(r.reviewReason)}</p>
             <textarea value={note(id)} onChange={(e) => setNotes(old => ({ ...old, [id]: e.target.value }))} rows={2} maxLength={500} placeholder="Resolution note (5–500 characters)" className="w-full rounded-md border px-3 py-2 text-sm" />
             {errors[id] && <ErrorBox message={errors[id]} />}
