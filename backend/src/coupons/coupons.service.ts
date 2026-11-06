@@ -171,15 +171,25 @@ export class CouponsService {
   async validatePreview(userId: string, dto: ValidateCouponDto) {
     if (!userId) throw new BadRequestException('Authenticated user required');
     const code = this.normalizeCode(dto.code);
-    const quantities = new Map<string, number>();
+    const quantities = new Map<string, { productId?: string; variantId?: string; quantity: number }>();
+
     for (const item of dto.items) {
+      if (!item.productId && !item.variantId) {
+        throw new BadRequestException('Each coupon item requires productId or variantId');
+      }
       if (!Number.isInteger(item.quantity) || item.quantity < 1 || item.quantity > 99) {
         throw new BadRequestException('Quantity must be between 1 and 99');
       }
-      quantities.set(item.productId, (quantities.get(item.productId) ?? 0) + item.quantity);
+      const key = item.variantId ? `variant:${item.variantId}` : `product:${item.productId}`;
+      const previous = quantities.get(key);
+      quantities.set(key, {
+        productId: item.productId,
+        variantId: item.variantId,
+        quantity: (previous?.quantity ?? 0) + item.quantity,
+      });
     }
-    for (const quantity of quantities.values()) {
-      if (quantity > 99) throw new BadRequestException('Maximum 99 units per product');
+    for (const item of quantities.values()) {
+      if (item.quantity > 99) throw new BadRequestException('Maximum 99 units per product/variant');
     }
 
     const coupon = await this.prisma.coupon.findUnique({ where: { code } });
@@ -193,18 +203,41 @@ export class CouponsService {
       throw new BadRequestException('Coupon is not assigned to this customer');
     }
 
-    const products = await this.prisma.product.findMany({
-      where: { id: { in: [...quantities.keys()] }, isActive: true },
-      select: { id: true, regularPrice: true, salePrice: true },
-    });
-    if (products.length !== quantities.size) {
-      throw new BadRequestException('One or more products are unavailable');
+    const productIds = [...new Set([...quantities.values()].flatMap((item) => item.productId ? [item.productId] : []))];
+    const variantIds = [...new Set([...quantities.values()].flatMap((item) => item.variantId ? [item.variantId] : []))];
+    const [products, variants] = await Promise.all([
+      this.prisma.product.findMany({
+        where: { id: { in: productIds }, isActive: true },
+        select: { id: true, regularPrice: true, salePrice: true },
+      }),
+      this.prisma.productVariant.findMany({
+        where: { id: { in: variantIds }, isActive: true, product: { isActive: true }, size: { isActive: true, template: { isActive: true } } },
+        select: { id: true, productId: true, regularPrice: true, salePrice: true },
+      }),
+    ]);
+    const productById = new Map(products.map((product) => [product.id, product]));
+    const variantById = new Map(variants.map((variant) => [variant.id, variant]));
+    if (products.length !== productIds.length || variants.length !== variantIds.length) {
+      throw new BadRequestException('One or more products or variants are unavailable');
     }
 
     let subtotal = new Prisma.Decimal(0);
-    for (const product of products) {
-      subtotal = subtotal.add(new Prisma.Decimal((product.salePrice ?? product.regularPrice).toString()).mul(quantities.get(product.id)!));
+    for (const item of quantities.values()) {
+      let price: Prisma.Decimal;
+      if (item.variantId) {
+        const variant = variantById.get(item.variantId);
+        if (!variant || (item.productId && item.productId !== variant.productId)) {
+          throw new BadRequestException('Selected variant does not belong to the supplied product');
+        }
+        price = new Prisma.Decimal((variant.salePrice ?? variant.regularPrice).toString());
+      } else {
+        const product = item.productId ? productById.get(item.productId) : undefined;
+        if (!product) throw new BadRequestException('One or more products are unavailable');
+        price = new Prisma.Decimal((product.salePrice ?? product.regularPrice).toString());
+      }
+      subtotal = subtotal.add(price.mul(item.quantity));
     }
+
     if (coupon.minOrderAmount && subtotal.lessThan(coupon.minOrderAmount)) {
       throw new BadRequestException('Order does not meet coupon minimum');
     }
@@ -219,8 +252,7 @@ export class CouponsService {
       throw new ConflictException('Coupon usage limit reached');
     }
 
-    // Preview only: this endpoint never reserves or increments usageCount.
-    // Align this estimate with the final server-side shipping/tax policy before production.
+    // Preview only: checkout recalculates the authoritative shipping/tax totals.
     const shippingEstimate = new Prisma.Decimal(0);
     let discount = new Prisma.Decimal(0);
     if (coupon.type === CouponType.PERCENT) {
