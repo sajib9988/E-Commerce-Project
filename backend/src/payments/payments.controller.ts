@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import type { AuthTokenPayload } from '../common/types/auth-token-payload';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -10,6 +10,16 @@ import { ResolveManualReviewDto } from './dto/resolve-manual-review.dto';
 @Controller('payments')
 export class PaymentsController {
   constructor(private readonly payments: PaymentsService) {}
+
+  @Get('admin')
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  findAllForAdmin(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('status') status?: string,
+  ) {
+    return this.payments.findAllForAdmin(Number(page) || 1, Number(limit) || 30, status);
+  }
 
   @Get('manual-review')
   @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
