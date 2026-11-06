@@ -81,3 +81,19 @@ Creating a Design maps the provider's size SKUs onto the active local ProductVar
 - Switch to `APLIIQ_MODE=live` only after configuring the real API credentials and validating ProductCode, ColorId, Location IDs, service, artwork and mockup template against your Apliiq account.
 - Apliiq documents no sandbox/development environment for API orders. Do not test the live order endpoint with a real customer order. Their published testing instructions require a real order and cancellation; coordinate with Apliiq before doing that.
 - Run `pnpm db:deploy` from the backend directory to apply the migrations, then `pnpm build` (which now runs `prisma generate` first).
+
+## 5. Apliiq order cancellation and reconciliation
+
+Apliiq's published API documents `GET /v1/Order/:OrderId` for retrieving the provider's current order status. It does **not** document an API cancellation endpoint. Cancellation must therefore be requested manually in the Apliiq dashboard when the order is still eligible; cancellation is not guaranteed once base garments have been ordered or production has started.
+
+After a Stripe full-refund webhook, the local fulfillment is marked `CANCELLATION_REQUIRED` when a provider order may exist. Inventory is deliberately **not** restored at this point.
+
+Admin endpoint:
+
+`POST /api/v1/admin/apliiq/orders/:orderId/reconcile`
+
+This calls Apliiq's authenticated Get Order endpoint and syncs provider status and available tracking details. If Apliiq reports `Cancelled` / `Canceled` and the Stripe payment is already fully refunded, the committed stock reservation is restored exactly once using `stock_reservations.restockedAt`. If Apliiq reports a production or shipment status, stock remains committed and requires operational review.
+
+For a refund while the fulfillment outbox is still `QUEUED`, the local outbox item is cancelled and stock can be restored immediately because no provider request was submitted. If submission is `SUBMITTING` or `UNKNOWN`, do not restock until the provider order is identified and its cancellation is confirmed.
+
+Do not treat an Apliiq cancellation as a Stripe refund. The customer's Stripe payment must independently be refunded and confirmed by the signed Stripe webhook.
