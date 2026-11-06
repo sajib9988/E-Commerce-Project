@@ -14,7 +14,7 @@ export class CreateProductDto {
   @Type(() => Number) @IsNumber({ maxDecimalPlaces: 2 }) @Min(0)
   regularPrice!: number;
 
-  @IsOptional() @Type(() => Number) @IsNumber({ maxDecimalPlaces: 2 }) @Min(0)
+  @IsOptional() @Transform(({ value }) => value === '' || value === 'null' ? null : Number(value)) @IsNumber({ maxDecimalPlaces: 2 }) @Min(0)
   salePrice?: number | null;
 
   @IsOptional() @IsString() @MaxLength(100)
