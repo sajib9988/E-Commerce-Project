@@ -41,12 +41,12 @@ type ProductRecord = {
 const productSchema = z.object({
   name: z.string().trim().min(1, "Product name is required").max(150),
   description: z.string().max(5000, "Description must be 5000 characters or less"),
-  regularPrice: z.coerce.number().min(0, "Regular price cannot be negative"),
+  regularPrice: z.string().trim().min(1, "Regular price is required").refine((value) => Number.isFinite(Number(value)) && Number(value) >= 0, "Regular price cannot be negative"),
   salePrice: z.string().optional(),
   brand: z.string().max(100).optional(),
   sku: z.string().max(150).optional(),
   apliiqDesignSku: z.string().max(150).optional(),
-  stockQuantity: z.coerce.number().int().min(0, "Stock cannot be negative"),
+  stockQuantity: z.string().regex(/^\d+$/, "Stock must be a whole number greater than or equal to zero"),
   categoryId: z.string().min(1, "Select a category"),
   subcategoryId: z.string().min(1, "Select a subcategory"),
   collectionIds: z.array(z.string()),
@@ -57,7 +57,7 @@ const productSchema = z.object({
     const salePrice = Number(data.salePrice);
     if (!Number.isFinite(salePrice) || salePrice < 0) {
       ctx.addIssue({ code: "custom", path: ["salePrice"], message: "Enter a valid sale price" });
-    } else if (salePrice >= data.regularPrice) {
+    } else if (salePrice >= Number(data.regularPrice)) {
       ctx.addIssue({ code: "custom", path: ["salePrice"], message: "Sale price must be lower than regular price" });
     }
   }
@@ -92,12 +92,12 @@ export function ProductForm({
     defaultValues: {
       name: product?.name ?? "",
       description: product?.description ?? "",
-      regularPrice: Number(product?.regularPrice ?? 0),
+      regularPrice: String(product?.regularPrice ?? 0),
       salePrice: product?.salePrice == null ? "" : String(product.salePrice),
       brand: product?.brand ?? "",
       sku: product?.sku ?? "",
       apliiqDesignSku: product?.apliiqDesignSku ?? "",
-      stockQuantity: product?.stockQuantity ?? 0,
+      stockQuantity: String(product?.stockQuantity ?? 0),
       categoryId: product?.categoryId ?? "",
       subcategoryId: product?.subcategoryId ?? "",
       collectionIds: product?.collections?.map((item) => item.collectionId ?? item.collection?.id ?? "").filter(Boolean) ?? [],
@@ -133,12 +133,12 @@ export function ProductForm({
     const formData = new FormData();
     formData.append("name", values.name.trim());
     formData.append("description", values.description);
-    formData.append("regularPrice", String(values.regularPrice));
-    if (values.salePrice?.trim()) formData.append("salePrice", String(Number(values.salePrice)));
-    if (values.brand?.trim()) formData.append("brand", values.brand.trim());
-    if (values.sku?.trim()) formData.append("sku", values.sku.trim());
-    if (values.apliiqDesignSku?.trim()) formData.append("apliiqDesignSku", values.apliiqDesignSku.trim());
-    formData.append("stockQuantity", String(values.stockQuantity));
+    formData.append("regularPrice", String(Number(values.regularPrice)));
+    formData.append("salePrice", values.salePrice?.trim() ? String(Number(values.salePrice)) : "null");
+    formData.append("brand", values.brand.trim());
+    formData.append("sku", values.sku.trim());
+    formData.append("apliiqDesignSku", values.apliiqDesignSku.trim());
+    formData.append("stockQuantity", String(Number(values.stockQuantity)));
     formData.append("categoryId", values.categoryId);
     formData.append("subcategoryId", values.subcategoryId);
     formData.append("collectionIds", JSON.stringify(values.collectionIds));
