@@ -137,16 +137,47 @@ export const logoutUser = async () => {
 
 
 
+const refreshSession = async (): Promise<boolean> => {
+  const cookieStore = await cookies();
+  const refreshToken = cookieStore.get("refreshToken")?.value;
+  if (!refreshToken) return false;
+
+  try {
+    const res = await fetch(`${BASE_URL}/auth/refresh`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refreshToken }),
+      cache: "no-store",
+    });
+    const data = await safeJson(res);
+    if (!res.ok || !data?.accessToken || !data?.refreshToken) {
+      cookieStore.delete("accessToken");
+      cookieStore.delete("refreshToken");
+      return false;
+    }
+    await saveSessionCookies(data);
+    return true;
+  } catch (error) {
+    console.error("Session refresh failed:", error);
+    return false;
+  }
+};
+
 export const getMe = async () => {
-  const res = await safeFetch(`${BASE_URL}/auth/me`, {
+  let res = await safeFetch(`${BASE_URL}/auth/me`, {
     headers: await getAuthHeaders(),
-    cache: "no-store",        // ← এটা যোগ করো
-    
+    cache: "no-store",
   });
 
+  if (res?.status === 401 && await refreshSession()) {
+    res = await safeFetch(`${BASE_URL}/auth/me`, {
+      headers: await getAuthHeaders(),
+      cache: "no-store",
+    });
+  }
+
   if (!res || !res.ok) return null;
-  const data = await res.json();
-  // console.log("User data:", data);
+  const data = await safeJson(res);
   return data?.success === false ? null : data;
 };
 
