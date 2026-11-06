@@ -476,14 +476,28 @@ export class PaymentsService {
 
     if (decision === 'REFUND') {
       if (!attempt.stripePaymentIntentId) throw new ConflictException('No Stripe PaymentIntent is recorded; refund cannot be automated');
-      const refund = await this.stripe.refunds.create(
-        {
-          payment_intent: attempt.stripePaymentIntentId,
-          reason: 'requested_by_customer',
-          metadata: { orderId: attempt.orderId, paymentAttemptId: attempt.id, reviewedBy: adminUserId, reviewNote: normalizedNote.slice(0, 450) },
-        },
-        { idempotencyKey: 'manual-review-refund:' + attempt.id },
-      );
+      const refund = attempt.stripeRefundId
+        ? await this.stripe.refunds.retrieve(attempt.stripeRefundId)
+        : await this.stripe.refunds.create(
+            {
+              payment_intent: attempt.stripePaymentIntentId,
+              reason: 'requested_by_customer',
+              metadata: {
+                orderId: attempt.orderId,
+                paymentAttemptId: attempt.id,
+                reviewedBy: adminUserId,
+                reviewNote: normalizedNote.slice(0, 450),
+              },
+            },
+            { idempotencyKey: 'manual-review-refund:' + attempt.id },
+          );
+
+      if (!attempt.stripeRefundId) {
+        await this.prisma.paymentAttempt.update({
+          where: { id: attempt.id },
+          data: { stripeRefundId: refund.id, reviewReason: 'REFUND_REQUESTED_PENDING_STRIPE_WEBHOOK' },
+        });
+      }
       // Do not resolve the review or change order state from the API response.
       // Stripe's signed charge.refunded webhook is the source of truth for reconciliation.
       return {
