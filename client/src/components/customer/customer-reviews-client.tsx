@@ -39,7 +39,7 @@ export function CustomerReviewsClient({ initialReviews }: { initialReviews: MyRe
     setError("");
     setMessage("");
     startTransition(async () => {
-      const result = await updateMyReview(review.id, { rating, title: title.trim() || undefined, body: body.trim() });
+      const result = await updateMyReview(review.id, { rating, title: title.trim(), body: body.trim() });
       if (isError(result)) {
         setError(result.message ?? "Could not update review.");
         return;
