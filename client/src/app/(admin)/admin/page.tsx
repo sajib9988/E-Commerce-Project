@@ -4,6 +4,8 @@ import { getAdminOrders } from "@/service/order.service";
 import { getAdminProducts } from "@/service/product.service";
 import { getCoupons } from "@/service/coupon.service";
 import { getAdminReviews } from "@/service/review.service";
+import { getAnalyticsOverview } from "@/service/analytics.service";
+import { CreditCard } from "lucide-react";
 import { AdminResourcePage, getAdminRows, getAdminTotal } from "@/components/admin/admin-resource-page";
 
 function Metric({ title, value, icon: Icon, href }: { title: string; value: string; icon: typeof Package; href: string }) {
@@ -20,17 +22,20 @@ function Metric({ title, value, icon: Icon, href }: { title: string; value: stri
 }
 
 export default async function AdminDashboardPage() {
-  const [ordersResult, productsResult, couponsResult, reviewsResult] = await Promise.all([
+  const [ordersResult, productsResult, couponsResult, reviewsResult, analyticsResult] = await Promise.all([
     getAdminOrders({ page: 1, limit: 8 }),
     getAdminProducts({ page: 1, limit: 1 }),
     getCoupons(),
     getAdminReviews("PENDING"),
+    getAnalyticsOverview(),
   ]);
   const coupons = getAdminRows(couponsResult);
   const reviews = getAdminRows(reviewsResult);
   const orderTotal = getAdminTotal(ordersResult);
   const productTotal = getAdminTotal(productsResult);
   const pendingCoupons = coupons.filter((coupon) => coupon.isActive === true).length;
+  const analytics = analyticsResult && typeof analyticsResult === "object" && !("success" in analyticsResult && (analyticsResult as { success?: boolean }).success === false) ? analyticsResult as { sales?: { grossRevenue?: number; paidOrders?: number } } : null;
+  const grossRevenue = analytics?.sales?.grossRevenue;
 
   return (
     <div className="space-y-7">
@@ -43,9 +48,10 @@ export default async function AdminDashboardPage() {
         <Link href="/admin/orders" className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-700">Manage orders <ArrowRight size={15}/></Link>
       </header>
 
-      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 2xl:grid-cols-4">
+      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 2xl:grid-cols-5">
         <Metric title="Total orders" value={orderTotal === null ? "—" : orderTotal.toLocaleString("en-US")} icon={ClipboardList} href="/admin/orders"/>
         <Metric title="Catalog products" value={productTotal === null ? "—" : productTotal.toLocaleString("en-US")} icon={Package} href="/admin/products"/>
+        <Metric title="Gross revenue (30 days)" value={grossRevenue === undefined ? "—" : new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(grossRevenue)} icon={CreditCard} href="/admin/analytics"/>
         <Metric title="Active coupons in response" value={String(pendingCoupons)} icon={Percent} href="/admin/coupons"/>
         <Metric title="Pending reviews" value={String(reviews.length)} icon={Star} href="/admin/reviews"/>
       </section>
@@ -65,9 +71,7 @@ export default async function AdminDashboardPage() {
         ]} emptyMessage="No orders have been returned by the API yet."/>
       </section>
 
-      <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900">
-        Revenue analytics are not shown yet because the backend does not currently expose a dedicated analytics/reporting endpoint. No sample revenue or fabricated chart data is displayed.
-      </div>
+      {!analytics && <div role="status" className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900">Live revenue summary is temporarily unavailable. Open Analytics to review the API response and reporting details.</div>}
     </div>
   );
 }
