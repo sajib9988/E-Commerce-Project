@@ -32,7 +32,7 @@ const request = async <T>(endpoint: string, data: unknown): Promise<T | ApiError
   }
 
   try {
-    const res = await fetch(`${BASE_URL.replace(/\\/+$/, "")}/${endpoint}`, {
+    const res = await fetch(`${BASE_URL.replace(/\/+$/, "")}/${endpoint}`, {
       method: "POST",
       headers: await getAuthHeaders(),
       body: JSON.stringify(data),
