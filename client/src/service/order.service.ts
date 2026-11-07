@@ -20,6 +20,15 @@ type OrderQuery = {
   status?: string;
 };
 
+const isApiError = (value: unknown): value is ApiError => {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "success" in value &&
+    value.success === false
+  );
+};
+
 const buildQuery = (params: OrderQuery = {}) => {
   const query = new URLSearchParams();
 
@@ -80,7 +89,7 @@ export const cancelMyOrder = async (id: string) => {
     { method: "POST" },
   );
 
-  if (!("success" in (result as object)) || (result as ApiError).success !== false) {
+  if (!isApiError(result)) {
     revalidatePath("/orders");
     revalidatePath(`/orders/${id}`);
   }
