@@ -26,6 +26,7 @@ import type { ResetPasswordDto } from './dto/reset-password.dto';
 import type { ChangePasswordDto } from './dto/change-password.dto';
 import type { CreateUserDto } from './dto/create-user.dto';
 import type { UpdateUserDto } from './dto/update-user.dto';
+import type { UpdateMyProfileDto } from './dto/update-my-profile.dto';
 import { createHash, randomBytes } from 'node:crypto';
 import type { OAuthLoginDto } from './dto/oauth-login.dto';
 import { RedisService } from '../redis/redis.service';
@@ -392,6 +393,18 @@ export class AuthService {
     });
     if (!user) throw new UnauthorizedException('Session expired or invalid');
     return user;
+  }
+
+  async updateMyProfile(userId: string, name: string) {
+    const normalizedName = name.trim();
+    if (normalizedName.length < 2 || normalizedName.length > 80) {
+      throw new BadRequestException('Name must contain between 2 and 80 characters');
+    }
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: { name: normalizedName },
+      select: { id: true, name: true, email: true, role: true, emailVerified: true },
+    });
   }
 
   async findAllUsers(params: { search?: string; page?: number; limit?: number }) {
