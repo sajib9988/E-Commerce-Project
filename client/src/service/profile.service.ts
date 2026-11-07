@@ -10,7 +10,7 @@ export async function updateMyCustomerProfile(name: string) {
   if (!BASE_URL) return { success: false as const, message: "NEXT_PUBLIC_BASE_URL is not configured" };
 
   try {
-    const response = await fetch(`${BASE_URL.replace(/\\/+$/, "")}/auth/me`, {
+    const response = await fetch(`${BASE_URL.replace(/\/+$/, "")}/auth/me`, {
       method: "PATCH",
       headers: await getAuthHeaders(),
       body: JSON.stringify({ name: name.trim() }),
