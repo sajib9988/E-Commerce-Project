@@ -45,8 +45,12 @@ const request = async <T>(
   endpoint: string,
   options: RequestInit = {},
 ): Promise<T | ApiError> => {
+  if (!BASE_URL) {
+    return { success: false, message: "NEXT_PUBLIC_BASE_URL is not configured" };
+  }
+
   try {
-    const res = await fetch(`${BASE_URL}${endpoint}`, {
+    const res = await fetch(`${BASE_URL.replace(/\\/+$/, "")}${endpoint}`, {
       ...options,
       headers: {
         ...(await getAuthHeaders()),
