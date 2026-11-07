@@ -47,6 +47,7 @@ export class ApliiqService extends WorkerHost implements OnModuleInit {
 
 
   async createProductArtwork(productId: string, name: string, file: Express.Multer.File, style: ArtworkStyle = ArtworkStyle.OTHER) {
+    if (!Object.values(ArtworkStyle).includes(style)) throw new BadRequestException('Invalid artwork style');
     if (typeof name !== 'string' || !name.trim()) throw new BadRequestException('Artwork name is required');
     const artworkName = name.trim().slice(0, 50);
     const product = await this.prisma.product.findUnique({ where: { id: productId }, select: { id: true } });
@@ -81,6 +82,7 @@ export class ApliiqService extends WorkerHost implements OnModuleInit {
   }
 
   async registerProductImageAsArtwork(productId: string, name?: string, style: ArtworkStyle = ArtworkStyle.OTHER) {
+    if (!Object.values(ArtworkStyle).includes(style)) throw new BadRequestException('Invalid artwork style');
     const product = await this.prisma.product.findUnique({ where: { id: productId } });
     if (!product) throw new NotFoundException('Product not found');
     let parsed: URL;
