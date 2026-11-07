@@ -39,7 +39,7 @@ async function request<T>(
 
   try {
     const response = await fetch(
-      `${BASE_URL.replace(/\\/+$/, "")}${path}`,
+      `${BASE_URL.replace(/\/+$/, "")}${path}`,
       {
         method: "POST",
         headers: await getAuthHeaders(),
