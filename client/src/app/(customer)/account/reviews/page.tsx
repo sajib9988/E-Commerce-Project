@@ -1,5 +1,3 @@
-"use server";
-
 import { CustomerReviewsClient } from "@/components/customer/customer-reviews-client";
 import { getMyReviews, type MyReview } from "@/service/review.service";
 
