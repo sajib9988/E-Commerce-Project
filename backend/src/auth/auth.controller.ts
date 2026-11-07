@@ -28,6 +28,7 @@ import { ForgetPasswordDto } from './dto/forget-password.dto';
 import { UpdateUserRoleDto } from './dto/update-user-role.dto';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { UpdateMyProfileDto } from './dto/update-my-profile.dto';
 import { OAuthLoginDto } from './dto/oauth-login.dto';
 
 const AUTH_THROTTLE = { default: { limit: 5, ttl: 60_000 } };
@@ -129,6 +130,11 @@ export class AuthController {
     @Body() dto: ChangePasswordDto,
   ) {
     return this.authService.changePassword(currentUser.sub, dto);
+  }
+
+  @Patch('auth/me')
+  updateMyProfile(@CurrentUser() currentUser: AuthTokenPayload, @Body() dto: UpdateMyProfileDto) {
+    return this.authService.updateMyProfile(currentUser.sub, dto.name);
   }
 
   @Get('auth/me')

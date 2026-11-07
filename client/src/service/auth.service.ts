@@ -236,7 +236,14 @@ export const changePassword = async (data: {
       body: JSON.stringify(data),
       cache: "no-store",
     });
-    return await safeJson(res);
+    const result = await safeJson(res);
+    if (!res.ok) {
+      const message = Array.isArray(result?.message)
+        ? result.message.join(", ")
+        : result?.message ?? `Request failed: ${res.status}`;
+      return { success: false, message };
+    }
+    return result;
   } catch (err) {
     console.error("Error changing password:", err);
     return { success: false, message: "Failed to change password" };

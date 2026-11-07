@@ -394,6 +394,18 @@ export class AuthService {
     return user;
   }
 
+  async updateMyProfile(userId: string, name: string) {
+    const normalizedName = name.trim();
+    if (normalizedName.length < 2 || normalizedName.length > 80) {
+      throw new BadRequestException('Name must contain between 2 and 80 characters');
+    }
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: { name: normalizedName },
+      select: { id: true, name: true, email: true, role: true, emailVerified: true },
+    });
+  }
+
   async findAllUsers(params: { search?: string; page?: number; limit?: number }) {
     const page = Math.max(1, Number(params.page) || 1);
     const limit = Math.min(100, Math.max(1, Number(params.limit) || 10));
