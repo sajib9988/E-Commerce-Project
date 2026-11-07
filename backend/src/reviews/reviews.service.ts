@@ -54,7 +54,7 @@ export class ReviewsService {
     if (review.status === 'REJECTED') throw new ConflictException('Rejected reviews cannot be edited; contact support');
     return this.prisma.productReview.update({
       where: { id: reviewId },
-      data: { rating: dto.rating, title: dto.title?.trim(), body: dto.body.trim(), status: 'PENDING', moderatedAt: null, moderatedBy: null, moderationNote: null },
+      data: { rating: dto.rating, title: dto.title === undefined ? undefined : dto.title.trim() || null, body: dto.body.trim(), status: 'PENDING', moderatedAt: null, moderatedBy: null, moderationNote: null },
       select: { id: true, productId: true, rating: true, title: true, body: true, status: true, updatedAt: true },
     });
   }
