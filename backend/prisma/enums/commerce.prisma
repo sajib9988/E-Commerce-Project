@@ -61,3 +61,15 @@ enum RefundRequestStatus {
   REFUNDED
   FAILED
 }
+
+enum ArtworkStyle {
+  CARTOON
+  REALISTIC
+  ANIME
+  ABSTRACT
+  TYPOGRAPHY
+  MINIMALIST
+  VINTAGE
+  ILLUSTRATION
+  OTHER
+}
