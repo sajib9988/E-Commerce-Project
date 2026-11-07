@@ -1,7 +1,7 @@
 import { Body, Controller, Param, Post, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { artworkImageUploadOptions } from '../products/upload';
-import { UserRole } from '../../generated/prisma/enums';
+import { ArtworkStyle, UserRole } from '../../generated/prisma/enums';
 import { Roles } from '../common/decorators/roles.decorator';
 import { ApliiqService } from './apliiq.service';
 
@@ -25,17 +25,19 @@ export class ApliiqAdminController {
   createArtwork(
     @Param('productId') productId: string,
     @Body('name') name: string,
+    @Body('style') style?: ArtworkStyle,
     @UploadedFile() file?: Express.Multer.File,
   ) {
-    return this.apliiq.createProductArtwork(productId, name, file as Express.Multer.File);
+    return this.apliiq.createProductArtwork(productId, name, file as Express.Multer.File, style);
   }
 
   @Post('products/:productId/artworks/use-product-image')
   registerProductImage(
     @Param('productId') productId: string,
     @Body('name') name?: string,
+    @Body('style') style?: ArtworkStyle,
   ) {
-    return this.apliiq.registerProductImageAsArtwork(productId, name);
+    return this.apliiq.registerProductImageAsArtwork(productId, name, style);
   }
 
   @Post('artworks/:artworkId/placements')
