@@ -9,10 +9,12 @@ export async function safeJson<T>(
 ): Promise<T | null> {
   if (response.status === 204) return null;
 
-  const contentType = response.headers.get("content-type");
-  if (!contentType?.toLowerCase().includes("application/json")) {
-    return null;
-  }
+  const contentType = response.headers.get("content-type")?.toLowerCase();
+  const isJson =
+    contentType?.includes("application/json") ||
+    contentType?.includes("+json");
+
+  if (!isJson) return null;
 
   try {
     return (await response.json()) as T;
