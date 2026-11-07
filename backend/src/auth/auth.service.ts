@@ -26,7 +26,6 @@ import type { ResetPasswordDto } from './dto/reset-password.dto';
 import type { ChangePasswordDto } from './dto/change-password.dto';
 import type { CreateUserDto } from './dto/create-user.dto';
 import type { UpdateUserDto } from './dto/update-user.dto';
-import type { UpdateMyProfileDto } from './dto/update-my-profile.dto';
 import { createHash, randomBytes } from 'node:crypto';
 import type { OAuthLoginDto } from './dto/oauth-login.dto';
 import { RedisService } from '../redis/redis.service';
