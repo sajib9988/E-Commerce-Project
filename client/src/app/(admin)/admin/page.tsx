@@ -1,11 +1,10 @@
 import Link from "next/link";
-import { ArrowRight, ClipboardList, Package, Percent, Star } from "lucide-react";
+import { ArrowRight, ClipboardList, CreditCard, Package, Percent, Star } from "lucide-react";
 import { getAdminOrders } from "@/service/order.service";
 import { getAdminProducts } from "@/service/product.service";
 import { getCoupons } from "@/service/coupon.service";
 import { getAdminReviews } from "@/service/review.service";
 import { getAnalyticsOverview } from "@/service/analytics.service";
-import { CreditCard } from "lucide-react";
 import { AdminResourcePage, getAdminRows, getAdminTotal } from "@/components/admin/admin-resource-page";
 
 function Metric({ title, value, icon: Icon, href }: { title: string; value: string; icon: typeof Package; href: string }) {
