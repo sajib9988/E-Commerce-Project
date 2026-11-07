@@ -8,6 +8,7 @@ import {
 import { Processor, WorkerHost, InjectQueue } from '@nestjs/bullmq';
 import { Job, Queue } from 'bullmq';
 import { Prisma } from '../../generated/prisma/client';
+import { ArtworkStyle } from '../../generated/prisma/enums';
 import { PrismaService } from '../prisma/prisma.service';
 import { ApliiqClient } from './apliiq.client';
 import { mapOrderToApliiq } from './apliiq.mapper';
@@ -45,7 +46,7 @@ export class ApliiqService extends WorkerHost implements OnModuleInit {
   }
 
 
-  async createProductArtwork(productId: string, name: string, file: Express.Multer.File) {
+  async createProductArtwork(productId: string, name: string, file: Express.Multer.File, style: ArtworkStyle = ArtworkStyle.OTHER) {
     if (typeof name !== 'string' || !name.trim()) throw new BadRequestException('Artwork name is required');
     const artworkName = name.trim().slice(0, 50);
     const product = await this.prisma.product.findUnique({ where: { id: productId }, select: { id: true } });
@@ -71,7 +72,7 @@ export class ApliiqService extends WorkerHost implements OnModuleInit {
     }
     return this.prisma.productArtwork.create({
       data: {
-        productId, name: artworkName, imageUrl: uploaded.secure_url,
+        productId, name: artworkName, style, imageUrl: uploaded.secure_url,
         imagePublicId: uploaded.public_id, apliiqArtworkId: String(rawId),
         isPrimary: (await this.prisma.productArtwork.count({ where: { productId } })) === 0,
       },
@@ -79,7 +80,7 @@ export class ApliiqService extends WorkerHost implements OnModuleInit {
     });
   }
 
-  async registerProductImageAsArtwork(productId: string, name?: string) {
+  async registerProductImageAsArtwork(productId: string, name?: string, style: ArtworkStyle = ArtworkStyle.OTHER) {
     const product = await this.prisma.product.findUnique({ where: { id: productId } });
     if (!product) throw new NotFoundException('Product not found');
     let parsed: URL;
@@ -102,7 +103,7 @@ export class ApliiqService extends WorkerHost implements OnModuleInit {
     }
     return this.prisma.productArtwork.create({
       data: {
-        productId, name: (name?.trim() || product.name).slice(0, 50), imageUrl: product.imageUrl,
+        productId, name: (name?.trim() || product.name).slice(0, 50), style, imageUrl: product.imageUrl,
         imagePublicId: product.imagePublicId, apliiqArtworkId: String(rawId),
         isPrimary: (await this.prisma.productArtwork.count({ where: { productId } })) === 0,
       },
