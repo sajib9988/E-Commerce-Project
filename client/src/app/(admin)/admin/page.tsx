@@ -62,8 +62,8 @@ export default async function AdminDashboardPage() {
         </div>
         <AdminResourcePage title="" description="" result={ordersResult} columns={[
           { label: "Order", key: "orderNumber" },
-          { label: "Customer", key: "customerName" },
-          { label: "Email", key: "customerEmail" },
+          { label: "Customer", key: "user.name" },
+          { label: "Email", key: "user.email" },
           { label: "Payment", key: "paymentStatus" },
           { label: "Status", key: "status" },
           { label: "Total (USD)", key: "totalAmount" },
