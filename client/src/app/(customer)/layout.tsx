@@ -1,5 +1,3 @@
-"use server";
-
 import { redirect } from "next/navigation";
 import { CustomerAccountNav } from "@/components/customer/customer-account-nav";
 import { getMe } from "@/service/auth.service";
