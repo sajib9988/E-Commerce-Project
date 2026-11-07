@@ -124,9 +124,9 @@ export function AdminOperationsClient({ orders: orderData, payments: paymentData
         <table className="w-full min-w-[900px] text-left text-sm">
           <thead className="bg-slate-50 text-xs uppercase text-slate-500"><tr>{["Order","Customer","Payment","Total","Created","Order status","Update"].map(x => <th key={x} className="px-4 py-3">{x}</th>)}</tr></thead>
           <tbody className="divide-y">
-            {orderRows.map((r) => <tr key={str(r.id)}>
+            {orderRows.map((r) => { const customer = nested(r, "user"); return <tr key={str(r.id)}>
               <td className="px-4 py-3 font-medium">{str(r.orderNumber)}</td>
-              <td className="px-4 py-3"><div>{str(r.customerName)}</div><div className="text-xs text-slate-500">{str(r.customerEmail)}</div></td>
+              <td className="px-4 py-3"><div>{str(customer.name)}</div><div className="text-xs text-slate-500">{str(customer.email)}</div></td>
               <td className="px-4 py-3">{str(r.paymentStatus)}</td>
               <td className="px-4 py-3">{money(r.totalAmount, str(r.currency).toUpperCase())}</td>
               <td className="px-4 py-3">{date(r.createdAt)}</td>
@@ -138,7 +138,7 @@ export function AdminOperationsClient({ orders: orderData, payments: paymentData
                 </select> : <span className="text-xs text-slate-500">No admin transition</span>}
                 {errors[str(r.id)] && <ErrorBox message={errors[str(r.id)]} />}
               </td>
-            </tr>)}
+            </tr>; })}
             {!orderRows.length && <tr><td colSpan={7} className="px-4 py-8 text-center text-slate-500">No orders returned by the API.</td></tr>}
           </tbody>
         </table>
