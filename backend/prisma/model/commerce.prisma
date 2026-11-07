@@ -408,6 +408,7 @@ model ProductArtwork {
   productId         String
   product           Product                    @relation(fields: [productId], references: [id], onDelete: Cascade)
   name              String
+  style             ArtworkStyle                @default(OTHER)
   imageUrl          String
   imagePublicId     String?
   apliiqArtworkId   String?                    @unique
