@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState, type FormEvent } from "react";
+import { useRef, useState, type ComponentProps, type FormEvent } from "react";
 import Image from "next/image";
 import { ArrowLeft, LockKeyhole, ShieldCheck } from "lucide-react";
 import { toast } from "react-hot-toast";
@@ -152,7 +152,7 @@ export function CheckoutPageClient() {
       <main className="mx-auto flex min-h-[60vh] max-w-3xl flex-col items-center justify-center px-4 py-20 text-center">
         <h1 className="text-3xl font-semibold text-stone-950">Your cart is empty</h1>
         <p className="mt-3 text-sm text-stone-600">Add products to your cart before checking out.</p>
-        <Button asChild className="mt-7 rounded-full px-7"><Link href="/products">Browse products</Link></Button>
+        <Link href="/products" className="mt-7 inline-flex h-10 items-center justify-center rounded-full bg-stone-950 px-7 text-sm font-medium text-white transition hover:bg-stone-800">Browse products</Link>
       </main>
     );
   }
@@ -252,7 +252,7 @@ function Field({
   value: string;
   onChange: (value: string) => void;
   className?: string;
-} & Omit<React.ComponentProps<typeof Input>, "value" | "onChange">) {
+} & Omit<ComponentProps<typeof Input>, "value" | "onChange">) {
   const id = label.toLowerCase().replace(/[^a-z0-9]+/g, "-");
   return (
     <div className={className}>
