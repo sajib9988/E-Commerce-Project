@@ -36,6 +36,15 @@ type AdminProductQuery = {
   sortOrder?: "asc" | "desc";
 };
 
+const isApiError = (value: unknown): value is ApiError => {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "success" in value &&
+    value.success === false
+  );
+};
+
 const buildQuery = (params: object) => {
   const query = new URLSearchParams();
 
@@ -53,6 +62,10 @@ const request = async <T>(
   options: RequestInit = {},
   authenticated = true,
 ): Promise<T | ApiError> => {
+  if (!BASE_URL) {
+    return { success: false, message: "NEXT_PUBLIC_BASE_URL is not configured" };
+  }
+
   try {
     const isFormData = options.body instanceof FormData;
     const authHeaders = authenticated
@@ -62,7 +75,7 @@ const request = async <T>(
     const headers = new Headers(authHeaders);
     new Headers(options.headers).forEach((value, key) => headers.set(key, value));
 
-    const res = await fetch(`${BASE_URL}${endpoint}`, {
+    const res = await fetch(`${BASE_URL.replace(/\\/+$/, "")}${endpoint}`, {
       ...options,
       headers,
       ...(options.cache || options.next ? {} : { cache: "no-store" }),
@@ -123,7 +136,7 @@ export const createProduct = async (formData: FormData) => {
     body: formData,
   });
 
-  if (!("success" in (result as object)) || (result as ApiError).success !== false) {
+  if (!isApiError(result)) {
     revalidateProductPages();
   }
 
@@ -136,7 +149,7 @@ export const updateProduct = async (id: string, formData: FormData) => {
     { method: "PATCH", body: formData },
   );
 
-  if (!("success" in (result as object)) || (result as ApiError).success !== false) {
+  if (!isApiError(result)) {
     revalidateProductPages();
     revalidatePath(`/products/${id}`);
   }
@@ -150,7 +163,7 @@ export const deleteProduct = async (id: string) => {
     { method: "DELETE" },
   );
 
-  if (!("success" in (result as object)) || (result as ApiError).success !== false) {
+  if (!isApiError(result)) {
     revalidateProductPages();
   }
 
@@ -189,7 +202,7 @@ export const createProductVariant = async (data: {
     body: JSON.stringify(data),
   });
 
-  if (!("success" in (result as object)) || (result as ApiError).success !== false) {
+  if (!isApiError(result)) {
     revalidateProductPages();
   }
 
@@ -205,7 +218,7 @@ export const updateProductVariant = async (
     { method: "PATCH", body: JSON.stringify(data) },
   );
 
-  if (!("success" in (result as object)) || (result as ApiError).success !== false) {
+  if (!isApiError(result)) {
     revalidateProductPages();
   }
 
@@ -218,7 +231,7 @@ export const archiveProductVariant = async (id: string) => {
     { method: "PATCH" },
   );
 
-  if (!("success" in (result as object)) || (result as ApiError).success !== false) {
+  if (!isApiError(result)) {
     revalidateProductPages();
   }
 
@@ -245,7 +258,7 @@ export const createSizeTemplate = async (data: {
     body: JSON.stringify(data),
   });
 
-  if (!("success" in (result as object)) || (result as ApiError).success !== false) {
+  if (!isApiError(result)) {
     revalidateProductPages();
   }
 
@@ -261,7 +274,7 @@ export const updateSizeTemplate = async (
     { method: "PATCH", body: JSON.stringify(data) },
   );
 
-  if (!("success" in (result as object)) || (result as ApiError).success !== false) {
+  if (!isApiError(result)) {
     revalidateProductPages();
   }
 
@@ -277,7 +290,7 @@ export const addTemplateSize = async (
     { method: "POST", body: JSON.stringify(data) },
   );
 
-  if (!("success" in (result as object)) || (result as ApiError).success !== false) {
+  if (!isApiError(result)) {
     revalidateProductPages();
   }
 
@@ -290,7 +303,7 @@ export const archiveTemplateSize = async (id: string, sizeId: string) => {
     { method: "PATCH" },
   );
 
-  if (!("success" in (result as object)) || (result as ApiError).success !== false) {
+  if (!isApiError(result)) {
     revalidateProductPages();
   }
 
