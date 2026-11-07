@@ -110,7 +110,7 @@ export function CustomerReviewsClient({ initialReviews }: { initialReviews: MyRe
               <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
                 <p className="text-xs text-stone-400">Submitted {formatDate(review.createdAt)}{review.updatedAt !== review.createdAt ? " · Updated " + formatDate(review.updatedAt) : ""}</p>
                 <div className="flex gap-2">
-                  <button type="button" disabled={pending} onClick={() => beginEdit(review)} className="rounded-lg border border-stone-300 px-3 py-2 text-xs font-semibold hover:bg-stone-50">Edit</button>
+                  {review.status !== "REJECTED" && <button type="button" disabled={pending} onClick={() => beginEdit(review)} className="rounded-lg border border-stone-300 px-3 py-2 text-xs font-semibold hover:bg-stone-50">Edit</button>}
                   <button type="button" disabled={pending} onClick={() => removeReview(review)} className="rounded-lg border border-rose-200 px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-50">Delete</button>
                 </div>
               </div>
