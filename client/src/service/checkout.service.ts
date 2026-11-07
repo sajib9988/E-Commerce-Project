@@ -26,69 +26,42 @@ export type CreateOrderInput = {
   idempotencyKey: string;
 };
 
-async function request<T>(
-  path: string,
-  data: unknown,
-): Promise<T | ApiError> {
-  if (!BASE_URL) {
-    return {
-      success: false,
-      message: "NEXT_PUBLIC_BASE_URL is not configured",
-    };
-  }
-
+const request = async <T>(endpoint: string, data: unknown): Promise<T | ApiError> => {
   try {
-    const response = await fetch(
-      `${BASE_URL.replace(/\\/+$/, "")}${path}`,
-      {
-        method: "POST",
-        headers: await getAuthHeaders(),
-        body: JSON.stringify(data),
-        cache: "no-store",
-      },
-    );
+    const res = await fetch(`${BASE_URL}/${endpoint}`, {
+      method: "POST",
+      headers: await getAuthHeaders(),
+      body: JSON.stringify(data),
+      cache: "no-store",
+    });
 
-    const result = await safeJson<T | ApiError>(response);
+    const result = await safeJson<T | ApiError>(res);
 
-    if (!response.ok) {
-      const message =
-        typeof result === "object" && result !== null && "message" in result
-          ? Array.isArray(result.message)
-            ? result.message.join(", ")
-            : String(result.message)
-          : `Request failed: ${response.status}`;
-
+    if (!res.ok) {
       return {
         success: false,
-        statusCode: response.status,
-        message,
-      };
-    }
-
-    if (result === null) {
-      return {
-        success: false,
-        message: "The server returned an empty response",
+        statusCode: res.status,
+        message:
+          result && typeof result === "object" && "message" in result
+            ? String(result.message)
+            : "Request failed",
       };
     }
 
     return result as T;
   } catch (error) {
     console.error("Checkout request failed:", error);
-    return {
-      success: false,
-      message: "Unable to connect to the server",
-    };
+    return { success: false, message: "Failed to process checkout request" };
   }
-}
+};
 
-export async function createPendingOrder(data: CreateOrderInput) {
-  return request<unknown>("/orders", data);
-}
+export const createPendingOrder = async (data: CreateOrderInput) => {
+  return request("orders", data);
+};
 
-export async function createCheckoutSession(orderId: string) {
+export const createCheckoutSession = async (orderId: string) => {
   return request<{ checkoutUrl?: string; orderId?: string }>(
-    "/payments/checkout",
+    "payments/checkout",
     { orderId },
   );
-}
+};
