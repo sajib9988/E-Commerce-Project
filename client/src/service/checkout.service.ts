@@ -27,8 +27,12 @@ export type CreateOrderInput = {
 };
 
 const request = async <T>(endpoint: string, data: unknown): Promise<T | ApiError> => {
+  if (!BASE_URL) {
+    return { success: false, message: "NEXT_PUBLIC_BASE_URL is not configured" };
+  }
+
   try {
-    const res = await fetch(`${BASE_URL}/${endpoint}`, {
+    const res = await fetch(`${BASE_URL.replace(/\\/+$/, "")}/${endpoint}`, {
       method: "POST",
       headers: await getAuthHeaders(),
       body: JSON.stringify(data),
