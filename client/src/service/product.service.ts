@@ -75,7 +75,7 @@ const request = async <T>(
     const headers = new Headers(authHeaders);
     new Headers(options.headers).forEach((value, key) => headers.set(key, value));
 
-    const res = await fetch(`${BASE_URL.replace(/\\/+$/, "")}${endpoint}`, {
+    const res = await fetch(`${BASE_URL.replace(/\/+$/, "")}${endpoint}`, {
       ...options,
       headers,
       ...(options.cache || options.next ? {} : { cache: "no-store" }),
