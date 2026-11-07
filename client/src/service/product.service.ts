@@ -97,7 +97,7 @@ async function request<T>(
     });
 
     const response = await fetch(
-      `${BASE_URL.replace(/\\/+$/, "")}${path}`,
+      `${BASE_URL.replace(/\/+$/, "")}${path}`,
       {
         ...options,
         headers,
