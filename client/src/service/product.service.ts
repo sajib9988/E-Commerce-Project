@@ -6,7 +6,7 @@ import { getAuthHeaders } from "@/lib/api/get-auth-headers";
 import { safeJson } from "@/lib/api/safe-json";
 
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL;
-const ENDPOINT = "/products";
+const PRODUCT_ENDPOINT = "/products";
 
 type ApiError = {
   success: false;
@@ -36,29 +36,16 @@ type AdminProductQuery = {
   sortOrder?: "asc" | "desc";
 };
 
-function isApiError(value: unknown): value is ApiError {
+const isApiError = (value: unknown): value is ApiError => {
   return (
     typeof value === "object" &&
     value !== null &&
     "success" in value &&
     value.success === false
   );
-}
+};
 
-function getErrorMessage(data: unknown, status: number) {
-  if (
-    typeof data === "object" &&
-    data !== null &&
-    "message" in data
-  ) {
-    const message = data.message;
-    return Array.isArray(message) ? message.join(", ") : String(message);
-  }
-
-  return `Request failed: ${status}`;
-}
-
-function buildQuery(params: object) {
+const buildQuery = (params: object) => {
   const query = new URLSearchParams();
 
   Object.entries(params).forEach(([key, value]) => {
@@ -67,149 +54,137 @@ function buildQuery(params: object) {
     }
   });
 
-  const value = query.toString();
-  return value ? `?${value}` : "";
-}
+  return query.toString() ? `?${query.toString()}` : "";
+};
 
-async function request<T>(
-  path: string,
+const request = async <T>(
+  endpoint: string,
   options: RequestInit = {},
   authenticated = true,
-): Promise<T | ApiError> {
+): Promise<T | ApiError> => {
   if (!BASE_URL) {
-    return {
-      success: false,
-      message: "NEXT_PUBLIC_BASE_URL is not configured",
-    };
+    return { success: false, message: "NEXT_PUBLIC_BASE_URL is not configured" };
   }
 
   try {
-    const isFormData =
-      typeof FormData !== "undefined" && options.body instanceof FormData;
-
+    const isFormData = options.body instanceof FormData;
     const authHeaders = authenticated
       ? await getAuthHeaders(!isFormData)
       : {};
 
     const headers = new Headers(authHeaders);
-    new Headers(options.headers).forEach((value, key) => {
-      headers.set(key, value);
+    new Headers(options.headers).forEach((value, key) => headers.set(key, value));
+
+    const res = await fetch(`${BASE_URL.replace(/\\/+$/, "")}${endpoint}`, {
+      ...options,
+      headers,
+      ...(options.cache || options.next ? {} : { cache: "no-store" }),
     });
 
-    const response = await fetch(
-      `${BASE_URL.replace(/\\/+$/, "")}${path}`,
-      {
-        ...options,
-        headers,
-        ...(options.cache || options.next
-          ? {}
-          : { cache: "no-store" as RequestCache }),
-      },
-    );
+    const result = await safeJson<T | ApiError>(res);
 
-    const data = await safeJson<T | ApiError>(response);
-
-    if (!response.ok) {
+    if (!res.ok) {
       return {
         success: false,
-        statusCode: response.status,
-        message: getErrorMessage(data, response.status),
+        statusCode: res.status,
+        message:
+          result && typeof result === "object" && "message" in result
+            ? String(result.message)
+            : "Request failed",
       };
     }
 
-    // A successful DELETE may return 204 with no body.
-    return data as T;
+    return result as T;
   } catch (error) {
     console.error("Product request failed:", error);
-    return {
-      success: false,
-      message: "Unable to connect to the server",
-    };
+    return { success: false, message: "Failed to process product request" };
   }
-}
+};
 
-export async function getProducts(params: ProductQuery = {}) {
+const revalidateProductPages = () => {
+  revalidatePath("/admin/products");
+  revalidatePath("/admin/variants");
+};
+
+export const getProducts = async (params: ProductQuery = {}) => {
   return request(
-    `${ENDPOINT}${buildQuery(params)}`,
+    `${PRODUCT_ENDPOINT}${buildQuery(params)}`,
     { next: { revalidate: 60 } },
     false,
   );
-}
+};
 
-export async function getProductById(id: string) {
+export const getProductById = async (id: string) => {
   return request(
-    `${ENDPOINT}/${encodeURIComponent(id)}`,
+    `${PRODUCT_ENDPOINT}/${encodeURIComponent(id)}`,
     { next: { revalidate: 60 } },
     false,
   );
-}
+};
 
-export async function getAdminProducts(params: AdminProductQuery = {}) {
-  return request(`${ENDPOINT}/admin/list${buildQuery(params)}`);
-}
+export const getAdminProducts = async (params: AdminProductQuery = {}) => {
+  return request(`${PRODUCT_ENDPOINT}/admin/list${buildQuery(params)}`);
+};
 
-export async function getAdminProductById(id: string) {
-  return request(`${ENDPOINT}/admin/${encodeURIComponent(id)}`);
-}
+export const getAdminProductById = async (id: string) => {
+  return request(`${PRODUCT_ENDPOINT}/admin/${encodeURIComponent(id)}`);
+};
 
-export async function createProduct(formData: FormData) {
-  const result = await request(ENDPOINT, {
+export const createProduct = async (formData: FormData) => {
+  const result = await request(PRODUCT_ENDPOINT, {
     method: "POST",
     body: formData,
   });
 
   if (!isApiError(result)) {
-    revalidatePath("/admin/products");
-    revalidatePath("/admin/variants");
+    revalidateProductPages();
   }
 
   return result;
-}
+};
 
-export async function updateProduct(id: string, formData: FormData) {
+export const updateProduct = async (id: string, formData: FormData) => {
   const result = await request(
-    `${ENDPOINT}/${encodeURIComponent(id)}`,
-    {
-      method: "PATCH",
-      body: formData,
-    },
+    `${PRODUCT_ENDPOINT}/${encodeURIComponent(id)}`,
+    { method: "PATCH", body: formData },
   );
 
   if (!isApiError(result)) {
-    revalidatePath("/admin/products");
+    revalidateProductPages();
     revalidatePath(`/products/${id}`);
   }
 
   return result;
-}
+};
 
-export async function deleteProduct(id: string) {
+export const deleteProduct = async (id: string) => {
   const result = await request(
-    `${ENDPOINT}/${encodeURIComponent(id)}`,
+    `${PRODUCT_ENDPOINT}/${encodeURIComponent(id)}`,
     { method: "DELETE" },
   );
 
   if (!isApiError(result)) {
-    revalidatePath("/admin/products");
-    revalidatePath("/admin/variants");
+    revalidateProductPages();
   }
 
   return result;
-}
+};
 
-export async function getProductVariants(productId: string) {
+export const getProductVariants = async (productId: string) => {
   return request(
-    `/products/${encodeURIComponent(productId)}/variants`,
+    `${PRODUCT_ENDPOINT}/${encodeURIComponent(productId)}/variants`,
     { next: { revalidate: 60 } },
     false,
   );
-}
+};
 
-export async function getAdminProductVariants(productId: string) {
-  return request(`/products/${encodeURIComponent(productId)}/variants/admin`);
-}
+export const getAdminProductVariants = async (productId: string) => {
+  return request(
+    `${PRODUCT_ENDPOINT}/${encodeURIComponent(productId)}/variants/admin`,
+  );
+};
 
-export async function createProductVariant(data: {
+export const createProductVariant = async (data: {
   productId: string;
   sizeId: string;
   sku: string;
@@ -221,134 +196,116 @@ export async function createProductVariant(data: {
   colorHex?: string | null;
   apliiqColorId?: string | null;
   isActive?: boolean;
-}) {
-  const result = await request("/products/variants", {
+}) => {
+  const result = await request(`${PRODUCT_ENDPOINT}/variants`, {
     method: "POST",
     body: JSON.stringify(data),
   });
 
   if (!isApiError(result)) {
-    revalidatePath("/admin/products");
-    revalidatePath("/admin/variants");
+    revalidateProductPages();
   }
 
   return result;
-}
+};
 
-export async function updateProductVariant(
+export const updateProductVariant = async (
   id: string,
   data: Record<string, unknown>,
-) {
+) => {
   const result = await request(
-    `/products/variants/${encodeURIComponent(id)}`,
-    {
-      method: "PATCH",
-      body: JSON.stringify(data),
-    },
+    `${PRODUCT_ENDPOINT}/variants/${encodeURIComponent(id)}`,
+    { method: "PATCH", body: JSON.stringify(data) },
   );
 
   if (!isApiError(result)) {
-    revalidatePath("/admin/products");
-    revalidatePath("/admin/variants");
+    revalidateProductPages();
   }
 
   return result;
-}
+};
 
-export async function archiveProductVariant(id: string) {
+export const archiveProductVariant = async (id: string) => {
   const result = await request(
-    `/products/variants/${encodeURIComponent(id)}/archive`,
+    `${PRODUCT_ENDPOINT}/variants/${encodeURIComponent(id)}/archive`,
     { method: "PATCH" },
   );
 
   if (!isApiError(result)) {
-    revalidatePath("/admin/products");
-    revalidatePath("/admin/variants");
+    revalidateProductPages();
   }
 
   return result;
-}
+};
 
-export async function getSizeTemplates(includeInactive = false) {
-  const query = includeInactive ? "?includeInactive=true" : "";
-
+export const getSizeTemplates = async (includeInactive = false) => {
   return request(
-    `/size-templates${query}`,
+    `/size-templates${includeInactive ? "?includeInactive=true" : ""}`,
     { next: { revalidate: 60 } },
     false,
   );
-}
+};
 
-export async function createSizeTemplate(data: {
+export const createSizeTemplate = async (data: {
   name: string;
   slug: string;
   description?: string;
   sizes: Array<{ label: string; sortOrder?: number }>;
   isActive?: boolean;
-}) {
+}) => {
   const result = await request("/size-templates", {
     method: "POST",
     body: JSON.stringify(data),
   });
 
   if (!isApiError(result)) {
-    revalidatePath("/admin/products");
-    revalidatePath("/admin/variants");
+    revalidateProductPages();
   }
 
   return result;
-}
+};
 
-export async function updateSizeTemplate(
+export const updateSizeTemplate = async (
   id: string,
   data: Record<string, unknown>,
-) {
+) => {
   const result = await request(
     `/size-templates/${encodeURIComponent(id)}`,
-    {
-      method: "PATCH",
-      body: JSON.stringify(data),
-    },
+    { method: "PATCH", body: JSON.stringify(data) },
   );
 
   if (!isApiError(result)) {
-    revalidatePath("/admin/products");
-    revalidatePath("/admin/variants");
+    revalidateProductPages();
   }
 
   return result;
-}
+};
 
-export async function addTemplateSize(
+export const addTemplateSize = async (
   id: string,
   data: { label: string; sortOrder?: number },
-) {
+) => {
   const result = await request(
     `/size-templates/${encodeURIComponent(id)}/sizes`,
-    {
-      method: "POST",
-      body: JSON.stringify(data),
-    },
+    { method: "POST", body: JSON.stringify(data) },
   );
 
   if (!isApiError(result)) {
-    revalidatePath("/admin/products");
-    revalidatePath("/admin/variants");
+    revalidateProductPages();
   }
 
   return result;
-}
+};
 
-export async function archiveTemplateSize(id: string, sizeId: string) {
+export const archiveTemplateSize = async (id: string, sizeId: string) => {
   const result = await request(
     `/size-templates/${encodeURIComponent(id)}/sizes/${encodeURIComponent(sizeId)}/archive`,
     { method: "PATCH" },
   );
 
   if (!isApiError(result)) {
-    revalidatePath("/admin/products");
-    revalidatePath("/admin/variants");
+    revalidateProductPages();
   }
 
   return result;
-}
+};

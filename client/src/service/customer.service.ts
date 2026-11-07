@@ -11,64 +11,33 @@ type ApiError = {
   statusCode?: number;
 };
 
-function getErrorMessage(data: unknown, status: number) {
-  if (
-    typeof data === "object" &&
-    data !== null &&
-    "message" in data
-  ) {
-    const message = data.message;
-    return Array.isArray(message) ? message.join(", ") : String(message);
-  }
-
-  return `Request failed: ${status}`;
-}
-
-// The current API exposes the signed-in user's profile through /auth/me.
-// Profile editing and saved-address endpoints are not present in the backend yet.
-export async function getMyCustomerProfile() {
+export const getMyCustomerProfile = async () => {
   if (!BASE_URL) {
-    return {
-      success: false as const,
-      message: "NEXT_PUBLIC_BASE_URL is not configured",
-    };
+    return { success: false, message: "NEXT_PUBLIC_BASE_URL is not configured" } satisfies ApiError;
   }
 
   try {
-    const response = await fetch(
-      `${BASE_URL.replace(/\\/+$/, "")}/auth/me`,
-      {
-        headers: {
-          Accept: "application/json",
-          ...(await getAuthHeaders(false)),
-        },
-        cache: "no-store",
-      },
-    );
+    const res = await fetch(`${BASE_URL.replace(/\\/+$/, "")}/auth/me`, {
+      headers: await getAuthHeaders(),
+      cache: "no-store",
+    });
 
-    const data = await safeJson<unknown>(response);
+    const result = await safeJson(res);
 
-    if (!response.ok) {
+    if (!res.ok) {
       return {
-        success: false as const,
-        statusCode: response.status,
-        message: getErrorMessage(data, response.status),
-      };
+        success: false,
+        statusCode: res.status,
+        message:
+          result && typeof result === "object" && "message" in result
+            ? String(result.message)
+            : "Failed to fetch customer profile",
+      } satisfies ApiError;
     }
 
-    if (data === null) {
-      return {
-        success: false as const,
-        message: "The server returned an empty response",
-      };
-    }
-
-    return data;
+    return result;
   } catch (error) {
-    console.error("Customer profile request failed:", error);
-    return {
-      success: false as const,
-      message: "Unable to connect to the server",
-    };
+    console.error("Error fetching customer profile:", error);
+    return { success: false, message: "Failed to fetch customer profile" } satisfies ApiError;
   }
-}
+};
