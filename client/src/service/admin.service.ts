@@ -156,9 +156,9 @@ export async function createApliiqDesign(productId: string, data: Record<string,
   return result;
 }
 
-export async function registerProductImageAsApliiqArtwork(productId: string, name?: string) {
+export async function registerProductImageAsApliiqArtwork(productId: string, name?: string, style = "OTHER") {
   const result = await request(`/admin/apliiq/products/${encodeURIComponent(productId)}/artworks/use-product-image`, {
-    method: "POST", body: JSON.stringify({ name }),
+    method: "POST", body: JSON.stringify({ name, style }),
   });
   if (!isApiError(result)) revalidatePath("/admin/products");
   return result;
