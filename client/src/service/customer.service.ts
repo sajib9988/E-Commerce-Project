@@ -17,7 +17,7 @@ export const getMyCustomerProfile = async () => {
   }
 
   try {
-    const res = await fetch(`${BASE_URL.replace(/\\/+$/, "")}/auth/me`, {
+    const res = await fetch(`${BASE_URL.replace(/\/+$/, "")}/auth/me`, {
       headers: await getAuthHeaders(),
       cache: "no-store",
     });

@@ -50,7 +50,7 @@ const request = async <T>(
   }
 
   try {
-    const res = await fetch(`${BASE_URL.replace(/\\/+$/, "")}${endpoint}`, {
+    const res = await fetch(`${BASE_URL.replace(/\/+$/, "")}${endpoint}`, {
       ...options,
       headers: {
         ...(await getAuthHeaders()),
