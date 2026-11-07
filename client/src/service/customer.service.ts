@@ -12,8 +12,12 @@ type ApiError = {
 };
 
 export const getMyCustomerProfile = async () => {
+  if (!BASE_URL) {
+    return { success: false, message: "NEXT_PUBLIC_BASE_URL is not configured" } satisfies ApiError;
+  }
+
   try {
-    const res = await fetch(`${BASE_URL}/auth/me`, {
+    const res = await fetch(`${BASE_URL.replace(/\\/+$/, "")}/auth/me`, {
       headers: await getAuthHeaders(),
       cache: "no-store",
     });
