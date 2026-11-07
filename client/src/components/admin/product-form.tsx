@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { createProduct, updateProduct } from "@/service/product.service";
+import { ArtworkManager } from "@/components/admin/artwork-manager";
 
 type Category = {
   id: string;
@@ -36,6 +37,7 @@ type ProductRecord = {
   imageUrl?: string | null;
   sizes?: string[];
   collections?: Array<{ collectionId?: string; collection?: { id: string } }>;
+  artworks?: Array<{ id: string; name: string; style: string; imageUrl: string; apliiqArtworkId?: string | null }>;
 };
 
 const productSchema = z.object({
@@ -269,6 +271,8 @@ export function ProductForm({
                 )} />
               </div>
             </section>
+
+            {product && <ArtworkManager productId={product.id} productImageUrl={product.imageUrl ?? null} artworks={product.artworks ?? []} />}
 
             <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
               <div className="mb-5">
