@@ -36,7 +36,7 @@ export async function getMyCustomerProfile() {
 
   try {
     const response = await fetch(
-      `${BASE_URL.replace(/\\/+$/, "")}/auth/me`,
+      `${BASE_URL.replace(/\/+$/, "")}/auth/me`,
       {
         headers: {
           Accept: "application/json",
