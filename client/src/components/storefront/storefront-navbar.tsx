@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { Menu, Search, UserRound, X } from "lucide-react";
+import { Menu, Search, ShoppingBag, UserRound, X } from "lucide-react";
+import { useCartStore } from "@/providers/cart-store-provider";
+import { selectCartItemCount } from "@/store/cart.store";
 
 const links = [
   { label: "Home", href: "/" },
@@ -20,6 +22,8 @@ function isActivePath(pathname: string, href: string) {
 export function StorefrontNavbar() {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const cartItemCount = useCartStore(selectCartItemCount);
+  const cartHasHydrated = useCartStore((state) => state.hasHydrated);
 
   // Keep the public storefront navigation out of the admin workspace.
   if (pathname === "/admin" || pathname.startsWith("/admin/")) return null;
@@ -83,6 +87,19 @@ export function StorefrontNavbar() {
               className="w-32 bg-transparent text-sm outline-none placeholder:text-stone-400 xl:w-40"
             />
           </form>
+
+          <Link
+            href="/cart"
+            aria-label={cartHasHydrated ? `Shopping cart with ${cartItemCount} items` : "Shopping cart"}
+            className="relative inline-flex size-10 items-center justify-center rounded-full transition hover:bg-stone-100"
+          >
+            <ShoppingBag size={20} strokeWidth={1.7} />
+            {cartHasHydrated && cartItemCount > 0 && (
+              <span className="absolute right-0.5 top-0.5 grid min-h-4 min-w-4 place-items-center rounded-full bg-stone-950 px-1 text-[10px] font-semibold leading-none text-white">
+                {cartItemCount > 99 ? "99+" : cartItemCount}
+              </span>
+            )}
+          </Link>
 
           <Link
             href="/account"
