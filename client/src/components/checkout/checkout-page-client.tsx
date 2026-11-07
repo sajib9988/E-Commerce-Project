@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useRef, useState, type ComponentProps, type FormEvent } from "react";
 import Image from "next/image";
 import { ArrowLeft, LockKeyhole, ShieldCheck } from "lucide-react";
-import { toast } from "react-hot-toast";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -70,6 +69,7 @@ export function CheckoutPageClient() {
   const [address, setAddress] = useState<AddressFields>(initialAddress);
   const [couponCode, setCouponCode] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const idempotencyKey = useRef<string | null>(null);
 
   function updateField(field: keyof AddressFields, value: string) {
@@ -80,6 +80,7 @@ export function CheckoutPageClient() {
     event.preventDefault();
     if (items.length === 0 || isSubmitting) return;
 
+    setErrorMessage(null);
     setIsSubmitting(true);
     idempotencyKey.current ??= crypto.randomUUID();
 
@@ -114,30 +115,30 @@ export function CheckoutPageClient() {
       });
 
       if (isApiError(orderResult)) {
-        toast.error(orderResult.message);
+        setErrorMessage(orderResult.message);
         return;
       }
 
       const orderId = extractOrderId(orderResult);
       if (!orderId) {
-        toast.error("The order was created, but the server response did not include an order ID. Please contact support before retrying.");
+        setErrorMessage("The order was created, but the server response did not include an order ID. Please contact support before retrying.");
         return;
       }
 
       const paymentResult = await createCheckoutSession(orderId);
       if (isApiError(paymentResult)) {
-        toast.error(paymentResult.message);
+        setErrorMessage(paymentResult.message);
         return;
       }
 
       if (!paymentResult.checkoutUrl) {
-        toast.error("Stripe checkout URL was not returned by the server.");
+        setErrorMessage("Stripe checkout URL was not returned by the server.");
         return;
       }
 
       window.location.assign(paymentResult.checkoutUrl);
     } catch {
-      toast.error("Unable to start checkout. Please try again.");
+      setErrorMessage("Unable to start checkout. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
@@ -209,6 +210,7 @@ export function CheckoutPageClient() {
             Your order total, product availability and pricing are verified by our server. Cart prices are estimates only.
           </div>
 
+          {errorMessage && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{errorMessage}</p>}
           <Button type="submit" disabled={isSubmitting || items.length === 0} className="h-12 w-full rounded-full text-sm sm:w-auto sm:min-w-64">
             {isSubmitting ? "Preparing secure checkout..." : <><LockKeyhole size={16} /> Continue to secure payment</>}
           </Button>
