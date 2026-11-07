@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { CustomerAccountNav } from "@/components/customer/customer-account-nav";
+import { CustomerAuthRedirect } from "@/components/customer/customer-auth-redirect";
 import { getMe } from "@/service/auth.service";
 
 export const instant = false;
@@ -8,7 +9,7 @@ export default async function CustomerLayout({ children }: Readonly<{ children: 
   const session = await getMe();
   const user = session?.data ?? session;
 
-  if (!user) redirect("/login?next=%2Faccount");
+  if (!user) return <CustomerAuthRedirect />;
   if (user.role !== "USER") redirect("/admin");
 
   return (
