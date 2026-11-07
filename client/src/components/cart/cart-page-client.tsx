@@ -4,7 +4,6 @@ import Link from "next/link";
 import Image from "next/image";
 import { ArrowLeft, Minus, Plus, ShoppingBag, Trash2 } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
 import {
   selectCartSubtotal,
 } from "@/store/cart.store";
@@ -46,9 +45,7 @@ export function CartPageClient() {
         <p className="mt-3 max-w-md text-sm leading-6 text-stone-600">
           Looks like you haven’t added anything yet. Explore the shop and find something you love.
         </p>
-        <Button asChild className="mt-8 h-11 rounded-full px-7">
-          <Link href="/products">Continue shopping</Link>
-        </Button>
+        <Link href="/products" className="mt-8 inline-flex h-11 items-center justify-center rounded-full bg-stone-950 px-7 text-sm font-medium text-white transition hover:bg-stone-800">Continue shopping</Link>
       </main>
     );
   }
@@ -121,9 +118,7 @@ export function CartPageClient() {
           <div className="flex justify-between text-base font-semibold text-stone-950">
             <span>Estimated total</span><span className="tabular-nums">{money.format(subtotal)}</span>
           </div>
-          <Button asChild className="mt-6 h-12 w-full rounded-full">
-            <Link href="/checkout">Continue to checkout</Link>
-          </Button>
+          <Link href="/checkout" className="mt-6 inline-flex h-12 w-full items-center justify-center rounded-full bg-stone-950 px-5 text-sm font-medium text-white transition hover:bg-stone-800">Continue to checkout</Link>
           <p className="mt-4 text-center text-[11px] leading-5 text-stone-500">Secure payment powered by Stripe</p>
         </aside>
       </div>
