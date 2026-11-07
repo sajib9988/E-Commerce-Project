@@ -160,17 +160,23 @@ export default function LoginForm() {
 
       toast.success("Login successful");
 
-      const userRole =
-        result.data?.user?.role;
-
-      console.log("User role:", userRole);
+      const userRole = result.data?.user?.role;
+      const requestedPath = new URLSearchParams(window.location.search).get("next");
+      const safeNextPath =
+        requestedPath &&
+        requestedPath.startsWith("/") &&
+        !requestedPath.startsWith("//") &&
+        !requestedPath.startsWith("/admin")
+          ? requestedPath
+          : null;
 
       setTimeout(() => {
         if (userRole === "ADMIN" || userRole === "SUPER_ADMIN") {
-          router.push("/admin");
+          router.replace("/admin");
         } else {
-          router.push("/");
+          router.replace(safeNextPath ?? "/");
         }
+        router.refresh();
       }, 2000);
     } catch (error) {
       setError(
