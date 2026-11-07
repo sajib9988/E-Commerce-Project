@@ -72,7 +72,7 @@ export function ArtworkManager({ productId, productImageUrl, artworks }: {
     </div> : <p className="mb-4 rounded-lg bg-slate-50 p-3 text-sm text-slate-500">No artwork has been added to this product yet.</p>}
     <form onSubmit={upload} className="grid gap-3">
       <label className="grid gap-1 text-sm font-medium text-slate-700">Artwork name
-        <input value={name} onChange={(event) => setName(event.target.value)} maxLength={50} placeholder="e.g. Mountain sunset illustration" className="h-10 rounded-lg border border-slate-200 px-3" />
+        <input value={name} onChange={(event) => setName(event.target.value)} required maxLength={50} placeholder="e.g. Mountain sunset illustration" className="h-10 rounded-lg border border-slate-200 px-3" />
       </label>
       <label className="grid gap-1 text-sm font-medium text-slate-700">Design style
         <select value={style} onChange={(event) => setStyle(event.target.value)} className="h-10 rounded-lg border border-slate-200 bg-white px-3">
