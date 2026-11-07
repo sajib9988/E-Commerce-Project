@@ -6,6 +6,7 @@ import { getAuthHeaders } from "@/lib/api/get-auth-headers";
 import { safeJson } from "@/lib/api/safe-json";
 
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL;
+const ORDER_ENDPOINT = "/orders";
 
 type ApiError = {
   success: false;
@@ -19,74 +20,7 @@ type OrderQuery = {
   status?: string;
 };
 
-function isApiError(value: unknown): value is ApiError {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "success" in value &&
-    value.success === false
-  );
-}
-
-function getErrorMessage(data: unknown, status: number) {
-  if (
-    typeof data === "object" &&
-    data !== null &&
-    "message" in data
-  ) {
-    const message = data.message;
-    return Array.isArray(message) ? message.join(", ") : String(message);
-  }
-
-  return `Request failed: ${status}`;
-}
-
-async function request<T>(
-  path: string,
-  options: RequestInit = {},
-): Promise<T | ApiError> {
-  if (!BASE_URL) {
-    return {
-      success: false,
-      message: "NEXT_PUBLIC_BASE_URL is not configured",
-    };
-  }
-
-  try {
-    const response = await fetch(
-      `${BASE_URL.replace(/\\/+$/, "")}${path}`,
-      {
-        ...options,
-        headers: {
-          ...(await getAuthHeaders()),
-          ...Object.fromEntries(new Headers(options.headers).entries()),
-        },
-        cache: "no-store",
-      },
-    );
-
-    const data = await safeJson<T | ApiError>(response);
-
-    if (!response.ok) {
-      return {
-        success: false,
-        statusCode: response.status,
-        message: getErrorMessage(data, response.status),
-      };
-    }
-
-    // Some successful mutation endpoints may respond with HTTP 204.
-    return data as T;
-  } catch (error) {
-    console.error("Order request failed:", error);
-    return {
-      success: false,
-      message: "Unable to connect to the server",
-    };
-  }
-}
-
-function buildQuery(params: OrderQuery) {
+const buildQuery = (params: OrderQuery = {}) => {
   const query = new URLSearchParams();
 
   Object.entries(params).forEach(([key, value]) => {
@@ -95,43 +29,74 @@ function buildQuery(params: OrderQuery) {
     }
   });
 
-  const value = query.toString();
-  return value ? `?${value}` : "";
-}
+  return query.toString() ? `?${query.toString()}` : "";
+};
 
-export async function getMyOrders(
-  params: Omit<OrderQuery, "status"> = {},
-) {
-  return request(`/orders/me${buildQuery(params)}`);
-}
+const request = async <T>(
+  endpoint: string,
+  options: RequestInit = {},
+): Promise<T | ApiError> => {
+  try {
+    const res = await fetch(`${BASE_URL}${endpoint}`, {
+      ...options,
+      headers: {
+        ...(await getAuthHeaders()),
+        ...Object.fromEntries(new Headers(options.headers).entries()),
+      },
+      cache: "no-store",
+    });
 
-export async function getMyOrderById(id: string) {
-  return request(`/orders/${encodeURIComponent(id)}`);
-}
+    const result = await safeJson<T | ApiError>(res);
 
-export async function cancelMyOrder(id: string) {
+    if (!res.ok) {
+      return {
+        success: false,
+        statusCode: res.status,
+        message:
+          result && typeof result === "object" && "message" in result
+            ? String(result.message)
+            : "Request failed",
+      };
+    }
+
+    return result as T;
+  } catch (error) {
+    console.error("Order request failed:", error);
+    return { success: false, message: "Failed to process order request" };
+  }
+};
+
+export const getMyOrders = async (params: Omit<OrderQuery, "status"> = {}) => {
+  return request(`${ORDER_ENDPOINT}/me${buildQuery(params)}`);
+};
+
+export const getMyOrderById = async (id: string) => {
+  return request(`${ORDER_ENDPOINT}/${encodeURIComponent(id)}`);
+};
+
+export const cancelMyOrder = async (id: string) => {
   const result = await request(
-    `/orders/${encodeURIComponent(id)}/cancel`,
+    `${ORDER_ENDPOINT}/${encodeURIComponent(id)}/cancel`,
     { method: "POST" },
   );
 
-  if (!isApiError(result)) {
+  if (!("success" in (result as object)) || (result as ApiError).success !== false) {
     revalidatePath("/orders");
     revalidatePath(`/orders/${id}`);
   }
 
   return result;
-}
+};
 
-export async function getAdminOrders(params: OrderQuery = {}) {
+export const getAdminOrders = async (params: OrderQuery = {}) => {
   return request(`/admin/orders${buildQuery(params)}`);
-}
+};
 
-export async function getAdminOrderById(id: string) {
+export const getAdminOrderById = async (id: string) => {
   return request(`/admin/orders/${encodeURIComponent(id)}`);
-}
+};
 
-export async function updateOrderStatus(id: string, status: string) {
+export const updateOrderStatus = async (id: string, status: string) => {
   const result = await request(
     `/admin/orders/${encodeURIComponent(id)}/status`,
     {
@@ -140,9 +105,9 @@ export async function updateOrderStatus(id: string, status: string) {
     },
   );
 
-  if (!isApiError(result)) {
+  if (!("success" in (result as object)) || (result as ApiError).success !== false) {
     revalidatePath("/admin/orders");
   }
 
   return result;
-}
+};
