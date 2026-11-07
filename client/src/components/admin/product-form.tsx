@@ -65,6 +65,23 @@ const productSchema = z.object({
 
 type ProductFormValues = z.infer<typeof productSchema>;
 
+// Every value is serialized as a string because FormData sends text fields as strings.
+type ProductFormData = {
+  name: string;
+  description: string;
+  regularPrice: string;
+  salePrice: string;
+  brand: string;
+  sku: string;
+  apliiqDesignSku: string;
+  stockQuantity: string;
+  categoryId: string;
+  subcategoryId: string;
+  collectionIds: string;
+  sizes: string;
+  isActive: string;
+};
+
 function getErrorMessage(result: unknown): string | null {
   if (typeof result === "object" && result !== null && "success" in result && result.success === false) {
     return "message" in result ? String(result.message) : "The request failed.";
@@ -130,21 +147,29 @@ export function ProductForm({
     }
 
     setIsLoading(true);
+    const productData: ProductFormData = {
+      name: values.name.trim(),
+      description: values.description,
+      regularPrice: String(Number(values.regularPrice)),
+      salePrice: values.salePrice?.trim() ? String(Number(values.salePrice)) : "null",
+      brand: (values.brand ?? "").trim(),
+      sku: (values.sku ?? "").trim(),
+      apliiqDesignSku: (values.apliiqDesignSku ?? "").trim(),
+      stockQuantity: String(Number(values.stockQuantity)),
+      categoryId: values.categoryId,
+      subcategoryId: values.subcategoryId,
+      collectionIds: JSON.stringify(values.collectionIds),
+      sizes: JSON.stringify(
+        values.sizesText.split(",").map((size) => size.trim()).filter(Boolean),
+      ),
+      isActive: String(values.isActive),
+    };
+
     const formData = new FormData();
-    formData.append("name", values.name.trim());
-    formData.append("description", values.description);
-    formData.append("regularPrice", String(Number(values.regularPrice)));
-    formData.append("salePrice", values.salePrice?.trim() ? String(Number(values.salePrice)) : "null");
-    formData.append("brand", (values.brand ?? "").trim());
-    formData.append("sku", (values.sku ?? "").trim());
-    formData.append("apliiqDesignSku", (values.apliiqDesignSku ?? "").trim());
-    formData.append("stockQuantity", String(Number(values.stockQuantity)));
-    formData.append("categoryId", values.categoryId);
-    formData.append("subcategoryId", values.subcategoryId);
-    formData.append("collectionIds", JSON.stringify(values.collectionIds));
-    const sizes = values.sizesText.split(",").map((size) => size.trim()).filter(Boolean);
-    formData.append("sizes", JSON.stringify(sizes));
-    formData.append("isActive", String(values.isActive));
+    for (const [key, value] of Object.entries(productData)) {
+      formData.append(key, value);
+    }
+
     if (imageFile) formData.append("image", imageFile);
 
     try {
