@@ -2,6 +2,7 @@ import {
   BadRequestException, Injectable, NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '../../generated/prisma/client';
+import { PromotionDiscountType, PromotionType } from '../../generated/prisma/enums';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreatePromotionDto } from './dto/create-promotion.dto';
 import { UpdatePromotionDto } from './dto/update-promotion.dto';
@@ -51,7 +52,7 @@ export class PromotionService {
 
   async create(dto: CreatePromotionDto) {
     this.validate(dto);
-    if (dto.isSignupOffer) {
+    if (dto.isSignupOffer && dto.isActive !== false) {
       await this.prisma.promotion.updateMany({
         where: { isSignupOffer: true, isActive: true },
         data: { isActive: false },
@@ -60,10 +61,10 @@ export class PromotionService {
     return this.prisma.promotion.create({
       data: {
         name: dto.name.trim(),
-        type: dto.type as never,
-        discountType: dto.discountType as never,
+        type: dto.type as PromotionType,
+        discountType: dto.discountType as PromotionDiscountType | undefined,
         discountValue: dto.discountValue == null ? null : new Prisma.Decimal(dto.discountValue),
-        couponRequired: dto.couponRequired ?? false,
+        couponRequired: dto.couponRequired ?? Boolean(dto.isSignupOffer),
         isSignupOffer: dto.isSignupOffer ?? false,
         title: dto.title?.trim() || null,
         description: dto.description?.trim() || null,
@@ -87,7 +88,7 @@ export class PromotionService {
       endsAt: dto.endsAt ?? existing.endsAt,
     };
     this.validate(next);
-    if (next.isSignupOffer) {
+    if (next.isSignupOffer && dto.isActive !== false) {
       await this.prisma.promotion.updateMany({
         where: { id: { not: id }, isSignupOffer: true, isActive: true },
         data: { isActive: false },
@@ -97,11 +98,9 @@ export class PromotionService {
       where: { id },
       data: {
         ...(dto.name !== undefined && { name: dto.name.trim() }),
-        ...(dto.type !== undefined && { type: dto.type as never }),
-        ...(dto.discountType !== undefined && { discountType: dto.discountType as never }),
-        ...(dto.discountValue !== undefined && {
-          discountValue: dto.discountValue === null ? null : new Prisma.Decimal(dto.discountValue),
-        }),
+        ...(dto.type !== undefined && { type: dto.type as PromotionType }),
+        ...(dto.discountType !== undefined && { discountType: dto.discountType as PromotionDiscountType }),
+        ...(dto.discountValue !== undefined && { discountValue: new Prisma.Decimal(dto.discountValue) }),
         ...(dto.couponRequired !== undefined && { couponRequired: dto.couponRequired }),
         ...(dto.isSignupOffer !== undefined && { isSignupOffer: dto.isSignupOffer }),
         ...(dto.title !== undefined && { title: dto.title.trim() || null }),
