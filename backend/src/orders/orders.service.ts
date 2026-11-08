@@ -2,7 +2,7 @@ import {
   BadRequestException, ConflictException, Injectable, NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '../../generated/prisma/client';
-import { CouponType, OrderStatus, PaymentAttemptStatus, StockReservationStatus } from '../../generated/prisma/enums';
+import { CouponType, OrderStatus, PaymentAttemptStatus, PaymentStatus, StockReservationStatus } from '../../generated/prisma/enums';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { PaymentsService } from '../payments/payments.service';
@@ -143,6 +143,14 @@ export class OrdersService {
                 (coupon.startsAt && coupon.startsAt > now) ||
                 (coupon.expiresAt && coupon.expiresAt <= now)) {
               throw new BadRequestException('Coupon is invalid, expired, or not assigned to this customer');
+            }
+            if (coupon.assignedEmail) {
+              const previousPaidOrders = await tx.order.count({
+                where: { userId, paymentStatus: PaymentStatus.PAID },
+              });
+              if (previousPaidOrders > 0) {
+                throw new ConflictException('Welcome discount is only valid on your first paid order');
+              }
             }
             if (coupon.minOrderAmount && subtotal.lessThan(coupon.minOrderAmount)) {
               throw new BadRequestException('Order does not meet coupon minimum');
