@@ -2,6 +2,8 @@ import Link from "next/link";
 import Image from "next/image";
 import { getProducts } from "@/service/product.service";
 
+export const instant = false;
+
 type Search = { q?: string; search?: string; categoryId?: string; minPrice?: string; maxPrice?: string; sortBy?: string; sortOrder?: string; page?: string };
 type Product = { id: string; name: string; imageUrl: string; regularPrice: string | number; salePrice?: string | number | null; category?: { id: string; name: string } | null };
 type Result = { items?: Product[]; pagination?: { page: number; totalPages: number; total: number } } | Product[] | { success: false; message: string };
