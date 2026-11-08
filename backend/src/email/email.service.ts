@@ -85,7 +85,7 @@ export class EmailService {
         `Use code ${payload.couponCode} at checkout to get ${payload.discountValue}% off your first order.`,
         `This one-time code expires on ${expires}.`,
         'If you did not request this offer, you can ignore this email.',
-      ].join('\\n\\n'),
+      ].join('\n\n'),
       html: `<div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;color:#171717"><h1>Enjoy ${payload.discountValue}% OFF</h1><p>Thanks for signing up. Use your unique welcome code on your first order.</p><div style="padding:18px;text-align:center;background:#f4f4f5;border-radius:10px;font-size:24px;font-weight:700;letter-spacing:2px">${payload.couponCode}</div><p>This one-time code expires on <strong>${expires}</strong>.</p><p style="color:#666;font-size:12px">If you did not request this offer, you can ignore this email.</p></div>`,
     });
   }
