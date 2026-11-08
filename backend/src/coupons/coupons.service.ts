@@ -193,8 +193,12 @@ export class CouponsService {
     }
 
     const coupon = await this.prisma.coupon.findUnique({ where: { code } });
+    const customer = coupon?.assignedEmail
+      ? await this.prisma.user.findUnique({ where: { id: userId }, select: { email: true } })
+      : null;
     const now = new Date();
     if (!coupon || !coupon.isActive ||
+      (coupon.assignedEmail !== null && coupon.assignedEmail.toLowerCase() !== customer?.email.toLowerCase()) ||
       (coupon.startsAt && coupon.startsAt > now) ||
       (coupon.expiresAt && coupon.expiresAt <= now)) {
       throw new BadRequestException('Coupon is invalid or expired');
