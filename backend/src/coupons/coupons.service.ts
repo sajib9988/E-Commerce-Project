@@ -210,7 +210,7 @@ export class CouponsService {
     }
     if (coupon.assignedEmail) {
       const previousPaidOrders = await this.prisma.order.count({
-        where: { userId, paymentStatus: 'PAID' },
+        where: { userId, paymentStatus: { in: ['PAID', 'REFUNDED'] } },
       });
       if (previousPaidOrders > 0) {
         throw new ConflictException('Welcome discount is only valid on your first paid order');
