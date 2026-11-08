@@ -2,7 +2,7 @@ import {
   BadRequestException, ConflictException, Injectable, NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '../../generated/prisma/client';
-import { CouponType, OrderStatus, PaymentAttemptStatus, StockReservationStatus } from '../../generated/prisma/enums';
+import { CouponType, OrderStatus, PaymentAttemptStatus, PaymentStatus, StockReservationStatus } from '../../generated/prisma/enums';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { PaymentsService } from '../payments/payments.service';
@@ -127,17 +127,30 @@ export class OrdersService {
           let coupon: { id: string; code: string; type: CouponType; value: Prisma.Decimal;
             maxDiscountAmount: Prisma.Decimal | null; usageCount: number; usageLimit: number | null;
             perUserLimit: number; startsAt: Date | null; expiresAt: Date | null;
-            isActive: boolean; minOrderAmount: Prisma.Decimal | null; userId: string | null } | null = null;
+            isActive: boolean; minOrderAmount: Prisma.Decimal | null; userId: string | null; assignedEmail: string | null } | null = null;
 
           if (dto.couponCode?.trim()) {
             const code = dto.couponCode.trim().toUpperCase();
             coupon = await tx.coupon.findUnique({ where: { code } });
+            const couponOwner = coupon?.assignedEmail
+              ? await tx.user.findUnique({ where: { id: userId }, select: { email: true } })
+              : null;
+            const normalizedCheckoutEmail = dto.customerEmail.trim().toLowerCase();
             const now = new Date();
             if (!coupon || !coupon.isActive ||
+                (coupon.assignedEmail !== null && (coupon.assignedEmail.toLowerCase() !== normalizedCheckoutEmail || coupon.assignedEmail.toLowerCase() !== couponOwner?.email.toLowerCase())) ||
                 (coupon.userId !== null && coupon.userId !== userId) ||
                 (coupon.startsAt && coupon.startsAt > now) ||
                 (coupon.expiresAt && coupon.expiresAt <= now)) {
               throw new BadRequestException('Coupon is invalid, expired, or not assigned to this customer');
+            }
+            if (coupon.assignedEmail) {
+              const previousPaidOrders = await tx.order.count({
+                where: { userId, paymentStatus: { in: [PaymentStatus.PAID, PaymentStatus.REFUNDED] } },
+              });
+              if (previousPaidOrders > 0) {
+                throw new ConflictException('Welcome discount is only valid on your first paid order');
+              }
             }
             if (coupon.minOrderAmount && subtotal.lessThan(coupon.minOrderAmount)) {
               throw new BadRequestException('Order does not meet coupon minimum');

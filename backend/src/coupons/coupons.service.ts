@@ -53,11 +53,13 @@ export class CouponsService {
 
   async findAvailableForUser(userId: string) {
     const now = new Date();
+    const customer = await this.prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
     const coupons = await this.prisma.coupon.findMany({
       where: {
         isActive: true,
         AND: [
           { OR: [{ userId: null }, { userId }] },
+          { OR: [{ assignedEmail: null }, { assignedEmail: customer?.email ?? '' }] },
           { OR: [{ startsAt: null }, { startsAt: { lte: now } }] },
           { OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] },
         ],
@@ -193,14 +195,26 @@ export class CouponsService {
     }
 
     const coupon = await this.prisma.coupon.findUnique({ where: { code } });
+    const customer = coupon?.assignedEmail
+      ? await this.prisma.user.findUnique({ where: { id: userId }, select: { email: true } })
+      : null;
     const now = new Date();
     if (!coupon || !coupon.isActive ||
+      (coupon.assignedEmail !== null && coupon.assignedEmail.toLowerCase() !== customer?.email.toLowerCase()) ||
       (coupon.startsAt && coupon.startsAt > now) ||
       (coupon.expiresAt && coupon.expiresAt <= now)) {
       throw new BadRequestException('Coupon is invalid or expired');
     }
     if (coupon.userId && coupon.userId !== userId) {
       throw new BadRequestException('Coupon is not assigned to this customer');
+    }
+    if (coupon.assignedEmail) {
+      const previousPaidOrders = await this.prisma.order.count({
+        where: { userId, paymentStatus: { in: ['PAID', 'REFUNDED'] } },
+      });
+      if (previousPaidOrders > 0) {
+        throw new ConflictException('Welcome discount is only valid on your first paid order');
+      }
     }
 
     const productIds = [...new Set([...quantities.values()].flatMap((item) => item.productId ? [item.productId] : []))];

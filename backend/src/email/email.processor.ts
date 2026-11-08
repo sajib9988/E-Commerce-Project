@@ -16,6 +16,12 @@ export class EmailProcessor extends WorkerHost {
       await this.email.sendOtpNow(data.email, data.code, data.purpose);
       return;
     }
+    if (job.name === 'welcome-coupon') {
+      await this.email.sendWelcomeCouponNow(job.data as {
+        email: string; couponCode: string; discountValue: string; expiresAt: string;
+      });
+      return;
+    }
     if (job.name === 'order-confirmation' || job.name === 'shipping-update') {
       await this.email.sendNotificationNow(job.name, job.data as Record<string, unknown>);
       return;

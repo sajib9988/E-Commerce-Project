@@ -73,3 +73,16 @@ enum ArtworkStyle {
   ILLUSTRATION
   OTHER
 }
+
+
+enum PromotionType {
+  AUTOMATIC
+  POPUP
+  VOLUME
+  FREE_SHIPPING
+}
+
+enum PromotionDiscountType {
+  PERCENTAGE
+  FIXED
+}
