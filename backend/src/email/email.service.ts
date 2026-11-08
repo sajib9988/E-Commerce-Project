@@ -57,6 +57,10 @@ export class EmailService {
     });
   }
 
+  isConfigured(): boolean {
+    return Boolean(this.transporter && this.fromAddress);
+  }
+
   async sendWelcomeCoupon(payload: { email: string; couponCode: string; discountValue: string; expiresAt: string }) {
     await this.emailQueue.add('welcome-coupon', payload, {
       jobId: `welcome-coupon:${payload.couponCode}`,
@@ -66,9 +70,8 @@ export class EmailService {
   }
 
   async sendWelcomeCouponNow(payload: { email: string; couponCode: string; discountValue: string; expiresAt: string }) {
-    if (!this.transporter) {
-      this.logger.warn(`Email provider is not configured; skipped welcome coupon for ${payload.email}.`);
-      return;
+    if (!this.transporter || !this.fromAddress) {
+      throw new Error('Email provider is not configured for welcome coupon delivery');
     }
     const expires = new Date(payload.expiresAt).toLocaleDateString('en-US', {
       year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC',
