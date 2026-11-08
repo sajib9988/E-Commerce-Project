@@ -6,5 +6,5 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
   const { id } = await params;
   const product = await getProductById(id);
   if (!product || (typeof product === "object" && "success" in product && product.success === false)) notFound();
-  return <ProductDetailClient product={product as Record<string, any>} />;
+  return <ProductDetailClient product={product as any} />;
 }
