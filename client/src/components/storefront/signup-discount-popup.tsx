@@ -152,7 +152,7 @@ export function SignupDiscountPopup() {
                   onChange={(event) => setMarketingConsent(event.target.checked)}
                   type="checkbox"
                 />
-                <span>Yes, I would also like to receive promotional emails. I can unsubscribe at any time. (Optional)</span>
+                <span>I also agree to receive occasional promotional emails. (Optional)</span>
               </label>
               {error ? <p className="text-sm text-red-600" role="alert">{error}</p> : null}
               <button
