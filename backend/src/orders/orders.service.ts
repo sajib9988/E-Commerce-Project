@@ -127,13 +127,18 @@ export class OrdersService {
           let coupon: { id: string; code: string; type: CouponType; value: Prisma.Decimal;
             maxDiscountAmount: Prisma.Decimal | null; usageCount: number; usageLimit: number | null;
             perUserLimit: number; startsAt: Date | null; expiresAt: Date | null;
-            isActive: boolean; minOrderAmount: Prisma.Decimal | null; userId: string | null } | null = null;
+            isActive: boolean; minOrderAmount: Prisma.Decimal | null; userId: string | null; assignedEmail: string | null } | null = null;
 
           if (dto.couponCode?.trim()) {
             const code = dto.couponCode.trim().toUpperCase();
             coupon = await tx.coupon.findUnique({ where: { code } });
+            const couponOwner = coupon?.assignedEmail
+              ? await tx.user.findUnique({ where: { id: userId }, select: { email: true } })
+              : null;
+            const normalizedCheckoutEmail = dto.customerEmail.trim().toLowerCase();
             const now = new Date();
             if (!coupon || !coupon.isActive ||
+                (coupon.assignedEmail !== null && (coupon.assignedEmail.toLowerCase() !== normalizedCheckoutEmail || coupon.assignedEmail.toLowerCase() !== couponOwner?.email.toLowerCase())) ||
                 (coupon.userId !== null && coupon.userId !== userId) ||
                 (coupon.startsAt && coupon.startsAt > now) ||
                 (coupon.expiresAt && coupon.expiresAt <= now)) {
