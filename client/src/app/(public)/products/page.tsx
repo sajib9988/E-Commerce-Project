@@ -13,8 +13,12 @@ export default async function ShopPage({ searchParams }: { searchParams: Promise
   const filters = { search: query, categoryId: params.categoryId || undefined, minPrice: params.minPrice ? Number(params.minPrice) : undefined, maxPrice: params.maxPrice ? Number(params.maxPrice) : undefined, sortBy: params.sortBy || "createdAt", sortOrder: params.sortOrder === "asc" ? "asc" as const : "desc" as const, page: Math.max(1, Number(params.page) || 1), limit: 12 };
   const result = await getProducts(filters) as Result;
   const failed = !Array.isArray(result) && "success" in result && result.success === false;
-  const items: Product[] = Array.isArray(result) ? result : !failed ? result.items ?? [] : [];
-  const pagination = !Array.isArray(result) && !failed ? result.pagination : undefined;
+  const data = !Array.isArray(result) && !("success" in result && result.success === false)
+    ? result as { items?: Product[]; pagination?: { page: number; totalPages: number; total: number } }
+    : undefined;
+  const items: Product[] = Array.isArray(result) ? result : data?.items ?? [];
+  const pagination = data?.pagination;
+  const errorMessage = failed ? (result as { success: false; message: string }).message : "";
   const categories = [...new Map(items.filter(p => p.category?.id).map(p => [p.category!.id, p.category!])).values()];
   const makeHref = (page: number) => { const next = new URLSearchParams(); Object.entries({ ...params, page: String(page) }).forEach(([k,v]) => { if (v) next.set(k,v); }); return `/products?${next.toString()}`; };
 
@@ -29,7 +33,7 @@ export default async function ShopPage({ searchParams }: { searchParams: Promise
       <input type="hidden" name="sortOrder" value={params.sortOrder ?? "desc"} />
       <button className="h-11 rounded-lg bg-stone-950 px-5 text-sm font-semibold text-white hover:bg-stone-700 lg:col-span-6">Apply filters</button>
     </form>
-    {failed ? <p role="alert" className="rounded-xl bg-rose-50 p-5 text-sm text-rose-800">{result.message}</p> : items.length === 0 ? <div className="rounded-2xl border border-dashed p-12 text-center"><h2 className="font-semibold">No products found</h2><p className="mt-2 text-sm text-stone-500">Try changing your search or filters.</p><Link href="/products" className="mt-4 inline-block text-sm font-semibold underline">Clear filters</Link></div> :
+    {failed ? <p role="alert" className="rounded-xl bg-rose-50 p-5 text-sm text-rose-800">{errorMessage}</p> : items.length === 0 ? <div className="rounded-2xl border border-dashed p-12 text-center"><h2 className="font-semibold">No products found</h2><p className="mt-2 text-sm text-stone-500">Try changing your search or filters.</p><Link href="/products" className="mt-4 inline-block text-sm font-semibold underline">Clear filters</Link></div> :
       <><p className="mb-4 text-sm text-stone-500">{pagination?.total ?? items.length} product(s)</p><div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">{items.map(p=><Link key={p.id} href={`/products/${p.id}`} className="group overflow-hidden rounded-2xl border border-stone-200 bg-white"><div className="relative aspect-[4/5] bg-stone-100">{p.imageUrl ? <Image src={p.imageUrl} alt={p.name} fill sizes="(max-width: 640px) 50vw, 25vw" className="object-cover transition duration-300 group-hover:scale-[1.03]" unoptimized/> : <div className="grid h-full place-items-center text-sm text-stone-400">No image</div>}</div><div className="p-3 sm:p-4"><p className="text-xs text-stone-500">{p.category?.name ?? "Collection"}</p><h2 className="mt-1 line-clamp-2 text-sm font-semibold">{p.name}</h2><div className="mt-2 flex gap-2 text-sm font-semibold">{money(p.salePrice ?? p.regularPrice)}{p.salePrice != null && <span className="font-normal text-stone-400 line-through">{money(p.regularPrice)}</span>}</div></div></Link>)}</div>
       {pagination && pagination.totalPages > 1 && <nav aria-label="Product pages" className="mt-10 flex items-center justify-center gap-4"><Link aria-disabled={pagination.page<=1} className="rounded-lg border px-4 py-2 text-sm" href={makeHref(Math.max(1,pagination.page-1))}>Previous</Link><span className="text-sm text-stone-500">Page {pagination.page} of {pagination.totalPages}</span><Link className="rounded-lg border px-4 py-2 text-sm" href={makeHref(Math.min(pagination.totalPages,pagination.page+1))}>Next</Link></nav>}</>}
   </main>;
