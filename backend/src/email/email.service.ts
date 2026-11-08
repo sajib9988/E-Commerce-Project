@@ -59,6 +59,7 @@ export class EmailService {
 
   async sendWelcomeCoupon(payload: { email: string; couponCode: string; discountValue: string; expiresAt: string }) {
     await this.emailQueue.add('welcome-coupon', payload, {
+      jobId: `welcome-coupon:${payload.couponCode}`,
       attempts: 5, backoff: { type: 'exponential', delay: 2_000 },
       removeOnComplete: 500, removeOnFail: 2_000,
     });
