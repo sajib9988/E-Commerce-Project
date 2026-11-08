@@ -208,6 +208,14 @@ export class CouponsService {
     if (coupon.userId && coupon.userId !== userId) {
       throw new BadRequestException('Coupon is not assigned to this customer');
     }
+    if (coupon.assignedEmail) {
+      const previousPaidOrders = await this.prisma.order.count({
+        where: { userId, paymentStatus: 'PAID' },
+      });
+      if (previousPaidOrders > 0) {
+        throw new ConflictException('Welcome discount is only valid on your first paid order');
+      }
+    }
 
     const productIds = [...new Set([...quantities.values()].flatMap((item) => item.productId ? [item.productId] : []))];
     const variantIds = [...new Set([...quantities.values()].flatMap((item) => item.variantId ? [item.variantId] : []))];
