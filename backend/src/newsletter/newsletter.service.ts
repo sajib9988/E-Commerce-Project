@@ -61,9 +61,8 @@ export class NewsletterService {
     if (expiry <= now) throw new ServiceUnavailableException('The welcome offer has expired');
 
     const couponCode = `WELCOME-${randomBytes(4).toString('hex').toUpperCase()}`;
-    let subscription;
     try {
-      subscription = await this.prisma.$transaction(async (tx) => {
+      await this.prisma.$transaction(async (tx) => {
         const coupon = await tx.coupon.create({
           data: {
             code: couponCode,
