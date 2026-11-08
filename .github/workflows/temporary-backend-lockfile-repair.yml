@@ -1,0 +1,50 @@
+name: Temporary backend lockfile repair
+
+on:
+  push:
+    branches:
+      - fix/backend-pnpm-lockfile
+
+permissions:
+  contents: write
+
+jobs:
+  repair-lockfile:
+    if: github.event.head_commit.message != 'chore: sync backend pnpm lockfile'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repair branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/backend-pnpm-lockfile
+          fetch-depth: 0
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.34.9
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Regenerate backend lockfile
+        working-directory: backend
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Verify frozen install
+        working-directory: backend
+        run: pnpm install --frozen-lockfile
+
+      - name: Commit synchronized lockfile
+        run: |
+          if git diff --quiet -- backend/pnpm-lock.yaml; then
+            echo "Lockfile is already synchronized."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add backend/pnpm-lock.yaml
+          git commit -m "chore: sync backend pnpm lockfile"
+          git push origin HEAD:fix/backend-pnpm-lockfile
