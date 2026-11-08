@@ -3,6 +3,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getCollectionBySlug } from "@/service/collection.service";
 
+export const instant = false;
+
 export default async function CollectionDetailPage({params}:{params:Promise<{slug:string}>}){
  const {slug}=await params; const result=await getCollectionBySlug(slug) as any;
  if(!result||("success"in result&&result.success===false))notFound();
