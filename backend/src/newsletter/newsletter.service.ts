@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
+import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { randomBytes } from 'node:crypto';
 import { Prisma } from '../../generated/prisma/client';
 import { CouponType } from '../../generated/prisma/enums';
@@ -49,6 +49,10 @@ export class NewsletterService {
       return { success: true, message: 'If eligible, your welcome offer will arrive by email shortly.' };
     }
 
+    if (!this.email.isConfigured()) {
+      throw new ServiceUnavailableException('Email provider is not configured. Welcome offers are temporarily unavailable.');
+    }
+
     const discountValue = new Prisma.Decimal(offer.discountValue.toString());
     const expiry = new Date(Math.min(
       now.getTime() + 7 * 24 * 60 * 60 * 1000,
@@ -84,7 +88,7 @@ export class NewsletterService {
       });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new ConflictException('This email has already requested a welcome offer');
+        return { success: true, message: 'If eligible, your welcome offer will arrive by email shortly.' };
       }
       throw error;
     }
@@ -105,7 +109,6 @@ export class NewsletterService {
     return {
       success: true,
       message: 'If eligible, your welcome offer will arrive by email shortly.',
-      subscriptionId: subscription.id,
     };
   }
 }
