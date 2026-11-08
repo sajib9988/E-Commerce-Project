@@ -146,7 +146,7 @@ export class OrdersService {
             }
             if (coupon.assignedEmail) {
               const previousPaidOrders = await tx.order.count({
-                where: { userId, paymentStatus: PaymentStatus.PAID },
+                where: { userId, paymentStatus: { in: [PaymentStatus.PAID, PaymentStatus.REFUNDED] } },
               });
               if (previousPaidOrders > 0) {
                 throw new ConflictException('Welcome discount is only valid on your first paid order');
