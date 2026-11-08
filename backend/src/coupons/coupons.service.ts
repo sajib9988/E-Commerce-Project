@@ -53,11 +53,13 @@ export class CouponsService {
 
   async findAvailableForUser(userId: string) {
     const now = new Date();
+    const customer = await this.prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
     const coupons = await this.prisma.coupon.findMany({
       where: {
         isActive: true,
         AND: [
           { OR: [{ userId: null }, { userId }] },
+          { OR: [{ assignedEmail: null }, { assignedEmail: customer?.email ?? '' }] },
           { OR: [{ startsAt: null }, { startsAt: { lte: now } }] },
           { OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] },
         ],
