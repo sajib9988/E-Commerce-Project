@@ -30,7 +30,7 @@ export class NewsletterService {
       throw new ServiceUnavailableException('The welcome offer is not available right now');
     }
 
-    const existing = await this.prisma.newsletterSubscription.findUnique({ where: { email } });
+    const existing = await this.prisma.newsletterSubscription.findUnique({ where: { email }, include: { welcomeCoupon: true } });
     if (existing) {
       if (dto.marketingConsent && !existing.marketingConsent) {
         await this.prisma.newsletterSubscription.update({
@@ -38,7 +38,15 @@ export class NewsletterService {
           data: { marketingConsent: true, consentedAt: now, unsubscribedAt: null },
         });
       }
-      return { success: true, message: 'If this address is eligible, your welcome offer has already been sent.' };
+      if (existing.welcomeCoupon?.isActive && existing.welcomeCoupon.expiresAt && existing.welcomeCoupon.expiresAt > now) {
+        await this.email.sendWelcomeCoupon({
+          email,
+          couponCode: existing.welcomeCoupon.code,
+          discountValue: existing.welcomeCoupon.value.toString(),
+          expiresAt: existing.welcomeCoupon.expiresAt.toISOString(),
+        });
+      }
+      return { success: true, message: 'If eligible, your welcome offer will arrive by email shortly.' };
     }
 
     const discountValue = new Prisma.Decimal(offer.discountValue.toString());
@@ -96,7 +104,7 @@ export class NewsletterService {
 
     return {
       success: true,
-      message: 'Your welcome discount has been sent to your email address.',
+      message: 'If eligible, your welcome offer will arrive by email shortly.',
       subscriptionId: subscription.id,
     };
   }
