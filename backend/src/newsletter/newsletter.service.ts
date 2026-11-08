@@ -1,4 +1,4 @@
-import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { randomBytes } from 'node:crypto';
 import { Prisma } from '../../generated/prisma/client';
 import { CouponType } from '../../generated/prisma/enums';
@@ -14,6 +14,27 @@ export class NewsletterService {
     private readonly prisma: PrismaService,
     private readonly email: EmailService,
   ) {}
+
+  async findSubscribers() {
+    return this.prisma.newsletterSubscription.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+      select: {
+        id: true, email: true, marketingConsent: true, consentedAt: true,
+        unsubscribedAt: true, createdAt: true,
+      },
+    });
+  }
+
+  async unsubscribe(id: string) {
+    const existing = await this.prisma.newsletterSubscription.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Newsletter subscriber not found');
+    return this.prisma.newsletterSubscription.update({
+      where: { id },
+      data: { marketingConsent: false, unsubscribedAt: new Date() },
+      select: { id: true, email: true, marketingConsent: true, unsubscribedAt: true },
+    });
+  }
 
   async signup(dto: NewsletterSignupDto) {
     const email = dto.email.trim().toLowerCase();
@@ -101,7 +122,6 @@ export class NewsletterService {
       });
     } catch (error) {
       this.logger.error('Welcome coupon was created but email could not be queued', error);
-      // Do not expose the coupon in the API response; keep it bound to this email.
       throw new ServiceUnavailableException('Your offer was created but email delivery is temporarily unavailable. Please contact support.');
     }
 
