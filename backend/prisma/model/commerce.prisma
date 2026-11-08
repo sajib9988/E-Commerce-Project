@@ -296,7 +296,7 @@ model Coupon {
   perUserLimit      Int                @default(1)
   userId            String?
   user              User?              @relation("AssignedCoupons", fields: [userId], references: [id], onDelete: SetNull)
-  assignedEmail     String?            @db.VarChar(320)
+  assignedEmail     String?            @map("assigned_email") @db.VarChar(320)
   newsletterSubscription NewsletterSubscription?
   redemptions       CouponRedemption[]
   createdAt         DateTime           @default(now())
