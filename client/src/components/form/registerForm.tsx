@@ -99,6 +99,8 @@ export default function RegisterForm() {
           result.data?.message || "Registration failed"
         );
 
+        setTurnstileToken("");
+        window.turnstile?.reset();
         return;
       }
 
@@ -117,6 +119,8 @@ export default function RegisterForm() {
 
       setTurnstileToken("");
     } catch (err) {
+      setTurnstileToken("");
+      window.turnstile?.reset();
       toast.error("Something went wrong.");
     } finally {
       setIsLoading(false);
