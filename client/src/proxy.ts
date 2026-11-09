@@ -52,6 +52,10 @@ export async function proxy(request: NextRequest) {
   }
 
   if (!refreshResponse.ok) {
+    if (refreshResponse.status !== 401) {
+      return NextResponse.next();
+    }
+
     const response = NextResponse.next();
     response.cookies.delete("accessToken");
     response.cookies.delete("refreshToken");
