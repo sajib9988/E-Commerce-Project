@@ -1,0 +1,11 @@
+model AiKnowledgeChunk {
+  id        String   @id
+  source    String
+  content   String
+  embedding Unsupported("vector(1536)")
+  metadata  Json     @default("{}")
+  createdAt DateTime @default(now()) @db.Timestamp(3) @map("created_at")
+
+  @@index([source])
+  @@map("ai_knowledge_chunks")
+}

@@ -769,7 +769,7 @@ export default function LoginForm() {
         <form onSubmit={handleAdminOtp} className="space-y-5">
           <Input
             value={adminOtp}
-            onChange={(event) => setAdminOtp(event.target.value.replace(/\\D/g, "").slice(0, 6))}
+            onChange={(event) => setAdminOtp(event.target.value.replace(/\D/g, "").slice(0, 6))}
             inputMode="numeric"
             autoComplete="one-time-code"
             placeholder="6-digit login code"

@@ -32,7 +32,7 @@ const schema = z.object({
   sku: z.string().trim().min(1, "SKU is required").max(100),
   regularPrice: z.string().min(1, "Regular price is required").refine((v) => Number.isFinite(Number(v)) && Number(v) >= 0, "Enter a valid price"),
   salePrice: z.string().refine((v) => v === "" || (Number.isFinite(Number(v)) && Number(v) >= 0), "Enter a valid sale price"),
-  stockQuantity: z.string().regex(/^\\d+$/, "Stock must be a whole number"),
+  stockQuantity: z.string().regex(/^\d+$/, "Stock must be a whole number"),
   apliiqVariantSku: z.string().max(160),
   colorName: z.string().max(100),
   colorHex: z.string().refine((v) => v === "" || /^#(?:[0-9a-fA-F]{3}){1,2}$/.test(v), "Use a valid hex color"),
