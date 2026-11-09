@@ -147,14 +147,18 @@ export class CmsService {
   }
 
   async unpublish(id: string) {
-    const page = await this.prisma.cmsPage.updateMany({
-      where: { id },
-      data: { status: 'DRAFT' },
+    await this.prisma.$transaction(async (tx) => {
+      const page = await tx.cmsPage.updateMany({
+        where: { id },
+        data: { status: 'DRAFT' },
+      });
+
+      if (!page.count) throw new NotFoundException(`Page ${id} not found`);
+
+      await tx.$executeRaw`
+        DELETE FROM ai_knowledge_chunks WHERE source = ${`cms:${id}`}
+      `;
     });
-
-    if (!page.count) throw new NotFoundException(`Page ${id} not found`);
-
-    await this.aiKnowledge.deleteSource(`cms:${id}`);
 
     return this.findOne(id);
   }
