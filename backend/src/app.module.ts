@@ -3,8 +3,6 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { BullModule } from '@nestjs/bullmq';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
 import { PrismaModule } from './prisma/prisma.module';
 import { EmailModule } from './email/email.module';
 import { AuthModule } from './auth/auth.module';
@@ -76,9 +74,8 @@ import { RedisThrottlerStorage } from './redis/redis-throttler.storage';
     PromotionModule,
     NewsletterModule,
   ],
-  controllers: [AppController],
+  controllers: [],
   providers: [
-    AppService,
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
