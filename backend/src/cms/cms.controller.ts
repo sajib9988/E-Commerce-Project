@@ -9,18 +9,45 @@ import { CreateCmsPageDto, UpdateCmsPageDto } from './cms-page.dto';
 export class CmsController {
   constructor(private readonly cms: CmsService) {}
 
-  // ':id'-er age declare korte hobe, na hole "slug" id hishebe match hobe
   @Public()
-  @Roles() // class-level role clear (services.controller-er moto)
+  @Roles()
   @Get('slug/:slug')
   getPublic(@Param('slug') slug: string) {
     return this.cms.findPublicBySlug(slug);
   }
 
-  @Get() findAll() { return this.cms.findAll(); }
-  @Get(':id') findOne(@Param('id') id: string) { return this.cms.findOne(id); }
-  @Post() create(@Body() dto: CreateCmsPageDto) { return this.cms.create(dto); }
-  @Patch(':id') update(@Param('id') id: string, @Body() dto: UpdateCmsPageDto) { return this.cms.update(id, dto); }
-  @Patch(':id/publish') publish(@Param('id') id: string) { return this.cms.publish(id); }
-  @Delete(':id') remove(@Param('id') id: string) { return this.cms.remove(id); }
+  @Get()
+  findAll() {
+    return this.cms.findAll();
+  }
+
+  @Get(':id')
+  findOne(@Param('id') id: string) {
+    return this.cms.findOne(id);
+  }
+
+  @Post()
+  create(@Body() dto: CreateCmsPageDto) {
+    return this.cms.create(dto);
+  }
+
+  @Patch(':id')
+  update(@Param('id') id: string, @Body() dto: UpdateCmsPageDto) {
+    return this.cms.update(id, dto);
+  }
+
+  @Patch(':id/publish')
+  publish(@Param('id') id: string) {
+    return this.cms.publish(id);
+  }
+
+  @Patch(':id/unpublish')
+  unpublish(@Param('id') id: string) {
+    return this.cms.unpublish(id);
+  }
+
+  @Delete(':id')
+  remove(@Param('id') id: string) {
+    return this.cms.remove(id);
+  }
 }
