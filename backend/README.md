@@ -73,7 +73,9 @@ With Mau, you can deploy your application in just a few clicks, allowing you to 
 
 ## Project backend configuration
 
-> The backend pnpm lockfile is synchronized with `package.json`; use `pnpm install --frozen-lockfile` for repeatable installs.
+The NestJS API listens on port `5000` by default. Keep Next.js on `3000`; the storefront's `NEXT_PUBLIC_BASE_URL` should point to `http://localhost:5000/api/v1` locally.
+
+Security headers are applied with Helmet. When adding or changing backend dependencies, regenerate and commit `pnpm-lock.yaml` using the repository's pinned pnpm version before using frozen-lockfile installs.
 
 
 Copy `.env.example` to `.env` and configure the services below before running the API:
