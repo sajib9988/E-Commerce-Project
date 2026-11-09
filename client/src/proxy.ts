@@ -38,7 +38,7 @@ export async function proxy(request: NextRequest) {
   let refreshResponse: Response;
   try {
     refreshResponse = await fetch(
-      \`\${API_BASE_URL.replace(/\/+$/, "")}/auth/refresh\`,
+      API_BASE_URL.replace(/\/+$/, "") + "/auth/refresh",
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
