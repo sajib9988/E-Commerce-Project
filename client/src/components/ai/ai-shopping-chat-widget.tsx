@@ -2,26 +2,22 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { FormEvent, KeyboardEvent, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import type { FormEvent, KeyboardEvent } from "react";
 import { usePathname } from "next/navigation";
 import {
   ArrowUp,
   Bot,
-  Check,
-  ChevronDown,
   LoaderCircle,
   MessageCircle,
   Minus,
   Plus,
   RotateCcw,
-  Send,
   Sparkles,
   X,
 } from "lucide-react";
-import {
-  AiChatProduct,
-  sendAiChatMessage,
-} from "@/service/ai-chat.service";
+import { sendAiChatMessage } from "@/service/ai-chat.service";
+import type { AiChatProduct } from "@/service/ai-chat.service";
 
 type ChatMessage = {
   id: string;
@@ -172,16 +168,18 @@ export function AiShoppingChatWidget() {
 
   if (isAdminRoute) return null;
 
-  const submitMessage = async (rawMessage: string) => {
+  const submitMessage = async (rawMessage: string, appendUserMessage = true) => {
     const message = rawMessage.trim();
     if (!message || isSending) return;
 
     setError("");
     setInput("");
-    setMessages((current) => [
-      ...current,
-      { id: crypto.randomUUID(), role: "user", content: message },
-    ]);
+    if (appendUserMessage) {
+      setMessages((current) => [
+        ...current,
+        { id: crypto.randomUUID(), role: "user", content: message },
+      ]);
+    }
     setIsSending(true);
 
     try {
@@ -222,7 +220,7 @@ export function AiShoppingChatWidget() {
 
   const retryLastMessage = () => {
     const lastUserMessage = [...messages].reverse().find((message) => message.role === "user");
-    if (lastUserMessage) void submitMessage(lastUserMessage.content);
+    if (lastUserMessage) void submitMessage(lastUserMessage.content, false);
   };
 
   const resetConversation = () => {
@@ -243,7 +241,7 @@ export function AiShoppingChatWidget() {
         <section
           aria-label="AI shopping assistant"
           aria-live="polite"
-          className="pointer-events-auto flex h-[min(680px,calc(100dvh-112px))] w-[min( calc(100vw-32px), 400px)] flex-col overflow-hidden rounded-2xl border border-stone-200 bg-white text-stone-950 shadow-2xl shadow-stone-950/15 sm:h-[min(700px,calc(100dvh-120px))] sm:w-[400px]"
+          className="pointer-events-auto flex h-[min(680px,calc(100dvh-112px))] w-[calc(100vw-2rem)] max-w-[400px] flex-col overflow-hidden rounded-2xl border border-stone-200 bg-white text-stone-950 shadow-2xl shadow-stone-950/15 sm:h-[min(700px,calc(100dvh-120px))] sm:w-[400px]"
         >
           <header className="flex shrink-0 items-center justify-between bg-stone-950 px-4 py-3.5 text-white">
             <div className="flex min-w-0 items-center gap-3">
