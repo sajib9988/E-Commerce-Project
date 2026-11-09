@@ -70,7 +70,7 @@ export async function sendAiChatMessage(message: string): Promise<AiChatResult> 
 
   try {
     const response = await fetch(
-      `${BASE_URL.replace(/\\/+$/, "")}/ai/chat`,
+      `${BASE_URL.replace(/\/+$/, "")}/ai/chat`,
       {
         method: "POST",
         headers: await getAuthHeaders(),
