@@ -70,6 +70,12 @@ export class StripeWebhookController {
           event.id,
         );
         break;
+      case 'checkout.session.async_payment_failed':
+        await this.payments.handleCheckoutFailed(
+          event.data.object as Stripe.Checkout.Session,
+          event.id,
+        );
+        break;
       case 'charge.refunded':
         await this.payments.handleChargeRefunded(
           event.data.object as Stripe.Charge,

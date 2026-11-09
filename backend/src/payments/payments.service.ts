@@ -374,6 +374,87 @@ export class PaymentsService {
     if (confirmation) await this.notifications.orderConfirmed(confirmation);
   }
 
+  async handleCheckoutFailed(session: Stripe.Checkout.Session, eventId: string) {
+    const attemptId = session.metadata?.paymentAttemptId;
+    const orderId = session.metadata?.orderId;
+    if (!attemptId || !orderId) return;
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "orders" WHERE "id" = ${orderId} FOR UPDATE`;
+      const eventClaim = await tx.stripeWebhookEvent.createMany({
+        data: [{ id: eventId, type: 'checkout.session.async_payment_failed' }],
+        skipDuplicates: true,
+      });
+      if (eventClaim.count === 0) return;
+
+      await tx.paymentAttempt.updateMany({
+        where: {
+          id: attemptId,
+          orderId,
+          stripeCheckoutSessionId: session.id,
+          status: PaymentAttemptStatus.CREATED,
+        },
+        data: { status: PaymentAttemptStatus.FAILED },
+      });
+
+      const order = await tx.order.findUnique({
+        where: { id: orderId },
+        select: { paymentStatus: true, status: true },
+      });
+      if (!order || order.paymentStatus === PaymentStatus.PAID) return;
+
+      const otherActiveAttempt = await tx.paymentAttempt.findFirst({
+        where: { orderId, status: PaymentAttemptStatus.CREATED },
+      });
+      if (otherActiveAttempt) return;
+
+      const reservation = await tx.stockReservation.findUnique({
+        where: { orderId },
+        include: { items: true },
+      });
+      if (reservation?.status === 'RESERVED') {
+        const claimed = await tx.stockReservation.updateMany({
+          where: { id: reservation.id, status: 'RESERVED' },
+          data: { status: 'RELEASED', releasedAt: new Date() },
+        });
+        if (claimed.count === 1) {
+          for (const item of reservation.items) {
+            if (item.variantId) {
+              await tx.productVariant.update({
+                where: { id: item.variantId },
+                data: { stockQuantity: { increment: item.quantity } },
+              });
+            } else {
+              await tx.product.update({
+                where: { id: item.productId },
+                data: { stockQuantity: { increment: item.quantity } },
+              });
+            }
+          }
+        }
+      }
+
+      const redemption = await tx.couponRedemption.findUnique({ where: { orderId } });
+      if (redemption?.status === 'RESERVED') {
+        const claimed = await tx.couponRedemption.updateMany({
+          where: { id: redemption.id, status: 'RESERVED' },
+          data: { status: 'RELEASED', releasedAt: new Date() },
+        });
+        if (claimed.count === 1) {
+          await tx.coupon.update({
+            where: { id: redemption.couponId },
+            data: { usageCount: { decrement: 1 } },
+          });
+        }
+      }
+
+      await tx.order.updateMany({
+        where: { id: orderId, paymentStatus: PaymentStatus.PENDING },
+        data: { status: OrderStatus.CANCELLED },
+      });
+    });
+  }
+
   async handleCheckoutExpired(session: Stripe.Checkout.Session, eventId: string) {
     const attemptId = session.metadata?.paymentAttemptId;
     const orderId = session.metadata?.orderId;

@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
+import helmet from 'helmet';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
@@ -14,6 +15,7 @@ async function bootstrap() {
     app.getHttpAdapter().getInstance().set('trust proxy', Number.isInteger(hops) && hops >= 0 ? hops : trustProxy);
   }
 
+  app.use(helmet());
   app.setGlobalPrefix('api/v1');
 
   app.useGlobalPipes(
@@ -35,6 +37,6 @@ async function bootstrap() {
     credentials: true,
   });
 
-  await app.listen(process.env.PORT ?? 3000);
+  await app.listen(Number(process.env.PORT) || 5000);
 }
 bootstrap();
