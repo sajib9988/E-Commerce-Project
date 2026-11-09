@@ -5,6 +5,18 @@ import { CloudinaryService } from '../cloudinary/cloudinary.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 
+function sanitizePublicProduct(product: any) {
+  return {
+    ...product,
+    variants: product.variants?.map(({ apliiqVariantSku, apliiqDesignId, ...variant }: any) => variant),
+    apliiqDesigns: product.apliiqDesigns?.map(({ colorId, mockupUrl, mockupUrls }: any) => ({
+      colorId,
+      mockupUrl,
+      mockupUrls,
+    })),
+  };
+}
+
 @Injectable()
 export class ProductsService {
   constructor(private readonly prisma: PrismaService, private readonly cloudinaryService: CloudinaryService) {}
@@ -42,7 +54,8 @@ export class ProductsService {
     } as const;
     // Keep the legacy array response when pagination is not requested.
     if (filters.page === undefined && filters.limit === undefined) {
-      return this.prisma.product.findMany({ where, include, orderBy });
+      const products = await this.prisma.product.findMany({ where, include, orderBy });
+      return products.map(sanitizePublicProduct);
     }
     const page = Number.isFinite(filters.page) ? Math.max(1, Math.floor(filters.page!)) : 1;
     const limit = Number.isFinite(filters.limit) ? Math.min(100, Math.max(1, Math.floor(filters.limit!))) : 20;
@@ -50,7 +63,7 @@ export class ProductsService {
       this.prisma.product.findMany({ where, include, orderBy, skip: (page - 1) * limit, take: limit }),
       this.prisma.product.count({ where }),
     ]);
-    return { items, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } };
+    return { items: items.map(sanitizePublicProduct), pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } };
   }
 
   async findAllForAdmin(params: { page?: number; limit?: number; search?: string; categoryId?: string; isActive?: boolean; sortBy?: string; sortOrder?: string } = {}) {
@@ -95,7 +108,7 @@ export class ProductsService {
       },
     });
     if (!product) throw new NotFoundException('Product not found');
-    return product;
+    return sanitizePublicProduct(product);
   }
 
   async findOneForAdmin(id: string) {

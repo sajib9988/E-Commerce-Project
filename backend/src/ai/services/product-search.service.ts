@@ -57,7 +57,7 @@ export class ProductSearchService {
     return products.map((product) => ({
       id: product.id,
       name: product.name,
-      description: product.description,
+      description: (product.description ?? '').slice(0, 400),
       brand: product.brand,
       regularPrice: product.regularPrice.toString(),
       salePrice: product.salePrice?.toString() ?? null,
