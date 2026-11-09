@@ -61,21 +61,39 @@ export class AuthService {
     if (!turnstileValid) throw new BadRequestException('Turnstile verification failed');
     const email = dto.email.trim().toLowerCase();
     const existing = await this.prisma.user.findUnique({ where: { email } });
+
+    // Keep registration responses identical for existing and new addresses.
+    // Do not reveal whether an email is already registered.
     if (existing) {
-      throw new ConflictException('A user with this email already exists');
+      return {
+        success: true,
+        message: 'If registration can proceed, verification instructions will be sent to the supplied email.',
+      };
     }
 
-    const user = await this.prisma.user.create({
-      data: {
-        name: dto.name.trim(),
-        email,
-        password: await hashPassword(dto.password),
-        role: UserRole.USER,
-      },
-    });
+    try {
+      const user = await this.prisma.user.create({
+        data: {
+          name: dto.name.trim(),
+          email,
+          password: await hashPassword(dto.password),
+          role: UserRole.USER,
+        },
+      });
 
-    await this.issueAndSendOtp(user.id, user.email, 'verify-email');
-    return { success: true, message: 'Account created. Check your email for the verification code.' };
+      await this.issueAndSendOtp(user.id, user.email, 'verify-email');
+    } catch (error) {
+      // A concurrent registration can win the unique-email race. Return the
+      // same neutral response rather than leaking the winner's account state.
+      if (!(error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002')) {
+        throw error;
+      }
+    }
+
+    return {
+      success: true,
+      message: 'If registration can proceed, verification instructions will be sent to the supplied email.',
+    };
   }
 
   async login(dto: LoginDto) {
