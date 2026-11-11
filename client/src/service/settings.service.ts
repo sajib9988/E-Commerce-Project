@@ -2,7 +2,6 @@
 
 import { apiRequest } from "@/lib/api/server-request";
 import { revalidatePath } from "next/cache";
-const BASE_URL=process.env.NEXT_PUBLIC_BASE_URL;
 async function request(path:string,options:RequestInit={}) {
   return apiRequest(path, options, { context: "settings request" });
 }
