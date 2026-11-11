@@ -2,7 +2,6 @@
 
 import { apiRequest } from "@/lib/api/server-request";
 
-import { cookies } from "next/headers";
 import type { MediaAsset, MediaUsage } from "@/type/cms";
 
 const MEDIA_ENDPOINT = "/cms/media";
@@ -13,23 +12,9 @@ type ApiError = {
   statusCode?: number;
 };
 
-async function getAuthHeaders(isJson = true): Promise<Record<string, string>> {
-  const cookieStore = await cookies();
-  const accessToken = cookieStore.get("accessToken")?.value;
 
-  return {
-    ...(isJson ? { "Content-Type": "application/json" } : {}),
-    ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-  };
-}
 
-async function safeJson(response: Response): Promise<any> {
-  try {
-    return await response.json();
-  } catch {
-    return null;
-  }
-}
+
 
 async function request<T>(
   path: string,
