@@ -4,7 +4,6 @@ import { apiRequest } from "@/lib/api/server-request";
 
 import { revalidatePath } from "next/cache";
 
-const BASE_URL=process.env.NEXT_PUBLIC_BASE_URL;
 type ApiError={success:false;message:string;statusCode?:number};
 export type PromotionInput={name:string;type:"AUTOMATIC"|"POPUP"|"VOLUME"|"FREE_SHIPPING";discountType?:"PERCENTAGE"|"FIXED";discountValue?:number;couponRequired?:boolean;isSignupOffer?:boolean;title?:string;description?:string;startsAt:string;endsAt:string;isActive?:boolean};
 async function request<T>(path:string,options:RequestInit={}):Promise<T|ApiError>{
