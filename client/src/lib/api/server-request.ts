@@ -39,7 +39,7 @@ export async function apiRequest<T>(
     new Headers(options.headers).forEach((value, key) => headers.set(key, value));
 
     const response = await fetch(
-      `${BASE_URL.replace(/\\/+$/, "")}/${path.replace(/^\\/+/, "")}`,
+      `${BASE_URL.replace(/\/+$/, "")}/${path.replace(/^\/+/, "")}`,
       {
         ...options,
         headers,
