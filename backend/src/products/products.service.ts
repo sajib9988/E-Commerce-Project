@@ -6,9 +6,30 @@ import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 
 function sanitizePublicProduct(product: any) {
+  const { imagePublicId: _imagePublicId, apliiqDesignSku: _apliiqDesignSku, ...publicProduct } = product;
   return {
-    ...product,
-    variants: product.variants?.map(({ apliiqVariantSku, apliiqDesignId, ...variant }: any) => variant),
+    ...publicProduct,
+    variants: product.variants?.map(({
+      apliiqVariantSku: _apliiqVariantSku,
+      apliiqDesignId: _apliiqDesignId,
+      apliiqColorId: _apliiqColorId,
+      ...variant
+    }: any) => variant),
+    artworks: product.artworks?.map(({
+      imagePublicId: _imagePublicId,
+      apliiqArtworkId: _apliiqArtworkId,
+      placements,
+      ...artwork
+    }: any) => ({
+      ...artwork,
+      placements: placements?.map(({
+        id: _placementId,
+        artworkId: _artworkId,
+        locationId: _locationId,
+        boxId: _boxId,
+        ...placement
+      }: any) => placement),
+    })),
     apliiqDesigns: product.apliiqDesigns?.map(({ colorId, mockupUrl, mockupUrls }: any) => ({
       colorId,
       mockupUrl,
