@@ -4,7 +4,6 @@ import { apiRequest } from "@/lib/api/server-request";
 
 import { revalidatePath } from "next/cache";
 
-const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL;
 type ApiError = { success: false; message: string; statusCode?: number };
 type UserInput = { name: string; email: string; password: string; role?: "USER" | "ADMIN" | "SUPER_ADMIN" };
 
