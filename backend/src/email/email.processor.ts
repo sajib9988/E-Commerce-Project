@@ -8,7 +8,7 @@ import { EmailService } from './email.service';
 export class EmailProcessor extends WorkerHost {
   constructor(private readonly email: EmailService) { super(); }
 
-  async process(job: Job<OtpEmailJob | Record<string, unknown>>): Promise<void> {
+  async process(job: Job<Record<string, unknown>>): Promise<void> {
     if (job.name === 'welcome-coupon') {
       await this.email.sendWelcomeCouponNow(job.data as {
         email: string; couponCode: string; discountValue: string; expiresAt: string;
