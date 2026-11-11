@@ -25,7 +25,7 @@ export type CreateOrderInput = {
 };
 
 const request = async <T>(endpoint: string, data: unknown): Promise<T | ApiError> => {
-  return apiRequest<T>(endpoint, { ...options, method: "POST", body: JSON.stringify(data) }, { context: "Checkout request" });
+  return apiRequest<T>(endpoint, { method: "POST", body: JSON.stringify(data) }, { context: "Checkout request" });
 };
 
 export const createPendingOrder = async (data: CreateOrderInput) => {
