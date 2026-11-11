@@ -1,9 +1,10 @@
-import { Injectable, Logger, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { randomBytes } from 'node:crypto';
 import { Prisma } from '../../generated/prisma/client';
 import { CouponType } from '../../generated/prisma/enums';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../email/email.service';
+import { verifyTurnstileToken } from '../common/utils/turnstile.util';
 import { NewsletterSignupDto } from './dto/signup.dto';
 
 @Injectable()
@@ -37,6 +38,9 @@ export class NewsletterService {
   }
 
   async signup(dto: NewsletterSignupDto) {
+    const turnstileValid = await verifyTurnstileToken(dto.turnstileToken);
+    if (!turnstileValid) throw new BadRequestException('Turnstile verification failed');
+
     const email = dto.email.trim().toLowerCase();
     const now = new Date();
     const offer = await this.prisma.promotion.findFirst({
