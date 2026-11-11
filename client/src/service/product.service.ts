@@ -61,7 +61,7 @@ const request = async <T>(
   options: RequestInit = {},
   authenticated = true,
 ): Promise<T | ApiError> => {
-  return apiRequest<T>(endpoint, options, { authenticated, context: "undefined request" });
+  return apiRequest<T>(endpoint, options, { authenticated, context: "Product request" });
 };
 
 const revalidateProductPages = () => {
