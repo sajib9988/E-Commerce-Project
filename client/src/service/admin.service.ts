@@ -3,6 +3,10 @@
 import { apiRequest } from "@/lib/api/server-request";
 
 import { revalidatePath } from "next/cache";
+import { cookies } from "next/headers";
+import { safeJson } from "@/lib/api/safe-json";
+
+const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL;
 
 type ApiError = { success: false; message: string; statusCode?: number };
 type UserInput = { name: string; email: string; password: string; role?: "USER" | "ADMIN" | "SUPER_ADMIN" };
