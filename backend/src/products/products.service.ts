@@ -6,30 +6,35 @@ import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 
 function sanitizePublicProduct(product: any) {
-  const { imagePublicId: _imagePublicId, apliiqDesignSku: _apliiqDesignSku, ...publicProduct } = product;
+  const publicProduct = { ...product };
+  delete publicProduct.imagePublicId;
+  delete publicProduct.apliiqDesignSku;
+
   return {
     ...publicProduct,
-    variants: product.variants?.map(({
-      apliiqVariantSku: _apliiqVariantSku,
-      apliiqDesignId: _apliiqDesignId,
-      apliiqColorId: _apliiqColorId,
-      ...variant
-    }: any) => variant),
-    artworks: product.artworks?.map(({
-      imagePublicId: _imagePublicId,
-      apliiqArtworkId: _apliiqArtworkId,
-      placements,
-      ...artwork
-    }: any) => ({
-      ...artwork,
-      placements: placements?.map(({
-        id: _placementId,
-        artworkId: _artworkId,
-        locationId: _locationId,
-        boxId: _boxId,
-        ...placement
-      }: any) => placement),
-    })),
+    variants: product.variants?.map((variant: any) => {
+      const publicVariant = { ...variant };
+      delete publicVariant.apliiqVariantSku;
+      delete publicVariant.apliiqDesignId;
+      delete publicVariant.apliiqColorId;
+      return publicVariant;
+    }),
+    artworks: product.artworks?.map((artwork: any) => {
+      const publicArtwork = { ...artwork };
+      delete publicArtwork.imagePublicId;
+      delete publicArtwork.apliiqArtworkId;
+      if (Array.isArray(publicArtwork.placements)) {
+        publicArtwork.placements = publicArtwork.placements.map((placement: any) => {
+          const publicPlacement = { ...placement };
+          delete publicPlacement.id;
+          delete publicPlacement.artworkId;
+          delete publicPlacement.locationId;
+          delete publicPlacement.boxId;
+          return publicPlacement;
+        });
+      }
+      return publicArtwork;
+    }),
     apliiqDesigns: product.apliiqDesigns?.map(({ colorId, mockupUrl, mockupUrls }: any) => ({
       colorId,
       mockupUrl,
