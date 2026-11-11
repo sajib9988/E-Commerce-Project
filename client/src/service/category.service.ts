@@ -13,7 +13,7 @@ export async function getPublicCategories(): Promise<Category[]> {
   if (!BASE_URL) return [];
 
   try {
-    const response = await fetch(`${BASE_URL.replace(/\\/+$/, "")}/categories`, {
+    const response = await fetch(`${BASE_URL.replace(/\/+$/, "")}/categories`, {
       next: { revalidate: 300 },
     });
     if (!response.ok) return [];
