@@ -10,6 +10,11 @@ import { ApliiqService } from './apliiq.service';
 export class ApliiqAdminController {
   constructor(private readonly apliiq: ApliiqService) {}
 
+  @Post('orders/:orderId/retry')
+  retryFailedValidation(@Param('orderId') orderId: string) {
+    return this.apliiq.retryFailedValidationOrder(orderId);
+  }
+
   @Post('orders/:orderId/cancel-request')
   requestCancellation(@Param('orderId') orderId: string) {
     return this.apliiq.requestCancellation(orderId);

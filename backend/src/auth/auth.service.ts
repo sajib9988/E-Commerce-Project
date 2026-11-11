@@ -373,23 +373,47 @@ export class AuthService {
     if (payload.purpose !== 'refresh') throw new UnauthorizedException('Wrong token type');
     const tokenHash = this.hashToken(dto.refreshToken);
     const session = await this.prisma.refreshSession.findUnique({ where: { tokenHash } });
-    if (!session || session.userId !== payload.sub || session.revokedAt || session.expiresAt <= new Date()) {
+    if (!session || session.userId !== payload.sub || session.expiresAt <= new Date()) {
       throw new UnauthorizedException('Refresh token has been revoked or expired');
     }
     const user = await this.prisma.user.findUnique({ where: { id: payload.sub } });
     if (!user || !user.emailVerified) throw new UnauthorizedException('Session expired or invalid');
-    const tokens = this.createTokenPair(user);
+
+    const graceMs = 10_000;
+    const replayRotatedPair = (rotatedAt: Date | null, replacedByTokenHash: string | null) => {
+      if (!rotatedAt || !replacedByTokenHash || Date.now() - rotatedAt.getTime() > graceMs) return null;
+      const tokens = this.createTokenPair(user, Math.floor(rotatedAt.getTime() / 1000));
+      if (this.hashToken(tokens.refreshToken) !== replacedByTokenHash) return null;
+      return { ...tokens, user: { id: user.id, name: user.name, email: user.email, role: user.role } };
+    };
+
+    if (session.revokedAt) {
+      const replay = replayRotatedPair(session.rotatedAt, session.replacedByTokenHash);
+      if (replay) return replay;
+      throw new UnauthorizedException('Refresh token has been revoked or expired');
+    }
+
     const now = new Date();
-    await this.prisma.$transaction(async (tx) => {
-      const revoked = await tx.refreshSession.updateMany({
+    const issuedAt = Math.floor(now.getTime() / 1000);
+    const tokens = this.createTokenPair(user, issuedAt);
+    const rotated = await this.prisma.$transaction(async (tx) => {
+      const claimed = await tx.refreshSession.updateMany({
         where: { id: session.id, revokedAt: null, expiresAt: { gt: now } },
-        data: { revokedAt: now },
+        data: { revokedAt: now, rotatedAt: now, replacedByTokenHash: this.hashToken(tokens.refreshToken) },
       });
-      if (revoked.count !== 1) throw new UnauthorizedException('Refresh token was already used');
+      if (claimed.count !== 1) return false;
       await tx.refreshSession.create({
-        data: { userId: user.id, tokenHash: this.hashToken(tokens.refreshToken), expiresAt: new Date(Date.now() + REFRESH_TOKEN_TTL_SECONDS * 1000) },
+        data: { userId: user.id, tokenHash: this.hashToken(tokens.refreshToken), expiresAt: new Date((issuedAt + REFRESH_TOKEN_TTL_SECONDS) * 1000) },
       });
+      return true;
     });
+
+    if (!rotated) {
+      const latest = await this.prisma.refreshSession.findUnique({ where: { tokenHash } });
+      const replay = replayRotatedPair(latest?.rotatedAt ?? null, latest?.replacedByTokenHash ?? null);
+      if (replay) return replay;
+      throw new UnauthorizedException('Refresh token was already used');
+    }
     return { ...tokens, user: { id: user.id, name: user.name, email: user.email, role: user.role } };
   }
 
@@ -543,11 +567,11 @@ export class AuthService {
 
   private createTokenPair(user: {
     id: string; email: string; name: string; role: AuthTokenPayload['role'];
-  }) {
+  }, issuedAtSeconds?: number) {
     const base = { sub: user.id, email: user.email, name: user.name, role: user.role };
     return {
-      accessToken: this.signToken(base, 'access', ACCESS_TOKEN_TTL_SECONDS),
-      refreshToken: this.signToken(base, 'refresh', REFRESH_TOKEN_TTL_SECONDS),
+      accessToken: this.signToken(base, 'access', ACCESS_TOKEN_TTL_SECONDS, issuedAtSeconds),
+      refreshToken: this.signToken(base, 'refresh', REFRESH_TOKEN_TTL_SECONDS, issuedAtSeconds),
     };
   }
 
@@ -569,8 +593,8 @@ export class AuthService {
     return createHash('sha256').update(token).digest('hex');
   }
 
-  private signToken(base: Omit<AuthTokenPayload, 'purpose'>, purpose: AuthTokenPayload['purpose'], expiresInSeconds: number) {
-    const payload: AuthTokenPayload = { ...base, purpose };
+  private signToken(base: Omit<AuthTokenPayload, 'purpose'>, purpose: AuthTokenPayload['purpose'], expiresInSeconds: number, issuedAtSeconds?: number) {
+    const payload: AuthTokenPayload = { ...base, purpose, ...(issuedAtSeconds !== undefined ? { iat: issuedAtSeconds } : {}) };
     return this.jwtService.sign(payload, { expiresIn: expiresInSeconds });
   }
 

@@ -124,3 +124,12 @@ export const updateOrderStatus = async (id: string, status: string) => {
 
   return result;
 };
+
+export const retryApliiqFulfillment = async (orderId: string) => {
+  const result = await request(
+    `/admin/apliiq/orders/${encodeURIComponent(orderId)}/retry`,
+    { method: "POST" },
+  );
+  if (!isApiError(result)) revalidatePath("/admin/orders");
+  return result;
+};
