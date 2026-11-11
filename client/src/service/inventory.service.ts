@@ -1,6 +1,4 @@
 "use server";
-
-import { apiRequest } from "@/lib/api/server-request";
 import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL;
@@ -21,8 +19,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T | 
   try { data = await response.json() as T; } catch { data = { success: false, message: "Invalid JSON response from server" }; }
   if (!response.ok) return { success: false, statusCode: response.status, message: typeof data === "object" && data !== null && "message" in data ? String(data.message) : `Request failed: ${response.status}` };
   return data;
- } catch (error) {
-  return apiRequest<T>(path, options, { context: "Inventory request" });
+ } catch (error) { console.error("Inventory request failed:", error); return { success: false, message: "Unable to connect to the server" }; }
 }
 function isApiError(value: unknown): value is ApiError { return typeof value === "object" && value !== null && "success" in value && value.success === false; }
 export async function getInventoryAdjustments(page = 1, limit = 50) {
