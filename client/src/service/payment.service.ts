@@ -2,7 +2,6 @@
 
 import { apiRequest } from "@/lib/api/server-request";
 
-import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 
 type ApiError = {
@@ -35,23 +34,9 @@ export type PaymentManualReviewItem = {
   };
 };
 
-async function getAuthHeaders() {
-  const cookieStore = await cookies();
-  const token = cookieStore.get("accessToken")?.value;
 
-  return {
-    "Content-Type": "application/json",
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-  };
-}
 
-async function safeJson<T>(response: Response): Promise<T | ApiError> {
-  try {
-    return (await response.json()) as T;
-  } catch {
-    return { success: false, message: "Invalid JSON response from server" };
-  }
-}
+
 
 function isApiError(value: unknown): value is ApiError {
   return (
