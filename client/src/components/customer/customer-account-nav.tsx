@@ -1,9 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { UserRound, LayoutDashboard, Package, CreditCard, RotateCcw, ShieldCheck, Star, Ticket, LogOut } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { logoutUser } from "@/service/auth.service";
 
 const links = [
