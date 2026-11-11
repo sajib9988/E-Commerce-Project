@@ -35,8 +35,7 @@ function sanitizePublicProduct(product: any) {
       }
       return publicArtwork;
     }),
-    apliiqDesigns: product.apliiqDesigns?.map(({ colorId, mockupUrl, mockupUrls }: any) => ({
-      colorId,
+    apliiqDesigns: product.apliiqDesigns?.map(({ mockupUrl, mockupUrls }: any) => ({
       mockupUrl,
       mockupUrls,
     })),
