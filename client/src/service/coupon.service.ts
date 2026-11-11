@@ -2,7 +2,6 @@
 
 import { apiRequest } from "@/lib/api/server-request";
 
-import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 
 type ApiError = { success: false; message: string; statusCode?: number };
@@ -12,15 +11,8 @@ export type CouponInput = {
   expiresAt?: string | null; isActive?: boolean; usageLimit?: number | null; perUserLimit?: number; userId?: string | null;
 };
 
-async function getAuthHeaders() {
-  const store = await cookies();
-  const token = store.get("accessToken")?.value;
-  return { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) };
-}
-async function safeJson<T>(response: Response): Promise<T | ApiError> {
-  try { return (await response.json()) as T; }
-  catch { return { success: false, message: "Invalid JSON response from server" }; }
-}
+
+
 function isApiError(value: unknown): value is ApiError {
   return typeof value === "object" && value !== null && "success" in value && value.success === false;
 }
