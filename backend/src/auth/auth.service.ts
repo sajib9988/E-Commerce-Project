@@ -35,6 +35,7 @@ export const REFRESH_TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60;
 export const OTP_TTL_SECONDS = 5 * 60;
 export const OTP_RESEND_COOLDOWN_SECONDS = 60;
 const OTP_MAX_ATTEMPTS = 5;
+const OTP_ATTEMPT_WINDOW_SECONDS = 15 * 60;
 const CHALLENGE_TOKEN_TTL_SECONDS = OTP_TTL_SECONDS;
 
 const safeUserSelect = {
@@ -306,7 +307,7 @@ export class AuthService {
     const email = emailInput.trim().toLowerCase();
     const user = await this.prisma.user.findUnique({ where: { email } });
     if (user) {
-      await this.redis.del(this.otpAttemptKey(user.id));
+      // Do not reset the account-level attempt window when issuing another code.
       const code = generateOtp();
       await this.prisma.user.update({
         where: { id: user.id },
@@ -523,14 +524,29 @@ export class AuthService {
     });
   }
 
-  async removeUser(id: string) {
-    await this.findOneUser(id);
-    await this.prisma.user.delete({ where: { id } });
+  async removeUser(id: string, actorId: string) {
+    if (id === actorId) {
+      throw new ForbiddenException('You cannot delete your own SUPER_ADMIN account');
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      const target = await tx.user.findUnique({ where: { id }, select: { id: true, role: true } });
+      if (!target) throw new NotFoundException(`User ${id} not found`);
+
+      if (target.role === UserRole.SUPER_ADMIN) {
+        // Lock the existing SUPER_ADMIN rows so concurrent deletions cannot
+        // remove the final administrator together.
+        await tx.$queryRaw<Array<{ id: string }>>`SELECT "id" FROM "users" WHERE "role" = 'SUPER_ADMIN' FOR UPDATE`;
+        const count = await tx.user.count({ where: { role: UserRole.SUPER_ADMIN } });
+        if (count <= 1) throw new ForbiddenException('The last SUPER_ADMIN account cannot be deleted');
+      }
+      await tx.user.delete({ where: { id } });
+    }, { isolationLevel: 'Serializable' });
+
     return { success: true };
   }
 
   private async issueAndSendOtp(userId: string, email: string, purpose: 'verify-email' | 'login') {
-    await this.redis.del(this.otpAttemptKey(userId));
     const code = generateOtp();
     await this.prisma.user.update({
       where: { id: userId },
@@ -559,7 +575,7 @@ export class AuthService {
   }
 
   private async recordFailedAttempt(userId: string) {
-    const attempts = await this.redis.incrementWithExpiry(this.otpAttemptKey(userId), OTP_TTL_SECONDS);
+    const attempts = await this.redis.incrementWithExpiry(this.otpAttemptKey(userId), OTP_ATTEMPT_WINDOW_SECONDS);
     if (attempts > OTP_MAX_ATTEMPTS) {
       throw new ForbiddenException('Too many incorrect attempts. Request a new code.');
     }
