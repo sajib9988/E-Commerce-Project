@@ -1,5 +1,7 @@
 "use server";
 
+import { apiRequest } from "@/lib/api/server-request";
+
 import { cookies } from "next/headers";
 import type { MediaAsset, MediaUsage } from "@/type/cms";
 
@@ -35,48 +37,7 @@ async function request<T>(
   options: RequestInit = {},
 ): Promise<T | ApiError> {
   if (!BASE_URL) {
-    return {
-      success: false,
-      message: "NEXT_PUBLIC_BASE_URL is not configured",
-    };
-  }
-
-  try {
-    const isFormData =
-      typeof FormData !== "undefined" && options.body instanceof FormData;
-    const authHeaders = await getAuthHeaders(!isFormData);
-    const suppliedHeaders = new Headers(options.headers);
-
-    suppliedHeaders.forEach((value, key) => {
-      authHeaders[key] = value;
-    });
-
-    const response = await fetch(`${BASE_URL}${path}`, {
-      ...options,
-      headers: authHeaders,
-      cache: "no-store",
-    });
-
-    const data = await safeJson(response);
-
-    if (!response.ok) {
-      return {
-        success: false,
-        statusCode: response.status,
-        message: Array.isArray(data?.message)
-          ? data.message.join(", ")
-          : (data?.message ?? `Request failed: ${response.status}`),
-      };
-    }
-
-    return data as T;
-  } catch (error) {
-    console.error("Media request failed:", error);
-    return {
-      success: false,
-      message: "Unable to connect to the server",
-    };
-  }
+  return apiRequest<T>(path, options, { context: "Media request" });
 }
 
 export async function getAllMedia() {
