@@ -23,6 +23,7 @@ import { Input } from "@/components/ui/input";
 
 import { LoginFormData, loginSchema, VerifyEmailFormData, verifyEmailSchema } from "@/lib/validation";
 import { loginUser, resendVerification, verifyEmail, verifyLoginOtp, resendLoginOtp } from "@/service/auth.service";
+import { OAuthLoginButtons } from "@/components/form/oauth-login-buttons";
 import { Form, FormControl, FormField, FormItem, FormMessage } from "../ui/form";
 
 export default function LoginForm() {
@@ -1028,6 +1029,8 @@ export default function LoginForm() {
           </form>
         </Form>
       )}
+
+      {step === "login" && <OAuthLoginButtons />}
 
       {/* =================================================
           REGISTER LINK
