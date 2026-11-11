@@ -1,7 +1,5 @@
 "use server";
 
-import { apiRequest } from "@/lib/api/server-request";
-
 import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 
@@ -29,7 +27,15 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T | 
     });
     const data = await safeJson<T>(response);
     if (!response.ok) {
-  return apiRequest<T>(path, options, { context: "Admin request" });
+      const message = typeof data === "object" && data !== null && "message" in data
+        ? String(data.message) : `Request failed: ${response.status}`;
+      return { success: false, statusCode: response.status, message };
+    }
+    return data;
+  } catch (error) {
+    console.error("Admin request failed:", error);
+    return { success: false, message: "Unable to connect to the server" };
+  }
 }
 function buildQuery(params: { search?: string; page?: number; limit?: number }) {
   const query = new URLSearchParams();
