@@ -41,6 +41,9 @@ export class AiService {
       apiKey: config.getOrThrow<string>('OPENAI_API_KEY'),
       model: config.get<string>('OPENAI_CHAT_MODEL') ?? 'gpt-4.1-mini',
       temperature: 0.2,
+      maxTokens: 500,
+      timeout: 20_000,
+      maxRetries: 0,
     });
   }
 
