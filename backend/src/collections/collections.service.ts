@@ -37,7 +37,7 @@ export class CollectionsService {
         { description: { contains: params.search.trim(), mode: 'insensitive' } },
       ] }),
     };
-    const include = { _count: { select: { products: true } }, products: { where: { product: { isActive: true } }, orderBy: { sortOrder: 'asc' as const }, include: { product: { include: { category: true, subcategory: true, variants: { where: { isActive: true }, include: { size: true } }, apliiqDesigns: { orderBy: { createdAt: 'asc' as const } } } } } } } as const;
+    const include = { _count: { select: { products: true } } } as const;
     const sortBy = params.sortBy === 'name' || params.sortBy === 'createdAt' ? params.sortBy : 'sortOrder';
     const sortOrder = params.sortOrder === 'desc' ? 'desc' : 'asc';
     const orderBy: Prisma.CollectionOrderByWithRelationInput[] = [
