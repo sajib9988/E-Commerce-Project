@@ -532,7 +532,7 @@ export default function LoginForm() {
           text-white/55
         "
       >
-        {step === "login" ? "Sign in to your Petronick account" : step === "admin-otp" ? "Enter the 6-digit code sent to your admin email" : showOtp ? `Enter the 6-digit code sent to ${email}` : "Your email address needs to be verified"}
+        {step === "login" ? "Sign in to your Commerce account" : step === "admin-otp" ? "Enter the 6-digit code sent to your admin email" : showOtp ? `Enter the 6-digit code sent to ${email}` : "Your email address needs to be verified"}
       </p>
 
       {/* =================================================
