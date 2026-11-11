@@ -8,7 +8,7 @@ import {
 
 import { safeLinkUrl, safeMediaUrl } from "@/lib/safe-url";
 import { renderLexical } from "./lexical-renderer";
-import { PublicProductCollectionBlock } from "./product-collection-block";
+import { PublicProductCollectionBlock } from "./public-product-collection-block";
 
 type Props = {
   page: CmsPage;
