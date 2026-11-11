@@ -1,6 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { getProducts } from "@/service/product.service";
+import { getPublicCategories } from "@/service/category.service";
 
 export const instant = false;
 
@@ -13,7 +14,7 @@ export default async function ShopPage({ searchParams }: { searchParams: Promise
   const params = await searchParams;
   const query = params.q ?? params.search ?? "";
   const filters = { search: query, categoryId: params.categoryId || undefined, minPrice: params.minPrice ? Number(params.minPrice) : undefined, maxPrice: params.maxPrice ? Number(params.maxPrice) : undefined, sortBy: params.sortBy || "createdAt", sortOrder: params.sortOrder === "asc" ? "asc" as const : "desc" as const, page: Math.max(1, Number(params.page) || 1), limit: 12 };
-  const result = await getProducts(filters) as Result;
+  const [result, allCategories] = await Promise.all([getProducts(filters) as Promise<Result>, getPublicCategories()]);
   const failed = !Array.isArray(result) && "success" in result && result.success === false;
   const data = !Array.isArray(result) && !("success" in result && result.success === false)
     ? result as { items?: Product[]; pagination?: { page: number; totalPages: number; total: number } }
@@ -21,7 +22,7 @@ export default async function ShopPage({ searchParams }: { searchParams: Promise
   const items: Product[] = Array.isArray(result) ? result : data?.items ?? [];
   const pagination = data?.pagination;
   const errorMessage = failed ? (result as { success: false; message: string }).message : "";
-  const categories = [...new Map(items.filter(p => p.category?.id).map(p => [p.category!.id, p.category!])).values()];
+  const categories = allCategories;
   const makeHref = (page: number) => { const next = new URLSearchParams(); Object.entries({ ...params, page: String(page) }).forEach(([k,v]) => { if (v) next.set(k,v); }); return `/products?${next.toString()}`; };
 
   return <main className="mx-auto min-h-screen max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
