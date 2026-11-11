@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useRef, useState, type ComponentProps, type FormEvent } from "react";
 import Image from "next/image";
 import { ArrowLeft, LockKeyhole, ShieldCheck } from "lucide-react";
@@ -63,6 +64,7 @@ const initialAddress: AddressFields = {
 };
 
 export function CheckoutPageClient() {
+  const router = useRouter();
   const items = useCartStore((state) => state.items);
   const hasHydrated = useCartStore((state) => state.hasHydrated);
   const subtotal = useCartStore(selectCartSubtotal);
@@ -122,6 +124,10 @@ export function CheckoutPageClient() {
       });
 
       if (isApiError(orderResult)) {
+        if (orderResult.statusCode === 401) {
+          router.replace(`/login?next=${encodeURIComponent("/checkout")}`);
+          return;
+        }
         setErrorMessage(orderResult.message);
         return;
       }
