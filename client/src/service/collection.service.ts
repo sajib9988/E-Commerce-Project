@@ -17,7 +17,7 @@ type CollectionQuery = {
 
 
 async function request<T>(path: string, options: RequestInit = {}, authenticated = true): Promise<T | ApiError> {
-  return apiRequest<T>(path, options, { authenticated, context: "undefined request" });
+  return apiRequest<T>(path, options, { authenticated, context: "Collection request" });
 }
 
 function isApiError(value: unknown): value is ApiError {
