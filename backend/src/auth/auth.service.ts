@@ -174,7 +174,7 @@ export class AuthService {
     await this.checkAttemptLimit(user.id);
     if (!user.verificationCode || !user.verificationCodeExpiresAt ||
         user.verificationCodeExpiresAt.getTime() < Date.now()) {
-      await this.redis.del(this.otpAttemptKey(user.id));
+      // Expiring/resending a code must not reset the account-level attempt window.
       throw new UnauthorizedException('Code expired — request a new one');
     }
     if (!compareOtp(dto.code, user.verificationCode)) {
