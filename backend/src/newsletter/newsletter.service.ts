@@ -7,6 +7,8 @@ import { EmailService } from '../email/email.service';
 import { verifyTurnstileToken } from '../common/utils/turnstile.util';
 import { NewsletterSignupDto } from './dto/signup.dto';
 
+const WELCOME_EMAIL_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+
 @Injectable()
 export class NewsletterService {
   private readonly logger = new Logger(NewsletterService.name);
@@ -64,12 +66,36 @@ export class NewsletterService {
         });
       }
       if (existing.welcomeCoupon?.isActive && existing.welcomeCoupon.expiresAt && existing.welcomeCoupon.expiresAt > now) {
-        await this.email.sendWelcomeCoupon({
-          email,
-          couponCode: existing.welcomeCoupon.code,
-          discountValue: existing.welcomeCoupon.value.toString(),
-          expiresAt: existing.welcomeCoupon.expiresAt.toISOString(),
+        const cooldownBefore = new Date(now.getTime() - WELCOME_EMAIL_COOLDOWN_MS);
+        const claim = await this.prisma.newsletterSubscription.updateMany({
+          where: {
+            id: existing.id,
+            OR: [
+              { welcomeEmailLastQueuedAt: null },
+              { welcomeEmailLastQueuedAt: { lt: cooldownBefore } },
+            ],
+          },
+          data: { welcomeEmailLastQueuedAt: now },
         });
+
+        // Only one concurrent request can claim the 24-hour resend window.
+        if (claim.count === 1) {
+          try {
+            await this.email.sendWelcomeCoupon({
+              email,
+              couponCode: existing.welcomeCoupon.code,
+              discountValue: existing.welcomeCoupon.value.toString(),
+              expiresAt: existing.welcomeCoupon.expiresAt.toISOString(),
+            });
+          } catch (error) {
+            await this.prisma.newsletterSubscription.updateMany({
+              where: { id: existing.id, welcomeEmailLastQueuedAt: now },
+              data: { welcomeEmailLastQueuedAt: existing.welcomeEmailLastQueuedAt },
+            });
+            this.logger.error('Could not queue existing welcome coupon email', error);
+            throw new ServiceUnavailableException('Welcome email delivery is temporarily unavailable. Please try again later.');
+          }
+        }
       }
       return { success: true, message: 'If eligible, your welcome offer will arrive by email shortly.' };
     }
@@ -107,6 +133,7 @@ export class NewsletterService {
             marketingConsent: dto.marketingConsent ?? false,
             consentedAt: dto.marketingConsent ? now : null,
             welcomeCouponId: coupon.id,
+            welcomeEmailLastQueuedAt: now,
           },
         });
       });
@@ -125,6 +152,10 @@ export class NewsletterService {
         expiresAt: expiry.toISOString(),
       });
     } catch (error) {
+      await this.prisma.newsletterSubscription.updateMany({
+        where: { email, welcomeEmailLastQueuedAt: now },
+        data: { welcomeEmailLastQueuedAt: null },
+      });
       this.logger.error('Welcome coupon was created but email could not be queued', error);
       throw new ServiceUnavailableException('Your offer was created but email delivery is temporarily unavailable. Please contact support.');
     }
