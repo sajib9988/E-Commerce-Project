@@ -1,4 +1,4 @@
-import { IsInt, IsOptional, IsString, Max, MaxLength, Min, MinLength } from 'class-validator';
+import { IsInt, IsOptional, IsString, Max, MaxLength, Min, MinLength, ValidateIf } from 'class-validator';
 
 export class CreateReviewDto {
   @IsInt()
@@ -6,6 +6,9 @@ export class CreateReviewDto {
   @Max(5)
   rating!: number;
 
+  // An empty title is allowed so PATCH can intentionally clear an existing title.
+  // The service stores blank optional titles as null.
+  @ValidateIf((_object, value) => value !== '')
   @IsString()
   @MinLength(5)
   @MaxLength(120)
