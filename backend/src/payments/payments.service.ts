@@ -666,6 +666,20 @@ export class PaymentsService {
         return;
       }
 
+      const succeededRefundIds = (charge.refunds?.data ?? [])
+        .filter((refund) => refund.status === 'succeeded')
+        .map((refund) => refund.id);
+      if (succeededRefundIds.length) {
+        await tx.refundRequest.updateMany({
+          where: {
+            orderId: attempt.orderId,
+            stripeRefundId: { in: succeededRefundIds },
+            status: { in: ['APPROVED', 'PROCESSING'] },
+          },
+          data: { status: 'REFUNDED', processedAt: new Date() },
+        });
+      }
+
       await tx.order.update({
         where: { id: attempt.orderId },
         data: { paymentStatus: PaymentStatus.REFUNDED, status: OrderStatus.REFUNDED },
@@ -729,6 +743,75 @@ export class PaymentsService {
             ? 'MANUAL_APLIIQ_DASHBOARD_CANCELLATION_AND_RECONCILIATION_REQUIRED'
             : 'APLIIQ_SUBMISSION_STATE_UNKNOWN_CHECK_PROVIDER_BEFORE_RESTOCK',
         },
+      });
+    });
+  }
+
+  async handleRefundUpdated(refund: Stripe.Refund, eventId: string) {
+    await this.prisma.$transaction(async (tx) => {
+      const request = await tx.refundRequest.findUnique({
+        where: { stripeRefundId: refund.id },
+        select: { id: true, orderId: true, amount: true, status: true },
+      });
+      // Ignore Stripe refunds that were not created by this store's refund workflow.
+      if (!request) return;
+
+      await tx.$queryRaw`SELECT "id" FROM "orders" WHERE "id" = ${request.orderId} FOR UPDATE`;
+      const claimed = await tx.stripeWebhookEvent.createMany({
+        data: [{ id: eventId, type: 'refund.updated' }],
+        skipDuplicates: true,
+      });
+      if (claimed.count === 0) return;
+
+      if (refund.status === 'succeeded') {
+        const expectedMinorAmount = request.amount.mul(100).toNumber();
+        // A partial or otherwise mismatched refund must remain under manual review.
+        if (refund.amount < expectedMinorAmount) {
+          await tx.paymentAttempt.updateMany({
+            where: { orderId: request.orderId, stripeRefundId: refund.id },
+            data: {
+              requiresManualReview: true,
+              reviewReason: 'PARTIAL_REFUND_CONFIRMED_MANUAL_REVIEW_REQUIRED',
+            },
+          });
+          return;
+        }
+
+        await tx.refundRequest.updateMany({
+          where: { id: request.id, status: { in: ['APPROVED', 'PROCESSING'] } },
+          data: { status: 'REFUNDED', processedAt: new Date() },
+        });
+        await tx.order.update({
+          where: { id: request.orderId },
+          data: { paymentStatus: PaymentStatus.REFUNDED, status: OrderStatus.REFUNDED },
+        });
+        return;
+      }
+
+      if (refund.status === 'failed' || refund.status === 'canceled') {
+        await tx.refundRequest.updateMany({
+          where: { id: request.id, status: { in: ['APPROVED', 'PROCESSING'] } },
+          data: { status: 'FAILED', processedAt: null },
+        });
+        // A confirmed Stripe failure releases the temporary hold on an order
+        // that had not yet been submitted to Apliiq.
+        await tx.fulfillment.updateMany({
+          where: {
+            orderId: request.orderId,
+            provider: 'APLIIQ',
+            submissionStatus: 'CANCELLATION_REQUIRED',
+            lastErrorCode: 'REFUND_PENDING_PROVIDER_SUBMISSION_BLOCKED',
+          },
+          data: { submissionStatus: 'QUEUED', lastErrorCode: null },
+        });
+        return;
+      }
+
+      // pending / requires_action: keep the request in PROCESSING until Stripe
+      // sends a later refund.updated event with a terminal status.
+      await tx.refundRequest.updateMany({
+        where: { id: request.id, status: 'APPROVED' },
+        data: { status: 'PROCESSING' },
       });
     });
   }
