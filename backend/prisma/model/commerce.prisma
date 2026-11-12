@@ -521,6 +521,7 @@ model NewsletterSubscription {
   unsubscribedAt     DateTime?
   welcomeCouponId    String?   @unique
   welcomeCoupon      Coupon?   @relation(fields: [welcomeCouponId], references: [id], onDelete: SetNull)
+  welcomeEmailLastQueuedAt DateTime?
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
