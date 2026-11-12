@@ -7,7 +7,23 @@ export default async function EditCmsPage({ params }: { params: Promise<{ id: st
   const { id } = await params; const page = await getPageById(id);
   if (!page || typeof page !== "object" || ("success" in page && page.success === false) || !("id" in page)) notFound();
   async function savePage(data: PageFormData) {
-    "use server"; const result = await updatePage(id, data);
+    "use server";
+    const sections = data.sections.map((section, sectionIndex) => ({
+      id: section.id,
+      name: section.name,
+      isVisible: section.isVisible,
+      settings: section.settings,
+      sortOrder: sectionIndex,
+      blocks: section.blocks.map((block, blockIndex) => ({
+        id: block.id,
+        type: block.type,
+        content: block.content,
+        settings: block.settings,
+        isVisible: block.isVisible,
+        sortOrder: blockIndex,
+      })),
+    }));
+    const result = await updatePage(id, { ...data, sections });
     if (result && typeof result === "object" && "success" in result && result.success === false) throw new Error(String(result.message ?? "Unable to save page"));
     return result as CmsPage;
   }
