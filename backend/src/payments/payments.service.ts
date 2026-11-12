@@ -693,7 +693,7 @@ export class PaymentsService {
               id: refundRequest.id,
               status: { in: ['APPROVED', 'PROCESSING'] },
             },
-            data: { status: 'REFUNDED', processedAt: new Date() },
+            data: { status: 'REFUNDED', stripeRefundId: refund.id, processedAt: new Date() },
           });
         }
       }
@@ -835,7 +835,7 @@ export class PaymentsService {
       // pending / requires_action: keep the request in PROCESSING until Stripe
       // sends a later refund.updated event with a terminal status.
       await tx.refundRequest.updateMany({
-        where: { id: request.id, status: 'APPROVED' },
+        where: { id: request.id, status: { in: ['APPROVED', 'PROCESSING'] } },
         data: { status: 'PROCESSING', stripeRefundId: refund.id },
       });
     });
