@@ -666,7 +666,17 @@ export class PaymentsService {
         return;
       }
 
-      const succeededRefundIds = (charge.refunds?.data ?? [])
+      const chargeRefunds = charge.refunds?.data ?? [];
+      for (const refund of chargeRefunds) {
+        const refundRequestId = refund.metadata?.refundRequestId;
+        if (refundRequestId) {
+          await tx.refundRequest.updateMany({
+            where: { id: refundRequestId, orderId: attempt.orderId, stripeRefundId: null },
+            data: { stripeRefundId: refund.id },
+          });
+        }
+      }
+      const succeededRefundIds = chargeRefunds
         .filter((refund) => refund.status === 'succeeded')
         .map((refund) => refund.id);
       if (succeededRefundIds.length) {
@@ -676,7 +686,7 @@ export class PaymentsService {
             stripeRefundId: { in: succeededRefundIds },
             status: { in: ['APPROVED', 'PROCESSING'] },
           },
-          data: { status: 'REFUNDED', processedAt: new Date() },
+          data: { status: 'REFUNDED', stripeRefundId: refund.id, processedAt: new Date() },
         });
       }
 
@@ -749,8 +759,15 @@ export class PaymentsService {
 
   async handleRefundUpdated(refund: Stripe.Refund, eventId: string) {
     await this.prisma.$transaction(async (tx) => {
-      const request = await tx.refundRequest.findUnique({
-        where: { stripeRefundId: refund.id },
+      const request = await tx.refundRequest.findFirst({
+        where: {
+          OR: [
+            { stripeRefundId: refund.id },
+            ...(refund.metadata?.refundRequestId
+              ? [{ id: refund.metadata.refundRequestId }]
+              : []),
+          ],
+        },
         select: { id: true, orderId: true, amount: true, status: true },
       });
       // Ignore Stripe refunds that were not created by this store's refund workflow.
@@ -791,7 +808,7 @@ export class PaymentsService {
       if (refund.status === 'failed' || refund.status === 'canceled') {
         await tx.refundRequest.updateMany({
           where: { id: request.id, status: { in: ['APPROVED', 'PROCESSING'] } },
-          data: { status: 'FAILED', processedAt: null },
+          data: { status: 'FAILED', stripeRefundId: refund.id, processedAt: null },
         });
         // A confirmed Stripe failure releases the temporary hold on an order
         // that had not yet been submitted to Apliiq.
@@ -811,7 +828,7 @@ export class PaymentsService {
       // sends a later refund.updated event with a terminal status.
       await tx.refundRequest.updateMany({
         where: { id: request.id, status: 'APPROVED' },
-        data: { status: 'PROCESSING' },
+        data: { status: 'PROCESSING', stripeRefundId: refund.id },
       });
     });
   }
