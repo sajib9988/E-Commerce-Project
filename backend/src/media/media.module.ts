@@ -1,11 +1,12 @@
 import { Module } from '@nestjs/common';
-import { CloudinaryService } from './cloudinary.service';
+import { CloudinaryModule } from '../cloudinary/cloudinary.module';
 import { MediaController } from './media.controller';
 import { MediaService } from './media.service';
 
 @Module({
+  imports: [CloudinaryModule],
   controllers: [MediaController],
-  providers: [MediaService, CloudinaryService],
+  providers: [MediaService],
   exports: [MediaService],
 })
 export class MediaModule {}
