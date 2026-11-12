@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
+import Turnstile from "@/lib/turnstile";
 
 type ActivePopup = {
   id: string;
@@ -18,6 +19,8 @@ export function SignupDiscountPopup() {
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState("");
   const [marketingConsent, setMarketingConsent] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState("");
+  const [turnstileResetKey, setTurnstileResetKey] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -56,6 +59,11 @@ export function SignupDiscountPopup() {
       return;
     }
 
+    if (!turnstileToken) {
+      setError("Please complete the security check before submitting.");
+      return;
+    }
+
     setSubmitting(true);
     setError("");
     setMessage("");
@@ -66,18 +74,22 @@ export function SignupDiscountPopup() {
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, marketingConsent }),
+          body: JSON.stringify({ email, marketingConsent, turnstileToken }),
         },
       );
       const data = (await response.json()) as { message?: string | string[] };
       if (!response.ok) {
         setError(Array.isArray(data.message) ? data.message.join(", ") : data.message || "Unable to submit your email.");
+        setTurnstileToken("");
+        setTurnstileResetKey((key) => key + 1);
         return;
       }
       setMessage("Check your inbox — your unique welcome discount is on its way.");
       setEmail("");
     } catch {
       setError("Unable to connect. Please try again.");
+      setTurnstileToken("");
+      setTurnstileResetKey((key) => key + 1);
     } finally {
       setSubmitting(false);
     }
@@ -145,6 +157,13 @@ export function SignupDiscountPopup() {
                 type="email"
                 value={email}
               />
+              <div className="overflow-hidden">
+                <Turnstile
+                  resetKey={turnstileResetKey}
+                  onVerify={setTurnstileToken}
+                  onExpire={() => setTurnstileToken("")}
+                />
+              </div>
               <label className="flex items-start gap-2 text-xs leading-5 text-neutral-600">
                 <input
                   checked={marketingConsent}
@@ -157,7 +176,7 @@ export function SignupDiscountPopup() {
               {error ? <p className="text-sm text-red-600" role="alert">{error}</p> : null}
               <button
                 className="h-12 w-full rounded-lg bg-neutral-950 px-5 text-sm font-semibold text-white transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-60"
-                disabled={submitting}
+                disabled={submitting || !turnstileToken}
                 type="submit"
               >
                 {submitting ? "Sending..." : `Email Me My ${discount}% Code`}
