@@ -1,0 +1,50 @@
+name: Temporary client lockfile repair
+
+on:
+  push:
+    branches:
+      - fix/checkout-cms-newsletter-refund-issues
+    paths:
+      - "client/package.json"
+      - ".github/workflows/temporary-client-lockfile-repair.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  repair-lockfile:
+    if: github.event.head_commit.message != 'chore: sync client pnpm lockfile'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: client
+    steps:
+      - name: Checkout repair branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/checkout-cms-newsletter-refund-issues
+          fetch-depth: 0
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.8.0
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Regenerate client lockfile
+        run: pnpm install --no-frozen-lockfile
+      - name: Verify frozen install
+        run: pnpm install --frozen-lockfile
+      - name: Commit synchronized lockfile
+        working-directory: .
+        run: |
+          if git diff --quiet -- client/pnpm-lock.yaml; then
+            echo "Client lockfile is already synchronized."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add client/pnpm-lock.yaml
+          git commit -m "chore: sync client pnpm lockfile"
+          git push origin HEAD:fix/checkout-cms-newsletter-refund-issues
