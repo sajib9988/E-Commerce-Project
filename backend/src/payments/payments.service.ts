@@ -669,25 +669,33 @@ export class PaymentsService {
       const chargeRefunds = charge.refunds?.data ?? [];
       for (const refund of chargeRefunds) {
         const refundRequestId = refund.metadata?.refundRequestId;
-        if (refundRequestId) {
+        if (!refundRequestId) continue;
+
+        const refundRequest = await tx.refundRequest.findFirst({
+          where: { id: refundRequestId, orderId: attempt.orderId },
+          select: { id: true, amount: true },
+        });
+        if (!refundRequest) continue;
+
+        await tx.refundRequest.updateMany({
+          where: { id: refundRequest.id, stripeRefundId: null },
+          data: { stripeRefundId: refund.id },
+        });
+
+        // Only finalize when this successful Stripe refund covers the full
+        // amount requested. A partial refund remains a manual-review case.
+        if (
+          refund.status === 'succeeded' &&
+          refund.amount >= refundRequest.amount.mul(100).toNumber()
+        ) {
           await tx.refundRequest.updateMany({
-            where: { id: refundRequestId, orderId: attempt.orderId, stripeRefundId: null },
-            data: { stripeRefundId: refund.id },
+            where: {
+              id: refundRequest.id,
+              status: { in: ['APPROVED', 'PROCESSING'] },
+            },
+            data: { status: 'REFUNDED', processedAt: new Date() },
           });
         }
-      }
-      const succeededRefundIds = chargeRefunds
-        .filter((refund) => refund.status === 'succeeded')
-        .map((refund) => refund.id);
-      if (succeededRefundIds.length) {
-        await tx.refundRequest.updateMany({
-          where: {
-            orderId: attempt.orderId,
-            stripeRefundId: { in: succeededRefundIds },
-            status: { in: ['APPROVED', 'PROCESSING'] },
-          },
-          data: { status: 'REFUNDED', stripeRefundId: refund.id, processedAt: new Date() },
-        });
       }
 
       await tx.order.update({
@@ -785,7 +793,7 @@ export class PaymentsService {
         // A partial or otherwise mismatched refund must remain under manual review.
         if (refund.amount < expectedMinorAmount) {
           await tx.paymentAttempt.updateMany({
-            where: { orderId: request.orderId, stripeRefundId: refund.id },
+            where: { orderId: request.orderId },
             data: {
               requiresManualReview: true,
               reviewReason: 'PARTIAL_REFUND_CONFIRMED_MANUAL_REVIEW_REQUIRED',
