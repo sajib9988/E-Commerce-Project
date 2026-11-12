@@ -89,7 +89,6 @@ export function CheckoutPageClient() {
     const shippingAddress = {
       firstName: address.firstName.trim(),
       lastName: address.lastName.trim(),
-      fullName,
       addressLine1: address.addressLine1.trim(),
       addressLine2: address.addressLine2.trim(),
       city: address.city.trim(),
