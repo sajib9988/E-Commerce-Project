@@ -26,7 +26,8 @@ export function RefundRequestForm({ orderId }: Props) {
       });
 
       if (result && typeof result === "object" && "success" in result && result.success === false) {
-        setFeedback({ type: "error", message: result.message || "Your refund request could not be submitted." });
+        const apiMessage = "message" in result && typeof result.message === "string" ? result.message : undefined;
+        setFeedback({ type: "error", message: apiMessage || "Your refund request could not be submitted." });
         return;
       }
 
