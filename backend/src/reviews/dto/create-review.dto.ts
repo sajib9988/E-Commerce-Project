@@ -1,3 +1,4 @@
+import { Transform } from "class-transformer";
 import { IsInt, IsOptional, IsString, Max, MaxLength, Min, MinLength } from 'class-validator';
 
 export class CreateReviewDto {
@@ -6,6 +7,7 @@ export class CreateReviewDto {
   @Max(5)
   rating!: number;
 
+  @Transform(({ value }) => (value === "" ? undefined : value))
   @IsString()
   @MinLength(5)
   @MaxLength(120)
