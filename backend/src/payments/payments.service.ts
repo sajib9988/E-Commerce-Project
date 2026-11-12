@@ -666,6 +666,38 @@ export class PaymentsService {
         return;
       }
 
+      const chargeRefunds = charge.refunds?.data ?? [];
+      for (const refund of chargeRefunds) {
+        const refundRequestId = refund.metadata?.refundRequestId;
+        if (!refundRequestId) continue;
+
+        const refundRequest = await tx.refundRequest.findFirst({
+          where: { id: refundRequestId, orderId: attempt.orderId },
+          select: { id: true, amount: true },
+        });
+        if (!refundRequest) continue;
+
+        await tx.refundRequest.updateMany({
+          where: { id: refundRequest.id, stripeRefundId: null },
+          data: { stripeRefundId: refund.id },
+        });
+
+        // Only finalize when this successful Stripe refund covers the full
+        // amount requested. A partial refund remains a manual-review case.
+        if (
+          refund.status === 'succeeded' &&
+          refund.amount >= refundRequest.amount.mul(100).toNumber()
+        ) {
+          await tx.refundRequest.updateMany({
+            where: {
+              id: refundRequest.id,
+              status: { in: ['APPROVED', 'PROCESSING'] },
+            },
+            data: { status: 'REFUNDED', stripeRefundId: refund.id, processedAt: new Date() },
+          });
+        }
+      }
+
       await tx.order.update({
         where: { id: attempt.orderId },
         data: { paymentStatus: PaymentStatus.REFUNDED, status: OrderStatus.REFUNDED },
@@ -729,6 +761,82 @@ export class PaymentsService {
             ? 'MANUAL_APLIIQ_DASHBOARD_CANCELLATION_AND_RECONCILIATION_REQUIRED'
             : 'APLIIQ_SUBMISSION_STATE_UNKNOWN_CHECK_PROVIDER_BEFORE_RESTOCK',
         },
+      });
+    });
+  }
+
+  async handleRefundUpdated(refund: Stripe.Refund, eventId: string) {
+    await this.prisma.$transaction(async (tx) => {
+      const request = await tx.refundRequest.findFirst({
+        where: {
+          OR: [
+            { stripeRefundId: refund.id },
+            ...(refund.metadata?.refundRequestId
+              ? [{ id: refund.metadata.refundRequestId }]
+              : []),
+          ],
+        },
+        select: { id: true, orderId: true, amount: true, status: true },
+      });
+      // Ignore Stripe refunds that were not created by this store's refund workflow.
+      if (!request) return;
+
+      await tx.$queryRaw`SELECT "id" FROM "orders" WHERE "id" = ${request.orderId} FOR UPDATE`;
+      const claimed = await tx.stripeWebhookEvent.createMany({
+        data: [{ id: eventId, type: 'refund.updated' }],
+        skipDuplicates: true,
+      });
+      if (claimed.count === 0) return;
+
+      if (refund.status === 'succeeded') {
+        const expectedMinorAmount = request.amount.mul(100).toNumber();
+        // A partial or otherwise mismatched refund must remain under manual review.
+        if (refund.amount < expectedMinorAmount) {
+          await tx.paymentAttempt.updateMany({
+            where: { orderId: request.orderId },
+            data: {
+              requiresManualReview: true,
+              reviewReason: 'PARTIAL_REFUND_CONFIRMED_MANUAL_REVIEW_REQUIRED',
+            },
+          });
+          return;
+        }
+
+        await tx.refundRequest.updateMany({
+          where: { id: request.id, status: { in: ['APPROVED', 'PROCESSING'] } },
+          data: { status: 'REFUNDED', processedAt: new Date() },
+        });
+        await tx.order.update({
+          where: { id: request.orderId },
+          data: { paymentStatus: PaymentStatus.REFUNDED, status: OrderStatus.REFUNDED },
+        });
+        return;
+      }
+
+      if (refund.status === 'failed' || refund.status === 'canceled') {
+        await tx.refundRequest.updateMany({
+          where: { id: request.id, status: { in: ['APPROVED', 'PROCESSING'] } },
+          data: { status: 'FAILED', stripeRefundId: refund.id, processedAt: null },
+        });
+        // A confirmed Stripe failure releases the temporary hold on an order
+        // that had not yet been submitted to Apliiq.
+        await tx.fulfillment.updateMany({
+          where: {
+            orderId: request.orderId,
+            provider: 'APLIIQ',
+            submissionStatus: 'CANCELLATION_REQUIRED',
+            lastErrorCode: 'REFUND_PENDING_PROVIDER_SUBMISSION_BLOCKED',
+          },
+          data: { submissionStatus: 'QUEUED', lastErrorCode: null },
+        });
+        return;
+      }
+
+      // pending / requires_action: keep the request in PROCESSING until Stripe
+      // sends a later refund.updated event with a terminal status.
+      await tx.refundRequest.updateMany({
+        where: { id: request.id, status: { in: ['APPROVED', 'PROCESSING'] } },
+        data: { status: 'PROCESSING', stripeRefundId: refund.id },
       });
     });
   }
