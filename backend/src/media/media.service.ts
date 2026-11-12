@@ -12,7 +12,7 @@ import type { MediaType } from '../../generated/prisma/enums';
 import { Prisma } from '../../generated/prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
-import { CloudinaryService } from './cloudinary.service';
+import { CloudinaryService } from '../cloudinary/cloudinary.service';
 import { ALLOWED_MIME_TYPES } from './media.constants';
 import type { UpdateMediaDto, UploadMediaDto } from './media.dto';
 
