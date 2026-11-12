@@ -17,7 +17,7 @@ export class ReviewsService {
     if (!purchase) throw new BadRequestException('Only verified purchasers can review this product');
     try {
       return await this.prisma.productReview.create({
-        data: { userId, productId, orderId: purchase.id, rating: dto.rating, title: dto.title?.trim(), body: dto.body.trim() },
+        data: { userId, productId, orderId: purchase.id, rating: dto.rating, title: dto.title?.trim() || null, body: dto.body.trim() },
         select: { id: true, productId: true, rating: true, title: true, body: true, status: true, createdAt: true },
       });
     } catch (error) {
