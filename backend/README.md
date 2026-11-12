@@ -85,7 +85,7 @@ Copy `.env.example` to `.env` and configure the services below before running th
 - **Turnstile:** Configure `TURNSTILE_SECRET_KEY` in production. Registration and password-reset verification fail closed when it is missing.
 - **OAuth:** Configure `GOOGLE_CLIENT_ID` and/or `FACEBOOK_APP_ID` + `FACEBOOK_APP_SECRET`. The API validates provider tokens server-side at `POST /auth/oauth/google` or `POST /auth/oauth/facebook`; send `{ "accessToken": "..." }`.
 - **Refresh sessions:** `POST /auth/refresh` rotates the refresh token. `POST /auth/logout` expects the refresh token in the request body so the server can revoke its stored session. Existing refresh tokens issued before the refresh-session migration are not in the database; users must sign in again after that migration is deployed.
-- **Notifications:** Configure Gmail OAuth2 or SMTP settings to send order-confirmation and shipment emails. Jobs are queued through BullMQ's `email` queue.
+- **Email notifications:** Set `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_REFRESH_TOKEN`, and `GMAIL_USER` to use Nodemailer with Gmail's OAuth2-authenticated SMTP transport. Optionally set `GMAIL_FROM` for the visible sender address. The Gmail REST API is not used. Alternatively, configure `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, and `SMTP_PASS`. Welcome-coupon, order-confirmation, and shipping-update emails run through BullMQ's `email` queue; OTP emails are sent immediately and are never stored in Redis job data. Provider failures are retried by BullMQ in production.
 
 ### Catalog pagination
 
