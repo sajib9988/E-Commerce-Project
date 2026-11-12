@@ -7,13 +7,14 @@ interface TurnstileProps {
 //   siteKey: string;
   onVerify: (token: string) => void;
   onExpire?: () => void;
+  resetKey?: number;
 //   theme?: "light" | "dark";
 //   size?: "normal" | "compact";
 }
 
 
 
-export default function Turnstile({  onVerify, onExpire }: TurnstileProps) {
+export default function Turnstile({ onVerify, onExpire, resetKey = 0 }: TurnstileProps) {
 
   const ref = useRef<HTMLDivElement>(null);
   const widgetId= useRef<string | null>(null);
@@ -25,9 +26,15 @@ export default function Turnstile({  onVerify, onExpire }: TurnstileProps) {
       "expired-callback": onExpire,
     });
   };
- useEffect(()=>{
-if (window.turnstile) renderWidget();
- },[])
+ useEffect(() => {
+    if (window.turnstile) renderWidget();
+  }, []);
+
+  useEffect(() => {
+    if (resetKey > 0 && widgetId.current && window.turnstile) {
+      window.turnstile.reset(widgetId.current);
+    }
+  }, [resetKey]);
 
  return (
     <>
