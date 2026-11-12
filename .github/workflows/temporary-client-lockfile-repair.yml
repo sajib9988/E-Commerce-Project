@@ -13,7 +13,6 @@ permissions:
 
 jobs:
   repair-lockfile:
-    if: github.event.head_commit.message != 'chore: sync client pnpm lockfile'
     runs-on: ubuntu-latest
     defaults:
       run:
