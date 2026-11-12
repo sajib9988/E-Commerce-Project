@@ -3,7 +3,7 @@ import {
   InternalServerErrorException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { v2 as cloudinary } from 'cloudinary';
+import { v2 as cloudinary, UploadApiResponse } from 'cloudinary';
 
 @Injectable()
 export class CloudinaryService {
@@ -20,6 +20,36 @@ export class CloudinaryService {
       ),
       secure: true,
     });
+  }
+
+  async upload(file: Express.Multer.File, folder = 'ecommerce/media'): Promise<UploadApiResponse> {
+    if (!file?.buffer) {
+      throw new InternalServerErrorException('Media file is missing');
+    }
+
+    return new Promise((resolve, reject) => {
+      const stream = cloudinary.uploader.upload_stream(
+        { folder, resource_type: 'auto' },
+        (error, result) => {
+          if (error || !result) {
+            return reject(new InternalServerErrorException('Media upload to Cloudinary failed'));
+          }
+          resolve(result);
+        },
+      );
+      stream.end(file.buffer);
+    });
+  }
+
+  async destroy(publicId: string, type: 'IMAGE' | 'VIDEO'): Promise<void> {
+    if (!publicId) return;
+    const result = await cloudinary.uploader.destroy(publicId, {
+      resource_type: type === 'VIDEO' ? 'video' : 'image',
+      invalidate: true,
+    });
+    if (result.result !== 'ok' && result.result !== 'not found') {
+      throw new InternalServerErrorException('Could not delete media from Cloudinary');
+    }
   }
 
   async uploadImage(file: Express.Multer.File, folder = 'ecommerce/products') {
