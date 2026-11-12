@@ -7,6 +7,8 @@ export type CartItemInput = {
   productId: string;
   /** Required when a product is purchased through a size/color variant. */
   variantId?: string;
+  /** Human-readable size/color label; never send this instead of variantId. */
+  variantLabel?: string;
   name: string;
   imageUrl?: string | null;
   /** Display-only price snapshot. The backend must calculate the real order price. */
@@ -19,6 +21,7 @@ export type CartItem = {
   id: string;
   productId: string;
   variantId?: string;
+  variantLabel?: string;
   name: string;
   imageUrl: string | null;
   unitPrice: number;
@@ -81,6 +84,7 @@ function sanitizeCartItems(value: unknown): CartItem[] {
       id: getCartItemId(item.productId, variantId),
       productId: item.productId,
       ...(variantId ? { variantId } : {}),
+      ...(typeof item.variantLabel === "string" && item.variantLabel ? { variantLabel: item.variantLabel } : {}),
       name: item.name,
       imageUrl: typeof item.imageUrl === "string" ? item.imageUrl : null,
       unitPrice: Number(item.unitPrice),
@@ -125,6 +129,7 @@ export function createCartStore() {
                     ? {
                         ...item,
                         name,
+                        ...(input.variantLabel ? { variantLabel: input.variantLabel } : {}),
                         imageUrl: input.imageUrl ?? item.imageUrl,
                         unitPrice: input.unitPrice,
                         quantity: item.quantity + quantity,
@@ -138,6 +143,7 @@ export function createCartStore() {
               id,
               productId,
               ...(variantId ? { variantId } : {}),
+              ...(input.variantLabel ? { variantLabel: input.variantLabel } : {}),
               name,
               imageUrl: input.imageUrl ?? null,
               unitPrice: input.unitPrice,

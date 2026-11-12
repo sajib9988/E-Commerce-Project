@@ -79,7 +79,7 @@ export function CartPageClient() {
               <div className="flex min-w-0 flex-1 flex-col justify-between gap-3 sm:flex-row">
                 <div className="min-w-0">
                   <h2 className="font-medium text-stone-950">{item.name}</h2>
-                  {item.variantId && <p className="mt-1 text-xs text-stone-500">Variant: {item.variantId}</p>}
+                  {item.variantLabel && <p className="mt-1 text-xs text-stone-500">Option: {item.variantLabel}</p>}
                   <p className="mt-2 text-sm text-stone-600">{money.format(item.unitPrice)}</p>
                   <button
                     type="button"

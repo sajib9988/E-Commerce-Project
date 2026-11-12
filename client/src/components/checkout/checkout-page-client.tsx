@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useRef, useState, type ComponentProps, type FormEvent } from "react";
 import Image from "next/image";
 import { ArrowLeft, LockKeyhole, ShieldCheck } from "lucide-react";
@@ -63,6 +64,7 @@ const initialAddress: AddressFields = {
 };
 
 export function CheckoutPageClient() {
+  const router = useRouter();
   const items = useCartStore((state) => state.items);
   const hasHydrated = useCartStore((state) => state.hasHydrated);
   const subtotal = useCartStore(selectCartSubtotal);
@@ -70,7 +72,7 @@ export function CheckoutPageClient() {
   const [couponCode, setCouponCode] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const idempotencyKey = useRef<string | null>(null);
+  const idempotencyKey = useRef<{ signature: string; key: string } | null>(null);
 
   function updateField(field: keyof AddressFields, value: string) {
     setAddress((current) => ({ ...current, [field]: value }));
@@ -82,7 +84,6 @@ export function CheckoutPageClient() {
 
     setErrorMessage(null);
     setIsSubmitting(true);
-    idempotencyKey.current ??= crypto.randomUUID();
 
     const fullName = `${address.firstName.trim()} ${address.lastName.trim()}`.trim();
     const shippingAddress = {
@@ -95,8 +96,16 @@ export function CheckoutPageClient() {
       state: address.state.trim(),
       postalCode: address.postalCode.trim(),
       country: address.country.trim(),
+      countryCode: "US",
       phone: address.phone.trim(),
     };
+    const checkoutSignature = JSON.stringify({
+      items: items.map((item) => ({ productId: item.productId, variantId: item.variantId ?? null, quantity: item.quantity })),
+      shippingAddress,
+      customerEmail: address.email.trim().toLowerCase(),
+      couponCode: couponCode.trim().toUpperCase(),
+    });
+    if (idempotencyKey.current?.signature !== checkoutSignature) idempotencyKey.current = { signature: checkoutSignature, key: crypto.randomUUID() };
 
     try {
       const orderResult = await createPendingOrder({
@@ -111,10 +120,14 @@ export function CheckoutPageClient() {
         customerName: fullName,
         customerPhone: address.phone.trim(),
         ...(couponCode.trim() ? { couponCode: couponCode.trim() } : {}),
-        idempotencyKey: idempotencyKey.current,
+        idempotencyKey: idempotencyKey.current.key,
       });
 
       if (isApiError(orderResult)) {
+        if (orderResult.statusCode === 401) {
+          router.replace(`/login?next=${encodeURIComponent("/checkout")}`);
+          return;
+        }
         setErrorMessage(orderResult.message);
         return;
       }
@@ -195,7 +208,7 @@ export function CheckoutPageClient() {
               <Field label="City" value={address.city} onChange={(value) => updateField("city", value)} required autoComplete="address-level2" />
               <Field label="State" value={address.state} onChange={(value) => updateField("state", value)} required autoComplete="address-level1" />
               <Field label="ZIP / Postal code" value={address.postalCode} onChange={(value) => updateField("postalCode", value)} required autoComplete="postal-code" />
-              <Field label="Country" value={address.country} onChange={(value) => updateField("country", value)} required autoComplete="country-name" />
+              <Field label="Country" value={address.country} onChange={(value) => updateField("country", value)} required autoComplete="country-name" disabled />
             </div>
           </section>
 

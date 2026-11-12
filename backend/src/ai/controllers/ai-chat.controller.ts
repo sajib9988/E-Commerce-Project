@@ -9,7 +9,7 @@ import { ChatDto } from '../dto/chat.dto';
 export class AiChatController {
   constructor(private readonly aiService: AiService) {}
 
-  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post()
   chat(@Body() dto: ChatDto) {
     return this.aiService.chat(dto.message);

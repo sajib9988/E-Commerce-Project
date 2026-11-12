@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'node:crypto';
 import { OpenAIEmbeddings } from '@langchain/openai';
@@ -65,9 +65,12 @@ export class AiKnowledgeService {
       },
     });
 
-    if (!page) throw new NotFoundException('CMS page not found');
+    const source = `cms:${pageId}`;
 
-    const source = `cms:${page.id}`;
+    if (!page) {
+      await this.deleteSource(source);
+      return { message: 'CMS page no longer exists. Existing knowledge removed.' };
+    }
     const isPublished =
       page.status === 'PUBLISHED' &&
       (!page.publishAt || page.publishAt <= new Date());

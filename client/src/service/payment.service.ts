@@ -1,9 +1,8 @@
 "use server";
 
-import { cookies } from "next/headers";
-import { revalidatePath } from "next/cache";
+import { apiRequest } from "@/lib/api/server-request";
 
-const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL;
+import { revalidatePath } from "next/cache";
 
 type ApiError = {
   success: false;
@@ -35,23 +34,9 @@ export type PaymentManualReviewItem = {
   };
 };
 
-async function getAuthHeaders() {
-  const cookieStore = await cookies();
-  const token = cookieStore.get("accessToken")?.value;
 
-  return {
-    "Content-Type": "application/json",
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-  };
-}
 
-async function safeJson<T>(response: Response): Promise<T | ApiError> {
-  try {
-    return (await response.json()) as T;
-  } catch {
-    return { success: false, message: "Invalid JSON response from server" };
-  }
-}
+
 
 function isApiError(value: unknown): value is ApiError {
   return (
@@ -66,42 +51,7 @@ async function request<T>(
   path: string,
   options: RequestInit = {},
 ): Promise<T | ApiError> {
-  if (!BASE_URL) {
-    return {
-      success: false,
-      message: "NEXT_PUBLIC_BASE_URL is not configured",
-    };
-  }
-
-  try {
-    const response = await fetch(
-      `${BASE_URL.replace(/\/+$/, "")}${path}`,
-      {
-        ...options,
-        headers: await getAuthHeaders(),
-        cache: "no-store",
-      },
-    );
-
-    const result = await safeJson<T>(response);
-
-    if (!response.ok) {
-      const message =
-        typeof result === "object" && result !== null && "message" in result
-          ? String(result.message)
-          : `Request failed: ${response.status}`;
-
-      return { success: false, statusCode: response.status, message };
-    }
-
-    return result;
-  } catch (error) {
-    console.error("Payment request failed:", error);
-    return {
-      success: false,
-      message: "Unable to connect to the server",
-    };
-  }
+  return apiRequest<T>(path, options, { context: "payment request" });
 }
 
 /**

@@ -175,7 +175,7 @@ export class AuthController {
 
   @Roles('SUPER_ADMIN')
   @Delete('users/:id')
-  removeUser(@Param('id') id: string) {
-    return this.authService.removeUser(id);
+  removeUser(@Param('id') id: string, @CurrentUser() user: AuthTokenPayload) {
+    return this.authService.removeUser(id, user.sub);
   }
 }

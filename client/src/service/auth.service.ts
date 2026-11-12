@@ -83,6 +83,25 @@ export const loginUser = async (userData: FieldValues) => {
   return { ok: res.ok, data };
 };
 
+export const oauthLogin = async (provider: "google" | "facebook", accessToken: string) => {
+  try {
+    const res = await fetch(`${BASE_URL}/auth/oauth/${provider}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ accessToken }),
+      cache: "no-store",
+    });
+    const data = await safeJson(res);
+    if (res.ok && data && typeof data === "object") {
+      await saveSessionCookies(data);
+    }
+    return { ok: res.ok, data };
+  } catch (error) {
+    console.error("OAuth login failed:", error);
+    return { ok: false, data: { success: false, message: "OAuth sign-in failed. Please try again." } };
+  }
+};
+
 export const verifyLoginOtp = async (challengeToken: string, code: string) => {
   try {
     const res = await fetch(`${BASE_URL}/auth/verify-otp`, {

@@ -86,27 +86,45 @@ export class RefundsService {
     const providerCancelled = ['cancelled', 'canceled'].includes(
       (fulfillment?.providerStatus ?? '').trim().toLowerCase(),
     );
+    const refundSubmissionBlock = 'REFUND_PENDING_PROVIDER_SUBMISSION_BLOCKED';
     const safeBeforeProviderAcceptance = !fulfillment
       || fulfillment.submissionStatus === 'QUEUED'
-      || (fulfillment.submissionStatus === 'CANCELLED' && providerCancelled && !fulfillment.shippedAt);
+      || (fulfillment.submissionStatus === 'CANCELLED' && providerCancelled && !fulfillment.shippedAt)
+      || (fulfillment.submissionStatus === 'CANCELLATION_REQUIRED'
+        && !fulfillment.externalOrderId
+        && fulfillment.lastErrorCode === refundSubmissionBlock);
     if (!safeBeforeProviderAcceptance || (fulfillment?.externalOrderId && !providerCancelled)) {
       throw new ConflictException(
         'Apliiq has accepted or may have accepted this order. Normal refund is blocked; reconcile/cancel with Apliiq and use the exceptional manual process.',
       );
     }
 
-    // Claim PENDING before calling Stripe. A concurrent rejection can no longer
-    // race past this transition; retries are allowed only for PROCESSING requests.
-    const claim = await this.prisma.refundRequest.updateMany({
-      where: { id, status: 'PENDING' },
-      data: { status: 'PROCESSING', reviewedBy: adminId, reviewedAt: new Date(), adminNote: adminNote?.trim() },
-    });
-    if (claim.count === 0) {
-      const current = await this.prisma.refundRequest.findUnique({ where: { id }, select: { status: true } });
-      if (current?.status !== 'PROCESSING') {
-        throw new ConflictException('Refund request is no longer pending approval');
+    // Claim the refund and block a queued Apliiq submission in one DB transaction.
+    // The worker's QUEUED -> SUBMITTING claim races on the same row: only one wins.
+    await this.prisma.$transaction(async (tx) => {
+      if (request.status === 'PENDING') {
+        const claim = await tx.refundRequest.updateMany({
+          where: { id, status: 'PENDING' },
+          data: { status: 'PROCESSING', reviewedBy: adminId, reviewedAt: new Date(), adminNote: adminNote?.trim() },
+        });
+        if (claim.count !== 1) throw new ConflictException('Refund request is no longer pending approval');
+      } else {
+        const current = await tx.refundRequest.findUnique({ where: { id }, select: { status: true } });
+        if (current?.status !== 'PROCESSING') {
+          throw new ConflictException('Refund request is no longer processing');
+        }
       }
-    }
+
+      if (fulfillment?.submissionStatus === 'QUEUED') {
+        const blocked = await tx.fulfillment.updateMany({
+          where: { id: fulfillment.id, submissionStatus: 'QUEUED' },
+          data: { submissionStatus: 'CANCELLATION_REQUIRED', lastErrorCode: refundSubmissionBlock },
+        });
+        if (blocked.count !== 1) {
+          throw new ConflictException('Apliiq submission has already started; normal refund is blocked');
+        }
+      }
+    }, { isolationLevel: 'Serializable' });
 
     try {
       // Check provider metadata as well as the idempotency key. Stripe may expire
@@ -131,6 +149,18 @@ export class RefundsService {
         });
         if (finalStatus === 'REFUNDED') {
           await tx.order.update({ where: { id: request.orderId }, data: { status: 'REFUNDED' } });
+        } else if (finalStatus === 'FAILED') {
+          // Stripe definitively declined/cancelled the refund; release the
+          // provider submission hold so the paid order can proceed normally.
+          await tx.fulfillment.updateMany({
+            where: {
+              orderId: request.orderId,
+              provider: 'APLIIQ',
+              submissionStatus: 'CANCELLATION_REQUIRED',
+              lastErrorCode: refundSubmissionBlock,
+            },
+            data: { submissionStatus: 'QUEUED', lastErrorCode: null },
+          });
         }
         return updated;
       });

@@ -1,11 +1,10 @@
 "use server";
 
+import { apiRequest } from "@/lib/api/server-request";
+
 import { revalidatePath } from "next/cache";
 
-import { getAuthHeaders } from "@/lib/api/get-auth-headers";
-import { safeJson } from "@/lib/api/safe-json";
 
-const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL;
 const PRODUCT_ENDPOINT = "/products";
 
 type ApiError = {
@@ -62,43 +61,7 @@ const request = async <T>(
   options: RequestInit = {},
   authenticated = true,
 ): Promise<T | ApiError> => {
-  if (!BASE_URL) {
-    return { success: false, message: "NEXT_PUBLIC_BASE_URL is not configured" };
-  }
-
-  try {
-    const isFormData = options.body instanceof FormData;
-    const authHeaders = authenticated
-      ? await getAuthHeaders(!isFormData)
-      : {};
-
-    const headers = new Headers(authHeaders);
-    new Headers(options.headers).forEach((value, key) => headers.set(key, value));
-
-    const res = await fetch(`${BASE_URL.replace(/\/+$/, "")}${endpoint}`, {
-      ...options,
-      headers,
-      ...(options.cache || options.next ? {} : { cache: "no-store" }),
-    });
-
-    const result = await safeJson<T | ApiError>(res);
-
-    if (!res.ok) {
-      return {
-        success: false,
-        statusCode: res.status,
-        message:
-          result && typeof result === "object" && "message" in result
-            ? String(result.message)
-            : "Request failed",
-      };
-    }
-
-    return result as T;
-  } catch (error) {
-    console.error("Product request failed:", error);
-    return { success: false, message: "Failed to process product request" };
-  }
+  return apiRequest<T>(endpoint, options, { authenticated, context: "Product request" });
 };
 
 const revalidateProductPages = () => {

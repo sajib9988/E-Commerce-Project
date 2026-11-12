@@ -1,9 +1,9 @@
 "use server";
 
-import { cookies } from "next/headers";
+import { apiRequest } from "@/lib/api/server-request";
+
 import { revalidatePath } from "next/cache";
 
-const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL;
 type ApiError = { success: false; message: string; statusCode?: number };
 export type CouponInput = {
   code: string; type: "PERCENT" | "FIXED" | "FREE_SHIPPING"; value: number;
@@ -11,35 +11,13 @@ export type CouponInput = {
   expiresAt?: string | null; isActive?: boolean; usageLimit?: number | null; perUserLimit?: number; userId?: string | null;
 };
 
-async function getAuthHeaders() {
-  const store = await cookies();
-  const token = store.get("accessToken")?.value;
-  return { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) };
-}
-async function safeJson<T>(response: Response): Promise<T | ApiError> {
-  try { return (await response.json()) as T; }
-  catch { return { success: false, message: "Invalid JSON response from server" }; }
-}
+
+
 function isApiError(value: unknown): value is ApiError {
   return typeof value === "object" && value !== null && "success" in value && value.success === false;
 }
 async function request<T>(path: string, options: RequestInit = {}): Promise<T | ApiError> {
-  if (!BASE_URL) return { success: false, message: "NEXT_PUBLIC_BASE_URL is not configured" };
-  try {
-    const response = await fetch(`${BASE_URL.replace(/\/+$/, "")}${path}`, {
-      ...options, headers: await getAuthHeaders(), cache: "no-store",
-    });
-    const data = await safeJson<T>(response);
-    if (!response.ok) {
-      const message = typeof data === "object" && data !== null && "message" in data
-        ? String(data.message) : `Request failed: ${response.status}`;
-      return { success: false, statusCode: response.status, message };
-    }
-    return data;
-  } catch (error) {
-    console.error("Coupon request failed:", error);
-    return { success: false, message: "Unable to connect to the server" };
-  }
+  return apiRequest<T>(path, options, { context: "coupon request" });
 }
 
 export type AvailableCoupon = {

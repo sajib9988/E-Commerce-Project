@@ -50,11 +50,9 @@ export class EmailService {
     }
   }
 
+  // Do not put raw OTPs in BullMQ job data: Redis would persist the secret.
   async sendOtp(email: string, code: string, purpose: 'verify-email' | 'login' | 'reset-password' = 'login'): Promise<void> {
-    await this.emailQueue.add('send-otp', { email, code, purpose }, {
-      attempts: 5, backoff: { type: 'exponential', delay: 2_000 },
-      removeOnComplete: 500, removeOnFail: 2_000,
-    });
+    await this.sendOtpNow(email, code, purpose);
   }
 
   isConfigured(): boolean {
@@ -145,12 +143,11 @@ export class EmailService {
     const text = `Your code to ${action} is ${code}. It expires in 5 minutes.`;
 
     if (!this.transporter) {
-      // No email provider configured — fall back to logging so local
-      // dev/testing isn't blocked on having real email credentials.
-      this.logger.warn(
-        `No email provider configured — OTP for ${email}: ${code} (dev fallback)`,
-      );
-      return;
+      if (process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test') {
+        this.logger.warn(`Email provider is not configured; OTP delivery skipped for ${email} (${purpose}).`);
+        return;
+      }
+      throw new Error('Email provider is not configured for OTP delivery');
     }
 
     await this.transporter.sendMail({

@@ -23,6 +23,7 @@ import { Input } from "@/components/ui/input";
 
 import { LoginFormData, loginSchema, VerifyEmailFormData, verifyEmailSchema } from "@/lib/validation";
 import { loginUser, resendVerification, verifyEmail, verifyLoginOtp, resendLoginOtp } from "@/service/auth.service";
+import { OAuthLoginButtons } from "@/components/form/oauth-login-buttons";
 import { Form, FormControl, FormField, FormItem, FormMessage } from "../ui/form";
 
 export default function LoginForm() {
@@ -532,7 +533,7 @@ export default function LoginForm() {
           text-white/55
         "
       >
-        {step === "login" ? "Sign in to your Petronick account" : step === "admin-otp" ? "Enter the 6-digit code sent to your admin email" : showOtp ? `Enter the 6-digit code sent to ${email}` : "Your email address needs to be verified"}
+        {step === "login" ? "Sign in to your Commerce account" : step === "admin-otp" ? "Enter the 6-digit code sent to your admin email" : showOtp ? `Enter the 6-digit code sent to ${email}` : "Your email address needs to be verified"}
       </p>
 
       {/* =================================================
@@ -1028,6 +1029,8 @@ export default function LoginForm() {
           </form>
         </Form>
       )}
+
+      {step === "login" && <OAuthLoginButtons />}
 
       {/* =================================================
           REGISTER LINK

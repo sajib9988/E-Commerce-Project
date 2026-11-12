@@ -1,9 +1,9 @@
 "use server";
 
-import { cookies } from "next/headers";
+import { apiRequest } from "@/lib/api/server-request";
+
 import { revalidatePath } from "next/cache";
 
-const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL;
 const ENDPOINT = "/collections";
 
 type ApiError = { success: false; message: string; statusCode?: number };
@@ -12,39 +12,12 @@ type CollectionQuery = {
   sortBy?: string; sortOrder?: "asc" | "desc";
 };
 
-async function getAuthHeaders() {
-  const cookieStore = await cookies();
-  const token = cookieStore.get("accessToken")?.value;
-  return {
-    "Content-Type": "application/json",
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-  };
-}
 
-async function safeJson<T>(response: Response): Promise<T | ApiError> {
-  try { return (await response.json()) as T; }
-  catch { return { success: false, message: "Invalid JSON response from server" }; }
-}
+
+
 
 async function request<T>(path: string, options: RequestInit = {}, authenticated = true): Promise<T | ApiError> {
-  if (!BASE_URL) return { success: false, message: "NEXT_PUBLIC_BASE_URL is not configured" };
-  try {
-    const response = await fetch(`${BASE_URL.replace(/\/+$/, "")}${path}`, {
-      ...options,
-      headers: authenticated ? await getAuthHeaders() : {},
-      ...(options.cache || options.next ? {} : { cache: "no-store" }),
-    });
-    const data = await safeJson<T>(response);
-    if (!response.ok) {
-      const message = typeof data === "object" && data !== null && "message" in data
-        ? String(data.message) : `Request failed: ${response.status}`;
-      return { success: false, statusCode: response.status, message };
-    }
-    return data;
-  } catch (error) {
-    console.error("Collection request failed:", error);
-    return { success: false, message: "Unable to connect to the server" };
-  }
+  return apiRequest<T>(path, options, { authenticated, context: "Collection request" });
 }
 
 function isApiError(value: unknown): value is ApiError {

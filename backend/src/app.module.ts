@@ -26,12 +26,12 @@ import { RefundsModule } from './refunds/refunds.module';
 import { InventoryModule } from './inventory/inventory.module';
 import { SettingsModule } from './settings/settings.module';
 import { AnalyticsModule } from './analytics/analytics.module';
-import { AiModule } from './ai/ai.module';
 import { PromotionModule } from './promotion/promotion.module';
 import { NewsletterModule } from './newsletter/newsletter.module';
 import { RedisModule } from './redis/redis.module';
 import { RedisService } from './redis/redis.service';
 import { RedisThrottlerStorage } from './redis/redis-throttler.storage';
+import { AiModule } from './ai/ai.module';
 
 @Module({
   imports: [
@@ -70,7 +70,8 @@ import { RedisThrottlerStorage } from './redis/redis-throttler.storage';
     InventoryModule,
     SettingsModule,
     AnalyticsModule,
-    AiModule,
+    // AI is opt-in and can be disabled without affecting CMS or core store features.
+    ...(process.env.AI_ENABLED === 'true' ? [AiModule] : []),
     PromotionModule,
     NewsletterModule,
   ],

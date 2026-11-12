@@ -6,11 +6,36 @@ import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 
 function sanitizePublicProduct(product: any) {
+  const publicProduct = { ...product };
+  delete publicProduct.imagePublicId;
+  delete publicProduct.apliiqDesignSku;
+
   return {
-    ...product,
-    variants: product.variants?.map(({ apliiqVariantSku, apliiqDesignId, ...variant }: any) => variant),
-    apliiqDesigns: product.apliiqDesigns?.map(({ colorId, mockupUrl, mockupUrls }: any) => ({
-      colorId,
+    ...publicProduct,
+    variants: product.variants?.map((variant: any) => {
+      const publicVariant = { ...variant };
+      delete publicVariant.apliiqVariantSku;
+      delete publicVariant.apliiqDesignId;
+      delete publicVariant.apliiqColorId;
+      return publicVariant;
+    }),
+    artworks: product.artworks?.map((artwork: any) => {
+      const publicArtwork = { ...artwork };
+      delete publicArtwork.imagePublicId;
+      delete publicArtwork.apliiqArtworkId;
+      if (Array.isArray(publicArtwork.placements)) {
+        publicArtwork.placements = publicArtwork.placements.map((placement: any) => {
+          const publicPlacement = { ...placement };
+          delete publicPlacement.id;
+          delete publicPlacement.artworkId;
+          delete publicPlacement.locationId;
+          delete publicPlacement.boxId;
+          return publicPlacement;
+        });
+      }
+      return publicArtwork;
+    }),
+    apliiqDesigns: product.apliiqDesigns?.map(({ mockupUrl, mockupUrls }: any) => ({
       mockupUrl,
       mockupUrls,
     })),

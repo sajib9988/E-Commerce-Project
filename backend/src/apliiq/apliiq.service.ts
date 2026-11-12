@@ -361,14 +361,37 @@ export class ApliiqService extends WorkerHost implements OnModuleInit {
           },
         });
       }
-    } catch {
-      // An ambiguous timeout may mean the provider accepted the order. Never
-      // overwrite a concurrent refund's CANCELLATION_REQUIRED state.
+    } catch (error) {
+      if (error instanceof BadRequestException) {
+        await this.prisma.fulfillment.updateMany({
+          where: { id: fulfillmentId, submissionStatus: 'SUBMITTING' },
+          data: { submissionStatus: 'FAILED_VALIDATION', lastErrorCode: error.message.slice(0, 500) },
+        }).catch(() => undefined);
+        return;
+      }
       await this.prisma.fulfillment.updateMany({
         where: { id: fulfillmentId, submissionStatus: 'SUBMITTING' },
         data: { submissionStatus: 'UNKNOWN', lastErrorCode: 'SUBMISSION_UNCONFIRMED' },
       }).catch(() => undefined);
     }
+  }
+
+  async retryFailedValidationOrder(orderId: string) {
+    const fulfillment = await this.prisma.fulfillment.findUnique({
+      where: { orderId_provider: { orderId, provider: 'APLIIQ' } },
+      include: { order: { include: { items: true } } },
+    });
+    if (!fulfillment) throw new NotFoundException('Apliiq fulfillment record not found');
+    if (fulfillment.submissionStatus !== 'FAILED_VALIDATION') throw new ConflictException('Only validation-failed fulfillments can be retried');
+    if (fulfillment.order.paymentStatus !== 'PAID') throw new ConflictException('Only paid orders can be retried');
+    mapOrderToApliiq(fulfillment.order as never);
+    const claimed = await this.prisma.fulfillment.updateMany({
+      where: { id: fulfillment.id, submissionStatus: 'FAILED_VALIDATION' },
+      data: { submissionStatus: 'QUEUED', lastErrorCode: null },
+    });
+    if (claimed.count !== 1) throw new ConflictException('Fulfillment state changed; refresh and retry');
+    await this.queue.add('drain-fulfillment-outbox', {}, { removeOnComplete: true });
+    return this.prisma.fulfillment.findUnique({ where: { id: fulfillment.id } });
   }
 
   async requestCancellation(orderId: string) {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { updateOrderStatus } from "@/service/order.service";
+import { retryApliiqFulfillment, updateOrderStatus } from "@/service/order.service";
 import { resolvePaymentManualReview } from "@/service/payment.service";
 import { approveRefundRequest, rejectRefundRequest } from "@/service/refund.service";
 
@@ -64,6 +64,25 @@ export function AdminOperationsClient({ orders: orderData, payments: paymentData
       }
       setOrderRows((old) => old.map((r) => r.id === order.id ? { ...r, status } : r));
       setSuccess(`Order ${str(order.orderNumber)} updated to ${status}.`);
+    });
+  }
+
+  function retryFulfillment(order: Row) {
+    const id = str(order.id);
+    clearMessage(id);
+    startTransition(async () => {
+      const result = await retryApliiqFulfillment(id);
+      if (typeof result === "object" && result !== null && "success" in result && (result as Row).success === false) {
+        setError(id, str((result as Row).message));
+        return;
+      }
+      setOrderRows((old) => old.map((row) => row.id === order.id
+        ? { ...row, fulfillments: (Array.isArray(row.fulfillments) ? row.fulfillments : []).map((item) =>
+            typeof item === "object" && item !== null && (item as Row).provider === "APLIIQ"
+              ? { ...(item as Row), submissionStatus: "QUEUED", lastErrorCode: null }
+              : item) }
+        : row));
+      setSuccess(`Apliiq fulfillment for order ${str(order.orderNumber)} was queued for retry.`);
     });
   }
 
@@ -136,6 +155,8 @@ export function AdminOperationsClient({ orders: orderData, payments: paymentData
                   <option value={str(r.status)}>{str(r.status)}</option>
                   <option value={r.status === "PROCESSING" ? "SHIPPED" : "DELIVERED"}>{r.status === "PROCESSING" ? "SHIPPED" : "DELIVERED"}</option>
                 </select> : <span className="text-xs text-slate-500">No admin transition</span>}
+                {Array.isArray(r.fulfillments) && r.fulfillments.some((item) => typeof item === "object" && item !== null && (item as Row).provider === "APLIIQ" && (item as Row).submissionStatus === "FAILED_VALIDATION") && <button type="button" disabled={pending} onClick={() => retryFulfillment(r)} className="mt-2 rounded-md bg-slate-900 px-3 py-2 text-xs text-white disabled:opacity-50">Retry Apliiq fulfillment</button>}
+                {Array.isArray(r.fulfillments) && r.fulfillments.map((item) => typeof item === "object" && item !== null && (item as Row).provider === "APLIIQ" && (item as Row).submissionStatus === "FAILED_VALIDATION" ? <p key={str((item as Row).id)} className="mt-1 max-w-xs text-xs text-rose-700">{str((item as Row).lastErrorCode)}</p> : null)}
                 {errors[str(r.id)] && <ErrorBox message={errors[str(r.id)]} />}
               </td>
             </tr>; })}

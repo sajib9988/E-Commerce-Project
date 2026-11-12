@@ -343,7 +343,7 @@ export default function RegisterForm() {
                             ? "text"
                             : "password"
                         }
-                        placeholder="Password (min 6 characters)"
+                        placeholder="Password (min 8 characters)"
                         className="
                           border-white/20
                           pr-10
@@ -379,7 +379,7 @@ export default function RegisterForm() {
                   </FormControl>
 
                   <p className="ml-1 mt-1 text-xs text-white/40">
-                    Must be at least 6 characters long
+                    Must be at least 8 characters long
                   </p>
 
                   <FormMessage className="text-xs text-red-400" />

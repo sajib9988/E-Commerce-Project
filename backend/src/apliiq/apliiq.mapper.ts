@@ -4,11 +4,15 @@ type AddressSnapshot = {
   firstName?: string;
   lastName?: string;
   address1?: string;
+  addressLine1?: string;
   address2?: string | null;
+  addressLine2?: string | null;
   phone?: string | null;
   city?: string;
   zip?: string;
+  postalCode?: string;
   province?: string;
+  state?: string;
   provinceCode?: string;
   country?: string;
   countryCode?: string;
@@ -45,12 +49,13 @@ export function mapOrderToApliiq(order: PaidOrderForApliiq) {
   const nameParts = (order.customerName ?? '').trim().split(/\s+/).filter(Boolean);
   const firstName = address.firstName ?? nameParts[0];
   const lastName = address.lastName ?? nameParts.slice(1).join(' ');
+  const address1 = address.address1 ?? address.addressLine1;
+  const address2 = address.address2 ?? address.addressLine2;
+  const zip = address.zip ?? address.postalCode;
+  const province = address.province ?? address.state;
+  const countryCode = address.countryCode ?? (address.country?.trim().toLowerCase() === 'united states' ? 'US' : undefined);
 
-  if (
-    !firstName || !lastName || !address.address1 || !address.city ||
-    !address.zip || !address.province || !address.country ||
-    !address.countryCode
-  ) {
+  if (!firstName || !lastName || !address1 || !address.city || !zip || !province || !address.country || !countryCode) {
     throw new BadRequestException('Required Apliiq shipping fields are missing');
   }
 
@@ -88,15 +93,15 @@ export function mapOrderToApliiq(order: PaidOrderForApliiq) {
     shipping_address: {
       first_name: firstName,
       last_name: lastName,
-      address1: address.address1,
-      address2: address.address2 ?? '',
+      address1,
+      address2: address2 ?? '',
       phone: address.phone ?? order.customerPhone ?? '',
       city: address.city,
-      zip: address.zip,
-      province: address.province,
+      zip,
+      province,
       province_code: address.provinceCode ?? '',
       country: address.country,
-      country_code: address.countryCode.toUpperCase(),
+      country_code: countryCode.toUpperCase(),
     },
     shipping_lines: [{ code: 'standard' }],
   };

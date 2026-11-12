@@ -5,7 +5,6 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '../../generated/prisma/client';
-import { AiKnowledgeService } from '../ai/services/ai-knowledge.service';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   CmsSectionDto,
@@ -25,10 +24,7 @@ type Json = Prisma.InputJsonObject;
 
 @Injectable()
 export class CmsService {
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly aiKnowledge: AiKnowledgeService,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   findAll() {
     return this.prisma.cmsPage.findMany({
@@ -118,10 +114,6 @@ export class CmsService {
       }),
     );
 
-    // A draft/archived page causes syncCmsPage to remove its old embeddings.
-    // A published page is re-embedded using the updated CMS content.
-    await this.aiKnowledge.syncCmsPage(id);
-
     return updatedPage;
   }
 
@@ -142,7 +134,6 @@ export class CmsService {
       include: fullTree,
     });
 
-    await this.aiKnowledge.syncCmsPage(id);
     return publishedPage;
   }
 
@@ -155,9 +146,6 @@ export class CmsService {
 
       if (!page.count) throw new NotFoundException(`Page ${id} not found`);
 
-      await tx.$executeRaw`
-        DELETE FROM ai_knowledge_chunks WHERE source = ${`cms:${id}`}
-      `;
     });
 
     return this.findOne(id);
@@ -173,9 +161,6 @@ export class CmsService {
       if (!existing) throw new NotFoundException(`Page ${id} not found`);
 
       await tx.cmsPage.delete({ where: { id } });
-      await tx.$executeRaw`
-        DELETE FROM ai_knowledge_chunks WHERE source = ${`cms:${id}`}
-      `;
     });
 
     return { success: true };
