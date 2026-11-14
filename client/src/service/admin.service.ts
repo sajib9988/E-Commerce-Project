@@ -12,13 +12,16 @@ type ApiError = { success: false; message: string; statusCode?: number };
 type UserInput = { name: string; email: string; password: string; role?: "USER" | "ADMIN" | "SUPER_ADMIN" };
 
 
-
+// helpers for type narrowing and request handling
 function isApiError(value: unknown): value is ApiError {
   return typeof value === "object" && value !== null && "success" in value && value.success === false;
 }
 async function request<T>(path: string, options: RequestInit = {}): Promise<T | ApiError> {
   return apiRequest<T>(path, options, { context: "admin request" });
 }
+
+
+
 function buildQuery(params: { search?: string; page?: number; limit?: number }) {
   const query = new URLSearchParams();
   Object.entries(params).forEach(([key, value]) => {
