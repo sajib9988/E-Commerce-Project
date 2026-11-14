@@ -1,28 +1,33 @@
-import { redirect } from "next/navigation";
+import { Suspense } from "react";
 import { CustomerAccountNav } from "@/components/customer/customer-account-nav";
 import { StorefrontNavbar } from "@/components/storefront/storefront-navbar";
 import { CartStoreProvider } from "@/providers/cart-store-provider";
-import { CustomerAuthRedirect } from "@/components/customer/customer-auth-redirect";
-import { getMe } from "@/service/auth.service";
+import CustomerAuthGate from "./customer-auth-gate";
 
 export const instant = false;
 
-export default async function CustomerLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  const session = await getMe();
-  const user = session?.data ?? session;
-
-  if (!user) return <CustomerAuthRedirect />;
-  if (user.role !== "USER") redirect("/admin");
-
+export default function CustomerLayout({
+  children,
+}: Readonly<{ children: React.ReactNode }>) {
   return (
-    <CartStoreProvider>
-      <StorefrontNavbar />
-      <main className="min-h-screen bg-stone-50 text-stone-900">
-        <div className="mx-auto grid w-full max-w-7xl gap-6 px-4 py-7 sm:px-6 lg:grid-cols-[230px_minmax(0,1fr)] lg:gap-8 lg:py-10">
-          <CustomerAccountNav />
-          <section className="min-w-0">{children}</section>
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center">
+          Loading account...
         </div>
-      </main>
-    </CartStoreProvider>
+      }
+    >
+      <CustomerAuthGate>
+        <CartStoreProvider>
+          <StorefrontNavbar />
+          <main className="min-h-screen bg-stone-50 text-stone-900">
+            <div className="mx-auto grid w-full max-w-7xl gap-6 px-4 py-7 sm:px-6 lg:grid-cols-[230px_minmax(0,1fr)] lg:gap-8 lg:py-10">
+              <CustomerAccountNav />
+              <section className="min-w-0">{children}</section>
+            </div>
+          </main>
+        </CartStoreProvider>
+      </CustomerAuthGate>
+    </Suspense>
   );
 }
