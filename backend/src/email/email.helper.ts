@@ -22,11 +22,7 @@ function createEmailTransport(): EmailTransport | null {
     GMAIL_REFRESH_TOKEN,
     GMAIL_USER,
     GMAIL_FROM,
-    SMTP_HOST,
-    SMTP_PORT,
-    SMTP_USER,
-    SMTP_PASS,
-    SMTP_FROM,
+   
   } = process.env;
 
   if (
@@ -50,22 +46,7 @@ function createEmailTransport(): EmailTransport | null {
     };
   }
 
-  if (SMTP_HOST && SMTP_PORT && SMTP_USER && SMTP_PASS) {
-    const port = Number(SMTP_PORT);
-    if (!Number.isInteger(port) || port <= 0) {
-      throw new Error('SMTP_PORT must be a valid positive integer');
-    }
-
-    return {
-      transporter: nodemailer.createTransport({
-        host: SMTP_HOST,
-        port,
-        secure: port === 465,
-        auth: { user: SMTP_USER, pass: SMTP_PASS },
-      }),
-      fromAddress: SMTP_FROM || SMTP_USER,
-    };
-  }
+  
 
   return null;
 }
