@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
-import { redirect } from "next/navigation";
+import { Suspense } from "react";
 import { AdminShell } from "@/components/admin/admin-shell";
-import { getMe } from "@/service/auth.service";
+import AdminAuthGate from "./admin-auth-gate";
 
 export const instant = false;
 
@@ -10,17 +10,20 @@ export const metadata: Metadata = {
   description: "Store administration dashboard",
 };
 
-export default async function AdminLayout({
+export default function AdminLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  // getMe calls the backend, whose JwtAuthGuard verifies the signed access
-  // token and reloads the current role from PostgreSQL (not from the cookie).
-  const session = await getMe();
-  const user = session?.data ?? session;
-
-  if (!user || !["ADMIN", "SUPER_ADMIN"].includes(user.role)) {
-    redirect("/login?error=admin_required");
-  }
-
-  return <AdminShell>{children}</AdminShell>;
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center">
+          Loading admin...
+        </div>
+      }
+    >
+      <AdminAuthGate>
+        <AdminShell>{children}</AdminShell>
+      </AdminAuthGate>
+    </Suspense>
+  );
 }
