@@ -24,4 +24,9 @@ export class CreateContactDto {
   @IsNotEmpty()
   @MaxLength(5000)
   message!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(2048)
+  turnstileToken!: string;
 }

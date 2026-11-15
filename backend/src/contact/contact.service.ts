@@ -1,5 +1,6 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ContactStatus } from '../../generated/prisma/enums';
+import { verifyTurnstileToken } from '../common/utils/turnstile.util';
 import { EmailService } from '../email/email.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateContactDto } from './dto/create-contact.dto';
@@ -14,6 +15,11 @@ export class ContactService {
   ) {}
 
   async create(dto: CreateContactDto) {
+    const turnstileValid = await verifyTurnstileToken(dto.turnstileToken);
+    if (!turnstileValid) {
+      throw new BadRequestException('Security verification failed. Please try again.');
+    }
+
     const submission = await this.prisma.contactSubmission.create({
       data: {
         name: dto.name.trim(),
