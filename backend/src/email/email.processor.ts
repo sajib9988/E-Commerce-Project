@@ -19,6 +19,13 @@ export class EmailProcessor extends WorkerHost {
       await this.email.sendNotificationNow(job.name, job.data as Record<string, unknown>);
       return;
     }
+    if (job.name === 'contact-inquiry') {
+      await this.email.sendContactInquiryNow(job.data as {
+        id: string; name: string; email: string; phone: string | null;
+        subject: string; message: string; createdAt: string; recipient: string;
+      });
+      return;
+    }
     throw new Error(`Unsupported email job: ${job.name}`);
   }
 }

@@ -1,14 +1,20 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ContactStatus } from '../../generated/prisma/enums';
+import { EmailService } from '../email/email.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateContactDto } from './dto/create-contact.dto';
 
 @Injectable()
 export class ContactService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(ContactService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly email: EmailService,
+  ) {}
 
   async create(dto: CreateContactDto) {
-    await this.prisma.contactSubmission.create({
+    const submission = await this.prisma.contactSubmission.create({
       data: {
         name: dto.name.trim(),
         email: dto.email.trim().toLowerCase(),
@@ -17,6 +23,22 @@ export class ContactService {
         message: dto.message.trim(),
       },
     });
+
+    // Persist the inquiry first. Email delivery is asynchronous and must not
+    // make the customer lose a successfully saved message.
+    try {
+      await this.email.sendContactInquiry({
+        id: submission.id,
+        name: submission.name,
+        email: submission.email,
+        phone: submission.phone,
+        subject: submission.subject,
+        message: submission.message,
+        createdAt: submission.createdAt.toISOString(),
+      });
+    } catch (error) {
+      this.logger.error('Contact inquiry saved, but notification could not be queued', error);
+    }
 
     return {
       success: true,

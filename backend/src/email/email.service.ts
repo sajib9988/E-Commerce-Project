@@ -3,6 +3,16 @@ import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { escapeHtml, isEmailConfigured, sendEmail } from './email.helper';
 
+type ContactInquiryEmail = {
+  id: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  subject: string;
+  message: string;
+  createdAt: string;
+};
+
 @Injectable()
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
@@ -29,7 +39,6 @@ export class EmailService {
     expiresAt: string;
   }) {
     await this.emailQueue.add('welcome-coupon', payload, {
-      // BullMQ custom job IDs must not contain ":".
       jobId: `welcome-coupon-${payload.couponCode}`,
       attempts: 5,
       backoff: { type: 'exponential', delay: 2_000 },
@@ -97,6 +106,53 @@ export class EmailService {
     });
   }
 
+  async sendContactInquiry(payload: ContactInquiryEmail): Promise<void> {
+    const recipient = process.env.CONTACT_NOTIFICATION_EMAIL || process.env.GMAIL_FROM || process.env.GMAIL_USER;
+    if (!recipient) {
+      this.logger.warn('CONTACT_NOTIFICATION_EMAIL is not configured; contact inquiry email was not queued.');
+      return;
+    }
+
+    await this.emailQueue.add('contact-inquiry', { ...payload, recipient }, {
+      jobId: `contact-inquiry-${payload.id}`,
+      attempts: 5,
+      backoff: { type: 'exponential', delay: 2_000 },
+      removeOnComplete: 500,
+      removeOnFail: 2_000,
+    });
+  }
+
+  async sendContactInquiryNow(payload: ContactInquiryEmail & { recipient: string }): Promise<void> {
+    if (!isEmailConfigured()) {
+      throw new Error('Email provider is not configured for contact notifications');
+    }
+
+    const name = escapeHtml(payload.name);
+    const sender = escapeHtml(payload.email);
+    const phone = escapeHtml(payload.phone || 'Not provided');
+    const subject = escapeHtml(payload.subject);
+    const message = escapeHtml(payload.message).replace(/\r?\n/g, '<br>');
+    const receivedAt = escapeHtml(new Date(payload.createdAt).toLocaleString('en-US', { timeZone: 'UTC' }));
+
+    await sendEmail({
+      to: payload.recipient,
+      subject: `New contact inquiry: ${payload.subject}`,
+      text: [
+        'A new contact form message was submitted.',
+        `Name: ${payload.name}`,
+        `Email: ${payload.email}`,
+        `Phone: ${payload.phone || 'Not provided'}`,
+        `Subject: ${payload.subject}`,
+        '',
+        payload.message,
+        '',
+        `Received: ${receivedAt} UTC`,
+        `Submission ID: ${payload.id}`,
+      ].join('\n'),
+      html: `<div style="font-family:Arial,sans-serif;max-width:620px;margin:auto;color:#171717"><h2>New contact inquiry</h2><p><strong>Name:</strong> ${name}</p><p><strong>Email:</strong> ${sender}</p><p><strong>Phone:</strong> ${phone}</p><p><strong>Subject:</strong> ${subject}</p><div style="margin:20px 0;padding:16px;background:#f5f5f5;border-radius:8px;line-height:1.6">${message}</div><p style="color:#666;font-size:12px">Received ${receivedAt} UTC · Submission ${escapeHtml(payload.id)}</p></div>`,
+    });
+  }
+
   async sendNotificationNow(
     jobName: 'order-confirmation' | 'shipping-update',
     payload: Record<string, unknown>,
@@ -106,7 +162,6 @@ export class EmailService {
         this.logger.warn(`Email provider is not configured; skipped ${jobName} notification.`);
         return;
       }
-      // Throwing lets BullMQ retry instead of marking an undelivered email complete.
       throw new Error('Email provider is not configured for notification delivery');
     }
 
@@ -126,15 +181,9 @@ export class EmailService {
       return;
     }
 
-    const company = typeof payload.trackingCompany === 'string'
-      ? payload.trackingCompany
-      : 'Carrier';
-    const numbers = Array.isArray(payload.trackingNumbers)
-      ? payload.trackingNumbers.map(String).join(', ')
-      : '';
-    const urls = Array.isArray(payload.trackingUrls)
-      ? payload.trackingUrls.map(String).join('\n')
-      : '';
+    const company = typeof payload.trackingCompany === 'string' ? payload.trackingCompany : 'Carrier';
+    const numbers = Array.isArray(payload.trackingNumbers) ? payload.trackingNumbers.map(String).join(', ') : '';
+    const urls = Array.isArray(payload.trackingUrls) ? payload.trackingUrls.map(String).join('\n') : '';
 
     await sendEmail({
       to: email,
