@@ -1,5 +1,0 @@
-ALTER TYPE "CmsBlockType" ADD VALUE IF NOT EXISTS 'PRODUCT_COLLECTION';
-ALTER TYPE "FulfillmentSubmissionStatus" ADD VALUE IF NOT EXISTS 'FAILED_VALIDATION';
-ALTER TABLE "refresh_sessions"
-  ADD COLUMN "rotatedAt" TIMESTAMP(3),
-  ADD COLUMN "replacedByTokenHash" TEXT;
