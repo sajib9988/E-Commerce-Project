@@ -112,6 +112,10 @@ export class EmailService {
       this.logger.warn('CONTACT_NOTIFICATION_EMAIL is not configured; contact inquiry email was not queued.');
       return;
     }
+    if (!isEmailConfigured()) {
+      this.logger.warn('Email provider is not configured; contact inquiry email was not queued.');
+      return;
+    }
 
     await this.emailQueue.add('contact-inquiry', { ...payload, recipient }, {
       jobId: `contact-inquiry-${payload.id}`,

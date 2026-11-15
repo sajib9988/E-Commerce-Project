@@ -8,7 +8,7 @@ export default async function AdminContactPage() {
   return (
     <AdminContactInbox
       initialSubmissions={failed ? [] : result as ContactSubmission[]}
-      initialError={failed ? result.message : undefined}
+      initialError={failed ? (result as { success: false; message: string }).message : undefined}
     />
   );
 }
