@@ -32,6 +32,7 @@ import { RedisModule } from './redis/redis.module';
 import { RedisService } from './redis/redis.service';
 import { RedisThrottlerStorage } from './redis/redis-throttler.storage';
 import { AiModule } from './ai/ai.module';
+import { ContactModule } from './contact/contact.module';
 
 @Module({
   imports: [
@@ -70,10 +71,10 @@ import { AiModule } from './ai/ai.module';
     InventoryModule,
     SettingsModule,
     AnalyticsModule,
-    // AI is opt-in and can be disabled without affecting CMS or core store features.
     ...(process.env.AI_ENABLED === 'true' ? [AiModule] : []),
     PromotionModule,
     NewsletterModule,
+    ContactModule,
   ],
   controllers: [],
   providers: [

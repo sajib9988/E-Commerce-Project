@@ -6,7 +6,7 @@ import { useState } from "react";
 import {
   Activity, BarChart3, Bell, ChevronDown, CreditCard, LayoutDashboard,
   Menu, Package, Search, Settings, ShoppingBag, ShoppingCart, Tag,
-  Users, X, Image as ImageIcon, FileText, ShieldCheck, RotateCcw, Truck, Ruler, Megaphone, Mail
+  Users, X, Image as ImageIcon, FileText, ShieldCheck, RotateCcw, Truck, Ruler, Megaphone, Mail, MessageSquareText
 } from "lucide-react";
 
 const navigation = [
@@ -21,6 +21,7 @@ const navigation = [
   { label: "Coupons", href: "/admin/coupons", icon: Tag },
   { label: "Promotions", href: "/admin/promotions", icon: Megaphone },
   { label: "Newsletter", href: "/admin/newsletter", icon: Mail },
+  { label: "Contact Inbox", href: "/admin/contact", icon: MessageSquareText },
   { label: "Reviews", href: "/admin/reviews", icon: FileText },
   { label: "Payments", href: "/admin/payments", icon: CreditCard },
   { label: "Refunds", href: "/admin/refunds", icon: RotateCcw },
