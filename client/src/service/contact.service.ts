@@ -9,6 +9,7 @@ export type ContactSubmissionInput = {
   phone?: string;
   subject: string;
   message: string;
+  turnstileToken: string;
 };
 
 export type ContactSubmissionResult = {
@@ -48,10 +49,14 @@ export async function submitContactForm(
 }
 
 export async function getAdminContactSubmissions(): Promise<ContactSubmission[] | ApiError> {
-  return apiRequest<ContactSubmission[]>("/contact/admin/submissions", {}, {
-    context: "Admin contact inbox",
-    fallbackMessage: "Could not load contact submissions.",
-  });
+  return apiRequest<ContactSubmission[]>(
+    "/contact/admin/submissions",
+    {},
+    {
+      context: "Admin contact inbox",
+      fallbackMessage: "Could not load contact submissions.",
+    },
+  );
 }
 
 export async function updateAdminContactStatus(
