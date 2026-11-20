@@ -1,7 +1,4 @@
 "use client";
-
-
-
 import RegisterForm from '@/components/form/registerForm';
 import { motion } from 'framer-motion';
 
