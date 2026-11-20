@@ -33,10 +33,15 @@ export function SignupDiscountPopup() {
       cache: "no-store",
       signal: controller.signal,
     })
-      .then(async (response) => {
-        if (!response.ok) return null;
-        return (await response.json()) as ActivePopup | null;
-      })
+   .then(async (response) => {
+  if (!response.ok) return null;
+
+  const text = await response.text();
+
+  if (!text.trim()) return null;
+
+  return JSON.parse(text) as ActivePopup | null;
+})
       .then((data) => {
         if (data?.id) {
           setPromotion(data);
