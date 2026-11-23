@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, type FormEvent } from "react";
@@ -5,164 +6,140 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+
 import {
   Eye,
   EyeOff,
-  KeyRound,
   Mail,
+  LockKeyhole,
+  KeyRound,
+  ArrowRight,
+  ShieldCheck,
 } from "lucide-react";
+
 import { toast } from "react-hot-toast";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
+import {
+  LoginFormData,
+  loginSchema,
+  VerifyEmailFormData,
+  verifyEmailSchema,
+} from "@/lib/validation";
 
+import {
+  loginUser,
+  resendVerification,
+  verifyEmail,
+  verifyLoginOtp,
+  resendLoginOtp,
+} from "@/service/auth.service";
 
-
-
-
-import { LoginFormData, loginSchema, VerifyEmailFormData, verifyEmailSchema } from "@/lib/validation";
-import { loginUser, resendVerification, verifyEmail, verifyLoginOtp, resendLoginOtp } from "@/service/auth.service";
 import { OAuthLoginButtons } from "@/components/form/oauth-login-buttons";
-import { Form, FormControl, FormField, FormItem, FormMessage } from "../ui/form";
+
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormMessage,
+} from "@/components/ui/form";
+
+const inputClass =
+  "h-12 rounded-xl border border-white/10 bg-white/[0.045] pl-11 pr-4 text-sm text-white shadow-none placeholder:text-white/30 transition-all focus-visible:border-blue-400/60 focus-visible:bg-white/[0.07] focus-visible:ring-2 focus-visible:ring-blue-500/20";
+
+const iconClass =
+  "absolute left-4 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-white/35";
 
 export default function LoginForm() {
   const router = useRouter();
 
-  // =====================================================
-  // STEP
-  // =====================================================
-
-  const [step, setStep] = useState<"login" | "verify" | "admin-otp">(
-    "login"
-  );
-
-  // =====================================================
-  // VERIFY STATES
-  // =====================================================
+  const [step, setStep] = useState<
+    "login" | "verify" | "admin-otp"
+  >("login");
 
   const [email, setEmail] = useState("");
   const [challengeToken, setChallengeToken] = useState("");
   const [adminOtp, setAdminOtp] = useState("");
 
   const [showOtp, setShowOtp] = useState(false);
-
-  // =====================================================
-  // COMMON STATES
-  // =====================================================
-
-  const [isLoading, setIsLoading] = useState(false);
-
-  const [error, setError] = useState<string | null>(null);
-
   const [showPassword, setShowPassword] = useState(false);
 
-  // =====================================================
-  // LOGIN FORM
-  // =====================================================
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const loginForm = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
-
     defaultValues: {
       email: "",
       password: "",
     },
   });
 
-  // =====================================================
-  // VERIFY FORM
-  // =====================================================
-
   const verifyForm = useForm<VerifyEmailFormData>({
     resolver: zodResolver(verifyEmailSchema),
-
     defaultValues: {
       email: "",
       otp: "",
     },
   });
 
-  // =====================================================
+  // =========================
   // LOGIN
-  // =====================================================
+  // =========================
 
-  const handleLogin = async (
-    data: LoginFormData
-  ) => {
+  const handleLogin = async (data: LoginFormData) => {
     setIsLoading(true);
     setError(null);
 
     try {
       const result = await loginUser(data);
 
-      // =================================================
-      // LOGIN FAILED
-      // =================================================
-
       if (!result.ok) {
-        const errorMessage =
+        const message =
           result.data?.message || "Login failed";
 
-        const normalizedMessage =
-          errorMessage.toLowerCase();
+        const normalized = message.toLowerCase();
 
-        /*
-         * Backend already blocks unverified users.
-         *
-         * We only detect that situation here.
-         *
-         * IMPORTANT:
-         * We DON'T immediately open OTP screen.
-         *
-         * Instead:
-         *
-         * Login form
-         *      ↓
-         * Verify Email First button
-         *      ↓
-         * User clicks it
-         *      ↓
-         * Verify screen
-         */
-
-        const isEmailUnverified =
-          normalizedMessage.includes("verify") &&
-          normalizedMessage.includes("email");
-
-        if (isEmailUnverified) {
+        if (
+          normalized.includes("verify") &&
+          normalized.includes("email")
+        ) {
           setEmail(data.email);
 
-          toast.error(
-            "Your email is not verified."
-          );
-
+          toast.error("Your email is not verified.");
           return;
         }
 
-        setError(errorMessage);
-
-        toast.error(errorMessage);
-
+        setError(message);
+        toast.error(message);
         return;
       }
 
-      if (result.data?.requiresOtp && result.data?.challengeToken) {
+      if (
+        result.data?.requiresOtp &&
+        result.data?.challengeToken
+      ) {
         setChallengeToken(result.data.challengeToken);
         setAdminOtp("");
         setStep("admin-otp");
-        toast.success("A login code has been sent to your email.");
+
+        toast.success(
+          "A login code has been sent to your email."
+        );
+
         return;
       }
 
-      // =================================================
-      // LOGIN SUCCESS
-      // =================================================
-
       toast.success("Login successful");
 
-      const userRole = result.data?.user?.role;
-      const requestedPath = new URLSearchParams(window.location.search).get("next");
+      const role = result.data?.user?.role;
+
+      const requestedPath =
+        new URLSearchParams(window.location.search).get("next");
+
       const safeNextPath =
         requestedPath &&
         requestedPath.startsWith("/") &&
@@ -172,45 +149,61 @@ export default function LoginForm() {
           : null;
 
       setTimeout(() => {
-        if (userRole === "ADMIN" || userRole === "SUPER_ADMIN") {
+        if (role === "ADMIN" || role === "SUPER_ADMIN") {
           router.replace("/admin");
         } else {
           router.replace(safeNextPath ?? "/");
         }
-        router.refresh();
-      }, 2000);
-    } catch (error) {
-      setError(
-        "Something went wrong."
-      );
 
-      toast.error(
-        "Something went wrong. Please try again."
-      );
+        router.refresh();
+      }, 1200);
+
+    } catch {
+      setError("Something went wrong.");
+
+      toast.error("Something went wrong. Please try again.");
     } finally {
       setIsLoading(false);
     }
   };
 
+  // =========================
+  // ADMIN OTP
+  // =========================
 
-  const handleAdminOtp = async (event: FormEvent<HTMLFormElement>) => {
+  const handleAdminOtp = async (
+    event: FormEvent<HTMLFormElement>
+  ) => {
     event.preventDefault();
+
     if (!challengeToken || !/^\d{6}$/.test(adminOtp)) {
       toast.error("Enter the 6-digit login code.");
       return;
     }
+
     setIsLoading(true);
+
     try {
-      const result = await verifyLoginOtp(challengeToken, adminOtp);
+      const result = await verifyLoginOtp(
+        challengeToken,
+        adminOtp
+      );
+
       if (!result.ok) {
-        toast.error(result.data?.message || "Could not verify login code.");
+        toast.error(
+          result.data?.message ||
+          "Could not verify login code."
+        );
         return;
       }
+
       toast.success("Admin login successful");
+
       router.replace("/admin");
       router.refresh();
+
     } catch {
-      toast.error("Something went wrong. Please try again.");
+      toast.error("Something went wrong.");
     } finally {
       setIsLoading(false);
     }
@@ -218,15 +211,22 @@ export default function LoginForm() {
 
   const handleResendAdminOtp = async () => {
     if (!challengeToken) return;
+
     setIsLoading(true);
+
     try {
       const result = await resendLoginOtp(challengeToken);
+
       if (!result?.success) {
-        toast.error(result?.message || "Could not resend login code.");
+        toast.error(
+          result?.message || "Could not resend login code."
+        );
         return;
       }
+
       setAdminOtp("");
       toast.success("A new login code has been sent.");
+
     } catch {
       toast.error("Could not resend login code.");
     } finally {
@@ -234,19 +234,15 @@ export default function LoginForm() {
     }
   };
 
-  // =====================================================
-  // OPEN VERIFY EMAIL
-  // =====================================================
+  // =========================
+  // EMAIL VERIFICATION
+  // =========================
 
   const handleOpenVerify = () => {
-    const loginEmail =
-      loginForm.getValues("email");
+    const loginEmail = loginForm.getValues("email");
 
     if (!loginEmail) {
-      toast.error(
-        "Please enter your email address first."
-      );
-
+      toast.error("Please enter your email address first.");
       return;
     }
 
@@ -258,76 +254,39 @@ export default function LoginForm() {
     });
 
     setShowOtp(false);
-
     setError(null);
-
     setStep("verify");
   };
 
-  // =====================================================
-  // SEND VERIFICATION CODE
-  // =====================================================
-
   const handleSendVerificationCode = async () => {
     if (!email) {
-      toast.error(
-        "Email address is required."
-      );
-
+      toast.error("Email address is required.");
       return;
     }
 
     setIsLoading(true);
 
     try {
-      /*
-       * Existing resendVerification()
-       * already sends a new OTP.
-       *
-       * We use the same backend function
-       * for the first OTP send.
-       */
-
-      const result =
-        await resendVerification(email);
+      const result = await resendVerification(email);
 
       if (!result?.success) {
         toast.error(
-          result?.message ||
-            "Failed to send verification code."
+          result?.message || "Failed to send verification code."
         );
-
         return;
       }
 
-      toast.success(
-        "Verification code sent to your email."
-      );
-
-      // =================================================
-      // ONLY AFTER OTP IS SENT
-      // SHOW OTP INPUT
-      // =================================================
+      toast.success("Verification code sent.");
 
       setShowOtp(true);
+      verifyForm.setValue("otp", "");
 
-      verifyForm.setValue(
-        "otp",
-        ""
-      );
-    } catch (error: any) {
-      toast.error(
-        error?.message ||
-          "Something went wrong."
-      );
+    } catch {
+      toast.error("Something went wrong.");
     } finally {
       setIsLoading(false);
     }
   };
-
-  // =====================================================
-  // VERIFY EMAIL
-  // =====================================================
 
   const handleVerify = async (
     data: VerifyEmailFormData
@@ -342,110 +301,59 @@ export default function LoginForm() {
 
       if (!result?.success) {
         toast.error(
-          result?.message ||
-            "Verification failed."
+          result?.message || "Verification failed."
         );
-
         return;
       }
 
-      // =================================================
-      // VERIFIED
-      // =================================================
+      toast.success("Email verified! Please login.");
 
-      toast.success(
-        "Email verified! Please login."
-      );
-
-      // Back to login
       setStep("login");
-
-      // Hide OTP screen
       setShowOtp(false);
-
-      // Clear error
       setError(null);
 
-      // Keep verified email in login form
-      loginForm.setValue(
-        "email",
-        data.email
-      );
+      loginForm.setValue("email", data.email);
+      loginForm.setValue("password", "");
 
-      // Password needs to be entered again
-      loginForm.setValue(
-        "password",
-        ""
-      );
-
-      // Clear verify form
       verifyForm.reset({
         email: data.email,
         otp: "",
       });
-    } catch (error: any) {
-      toast.error(
-        error?.message ||
-          "Something went wrong."
-      );
+
+    } catch {
+      toast.error("Something went wrong.");
     } finally {
       setIsLoading(false);
     }
   };
 
-  // =====================================================
-  // RESEND OTP
-  // =====================================================
-
   const handleResend = async () => {
-    if (!email) {
-      toast.error(
-        "Email address is required."
-      );
-
-      return;
-    }
+    if (!email) return;
 
     setIsLoading(true);
 
     try {
-      const result =
-        await resendVerification(email);
+      const result = await resendVerification(email);
 
       if (result?.success) {
-        toast.success(
-          "New verification code sent!"
-        );
-
-        verifyForm.setValue(
-          "otp",
-          ""
-        );
+        toast.success("New verification code sent!");
+        verifyForm.setValue("otp", "");
       } else {
         toast.error(
-          result?.message ||
-            "Failed to resend verification code."
+          result?.message || "Failed to resend verification code."
         );
       }
-    } catch (error: any) {
-      toast.error(
-        error?.message ||
-          "Something went wrong."
-      );
+
+    } catch {
+      toast.error("Something went wrong.");
     } finally {
       setIsLoading(false);
     }
   };
 
-  // =====================================================
-  // BACK TO LOGIN
-  // =====================================================
-
   const handleBackToLogin = () => {
     setStep("login");
-
     setShowOtp(false);
-
     setError(null);
 
     verifyForm.reset({
@@ -453,613 +361,375 @@ export default function LoginForm() {
       otp: "",
     });
 
-    loginForm.setValue(
-      "email",
-      email
-    );
+    loginForm.setValue("email", email);
   };
 
-  // =====================================================
+  // =========================
   // UI
-  // =====================================================
+  // =========================
 
   return (
-    <div
-      className="
-        relative
-        rounded-[40px]
-        border
-        border-white/20
-        bg-white/10
-        p-8
-        backdrop-blur-2xl
-        shadow-[20px_20px_50px_rgba(0,0,0,0.5),inset_5px_5px_15px_rgba(255,255,255,0.1)]
-        sm:p-10
-      "
-    >
-      {/* =================================================
-          ICON
-      ================================================= */}
+    <div className="relative">
 
-      <div className="mb-5 flex justify-center">
-        <div
-          className="
-            flex
-            h-11
-            w-11
-            items-center
-            justify-center
-            rounded-2xl
-            border
-            border-white/20
-            bg-white/10
-            text-white/70
-            shadow-[0_8px_25px_rgba(0,0,0,0.3)]
-          "
-        >
+      {/* Heading */}
+
+      <div className="mb-8">
+
+        <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl border border-blue-400/20 bg-blue-500/10 text-blue-300 shadow-lg shadow-blue-500/10">
           {step === "login" ? (
-            <Mail className="h-5 w-5" />
+            <LockKeyhole className="h-5 w-5" />
           ) : (
-            <KeyRound className="h-5 w-5" />
+            <ShieldCheck className="h-5 w-5" />
           )}
         </div>
+
+        <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.25em] text-blue-300">
+          {step === "login"
+            ? "ACCOUNT ACCESS"
+            : "SECURE VERIFICATION"}
+        </p>
+
+        <h2 className="text-3xl font-semibold tracking-tight text-white sm:text-4xl">
+          {step === "login"
+            ? "Welcome back."
+            : step === "admin-otp"
+              ? "Verify your login."
+              : "Verify your email."}
+        </h2>
+
+        <p className="mt-3 text-sm leading-6 text-white/45">
+          {step === "login"
+            ? "Sign in to continue your shopping experience."
+            : step === "admin-otp"
+              ? "Enter the 6-digit code sent to your admin email."
+              : showOtp
+                ? `Enter the verification code sent to ${email}.`
+                : "Your email address needs verification."}
+        </p>
       </div>
 
-      {/* =================================================
-          TITLE
-      ================================================= */}
+      {/* LOGIN FORM */}
 
-      <h2
-        className="
-          mb-2
-          text-center
-          text-3xl
-          font-bold
-          text-white
-        "
-      >
-        {step === "login" ? "Welcome" : step === "admin-otp" ? "Admin Login Verification" : "Verify Email"}
-      </h2>
-
-      {/* =================================================
-          DESCRIPTION
-      ================================================= */}
-
-      <p
-        className="
-          mb-6
-          text-center
-          text-sm
-          text-white/55
-        "
-      >
-        {step === "login" ? "Sign in to your Commerce account" : step === "admin-otp" ? "Enter the 6-digit code sent to your admin email" : showOtp ? `Enter the 6-digit code sent to ${email}` : "Your email address needs to be verified"}
-      </p>
-
-      {/* =================================================
-          LOGIN STEP
-      ================================================= */}
-
-      {step === "login" ? (
+      {step === "login" && (
         <Form {...loginForm}>
           <form
-            onSubmit={loginForm.handleSubmit(
-              handleLogin
-            )}
+            onSubmit={loginForm.handleSubmit(handleLogin)}
             className="space-y-5"
           >
-            {/* =================================================
-                ERROR
-            ================================================= */}
 
             {error && (
-              <div
-                className="
-                  rounded-xl
-                  border
-                  border-red-500/40
-                  bg-red-500/20
-                  p-2.5
-                  text-center
-                  text-[11px]
-                  text-red-200
-                "
-              >
+              <div className="rounded-xl border border-red-400/20 bg-red-500/10 p-3 text-xs text-red-300">
                 {error}
               </div>
             )}
 
-            {/* =================================================
-                EMAIL
-            ================================================= */}
+            {/* Email */}
 
             <FormField
               control={loginForm.control}
               name="email"
               render={({ field }) => (
-                <FormItem>
+                <FormItem className="space-y-2">
+                  <label className="text-xs font-medium text-white/70">
+                    Email Address
+                  </label>
+
                   <FormControl>
-                    <Input
-                      {...field}
-                      type="email"
-                      placeholder="Email Address"
-                      className="
-                        h-12
-                        rounded-2xl
-                        border-none
-                        bg-white/5
-                        text-white
-                        placeholder:text-white/20
-                        shadow-inner
-                        ring-1
-                        ring-white/10
-                        transition-all
-                        focus:bg-white/10
-                        focus:border-blue-400/50
-                      "
-                    />
+                    <div className="relative">
+                      <Mail className={iconClass} />
+
+                      <Input
+                        {...field}
+                        type="email"
+                        placeholder="you@example.com"
+                        autoComplete="email"
+                        className={inputClass}
+                      />
+                    </div>
                   </FormControl>
 
-                  <FormMessage
-                    className="
-                      ml-2
-                      text-[10px]
-                      text-red-400
-                    "
-                  />
+                  <FormMessage className="text-xs text-red-400" />
                 </FormItem>
               )}
             />
 
-            {/* =================================================
-                PASSWORD
-            ================================================= */}
+            {/* Password */}
 
             <FormField
               control={loginForm.control}
               name="password"
               render={({ field }) => (
-                <FormItem>
+                <FormItem className="space-y-2">
+                  <label className="text-xs font-medium text-white/70">
+                    Password
+                  </label>
+
                   <FormControl>
                     <div className="relative">
+                      <LockKeyhole className={iconClass} />
+
                       <Input
                         {...field}
-                        type={
-                          showPassword
-                            ? "text"
-                            : "password"
-                        }
-                        placeholder="Password"
-                        className="
-                          h-12
-                          rounded-2xl
-                          border-none
-                          bg-white/5
-                          pr-12
-                          text-white
-                          placeholder:text-white/20
-                          shadow-inner
-                          ring-1
-                          ring-white/10
-                          transition-all
-                          focus:bg-white/10
-                          focus:border-blue-400/50
-                        "
+                        type={showPassword ? "text" : "password"}
+                        placeholder="Enter your password"
+                        autoComplete="current-password"
+                        className={`${inputClass} pr-12`}
                       />
 
                       <button
                         type="button"
                         onClick={() =>
-                          setShowPassword(
-                            (p) => !p
-                          )
+                          setShowPassword((prev) => !prev)
                         }
-                        className="
-                          absolute
-                          right-4
-                          top-1/2
-                          -translate-y-1/2
-                          text-white/40
-                          transition-colors
-                          hover:text-white/70
-                        "
-                        tabIndex={-1}
+                        className="absolute right-4 top-1/2 -translate-y-1/2 text-white/40 transition hover:text-white"
+                        aria-label={
+                          showPassword
+                            ? "Hide password"
+                            : "Show password"
+                        }
                       >
                         {showPassword ? (
-                          <EyeOff size={16} />
+                          <EyeOff size={17} />
                         ) : (
-                          <Eye size={16} />
+                          <Eye size={17} />
                         )}
                       </button>
                     </div>
                   </FormControl>
 
-                  <FormMessage
-                    className="
-                      ml-2
-                      text-[10px]
-                      text-red-400
-                    "
-                  />
+                  <FormMessage className="text-xs text-red-400" />
                 </FormItem>
               )}
             />
 
-            {/* =================================================
-                FORGOT PASSWORD
-            ================================================= */}
+            {/* Forgot Password */}
 
-            <div className="-mt-2 text-right">
+            <div className="flex justify-end">
               <Link
                 href="/forgot-password"
-                className="
-                  text-xs
-                  text-blue-300/70
-                  transition-colors
-                  hover:text-blue-200
-                "
+                className="text-xs font-medium text-blue-300 transition hover:text-blue-200"
               >
                 Forgot password?
               </Link>
             </div>
 
-            {/* =================================================
-                VERIFY EMAIL FIRST
-                This appears when backend says
-                email is not verified.
-            ================================================= */}
+            {/* Verify email */}
 
             {email && (
               <button
                 type="button"
                 onClick={handleOpenVerify}
                 disabled={isLoading}
-                className="
-                  w-full
-                  rounded-xl
-                  border
-                  border-blue-400/30
-                  bg-blue-500/10
-                  px-4
-                  py-2.5
-                  text-xs
-                  font-medium
-                  text-blue-300
-                  transition-all
-                  hover:border-blue-400/50
-                  hover:bg-blue-500/20
-                  hover:text-blue-200
-                  disabled:opacity-50
-                "
+                className="w-full rounded-xl border border-blue-400/20 bg-blue-500/10 p-3 text-xs font-medium text-blue-300 transition hover:bg-blue-500/20 disabled:opacity-50"
               >
-                Verify Email First
+                Your email is not verified? Verify Email First
               </button>
             )}
 
-            {/* =================================================
-                LOGIN BUTTON
-            ================================================= */}
+            {/* Login button */}
 
             <Button
               type="submit"
               disabled={isLoading}
-              className="
-                h-12
-                w-full
-                rounded-2xl
-                bg-gradient-to-r
-                from-blue-600
-                to-indigo-600
-                font-bold
-                text-white
-                shadow-lg
-                shadow-blue-500/20
-                transition-all
-                hover:from-blue-500
-                hover:to-indigo-500
-                active:scale-[0.98]
-              "
+              className="group h-12 w-full rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-sm font-semibold text-white shadow-lg shadow-blue-600/20 transition-all hover:from-blue-500 hover:to-indigo-500 hover:shadow-blue-500/30 active:scale-[0.98]"
             >
-              {isLoading
-                ? "Signing in..."
-                : "Login"}
+              {isLoading ? (
+                "Signing in..."
+              ) : (
+                <>
+                  Sign In
+                  <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
+                </>
+              )}
             </Button>
+
           </form>
         </Form>
-      ) : step === "admin-otp" ? (
-        <form onSubmit={handleAdminOtp} className="space-y-5">
-          <Input
-            value={adminOtp}
-            onChange={(event) => setAdminOtp(event.target.value.replace(/\D/g, "").slice(0, 6))}
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            placeholder="6-digit login code"
-            className="h-12 rounded-2xl border-none bg-white/5 text-center text-white ring-1 ring-white/10"
-          />
-          <Button type="submit" disabled={isLoading || adminOtp.length !== 6} className="h-12 w-full rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 font-bold text-white">
+      )}
+
+      {/* ADMIN OTP */}
+
+      {step === "admin-otp" && (
+        <form
+          onSubmit={handleAdminOtp}
+          className="space-y-5"
+        >
+          <div className="space-y-2">
+            <label className="text-xs font-medium text-white/70">
+              6-Digit Login Code
+            </label>
+
+            <Input
+              value={adminOtp}
+              onChange={(event) =>
+                setAdminOtp(
+                  event.target.value.replace(/\D/g, "").slice(0, 6)
+                )
+              }
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              placeholder="000000"
+              className={`${inputClass} text-center text-xl tracking-[0.5em]`}
+            />
+          </div>
+
+          <Button
+            type="submit"
+            disabled={isLoading || adminOtp.length !== 6}
+            className="h-12 w-full rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 font-semibold text-white"
+          >
             {isLoading ? "Verifying..." : "Verify & Login"}
           </Button>
-          <button type="button" onClick={handleResendAdminOtp} disabled={isLoading} className="w-full text-center text-xs text-white/60 hover:text-white">Resend login code</button>
-          <button type="button" onClick={() => { setStep("login"); setChallengeToken(""); setAdminOtp(""); }} disabled={isLoading} className="w-full text-center text-xs text-white/50 hover:text-white">Back to Login</button>
-        </form>
-      ) : (
-        /* =================================================
-           VERIFY EMAIL STEP
-        ================================================= */
 
+          <button
+            type="button"
+            onClick={handleResendAdminOtp}
+            disabled={isLoading}
+            className="w-full text-xs text-blue-300 hover:text-blue-200 disabled:opacity-50"
+          >
+            Resend login code
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setStep("login");
+              setChallengeToken("");
+              setAdminOtp("");
+            }}
+            disabled={isLoading}
+            className="w-full text-xs text-white/45 hover:text-white"
+          >
+            Back to Login
+          </button>
+        </form>
+      )}
+
+      {/* EMAIL VERIFICATION */}
+
+      {step === "verify" && (
         <Form {...verifyForm}>
           <form
-            onSubmit={verifyForm.handleSubmit(
-              handleVerify
-            )}
+            onSubmit={verifyForm.handleSubmit(handleVerify)}
             className="space-y-5"
           >
-            {/* =================================================
-                EMAIL
-            ================================================= */}
 
             <FormField
               control={verifyForm.control}
               name="email"
               render={({ field }) => (
-                <FormItem>
+                <FormItem className="space-y-2">
+                  <label className="text-xs font-medium text-white/70">
+                    Email Address
+                  </label>
+
                   <FormControl>
                     <Input
                       {...field}
                       type="email"
                       readOnly
-                      placeholder="Email Address"
-                      className="
-                        h-12
-                        rounded-2xl
-                        border-white/20
-                        bg-white/5
-                        text-white
-                        placeholder:text-white/40
-                        focus-visible:ring-white
-                      "
+                      className={inputClass}
                     />
                   </FormControl>
 
-                  <FormMessage
-                    className="
-                      text-xs
-                      text-red-400
-                    "
-                  />
+                  <FormMessage />
                 </FormItem>
               )}
             />
 
-            {/* =================================================
-                SEND CODE STEP
-            ================================================= */}
-
             {!showOtp ? (
-              <>
-                <Button
-                  type="button"
-                  onClick={
-                    handleSendVerificationCode
-                  }
-                  disabled={isLoading}
-                  className="
-                    h-12
-                    w-full
-                    rounded-2xl
-                    bg-white
-                    font-semibold
-                    text-black
-                    hover:bg-white/90
-                  "
-                >
-                  {isLoading
-                    ? "Sending Code..."
-                    : "Send Verification Code"}
-                </Button>
-
-                {/* BACK TO LOGIN */}
-
-                <button
-                  type="button"
-                  onClick={
-                    handleBackToLogin
-                  }
-                  disabled={isLoading}
-                  className="
-                    w-full
-                    text-center
-                    text-xs
-                    text-white/50
-                    transition-colors
-                    hover:text-white
-                    disabled:opacity-50
-                  "
-                >
-                  Back to Login
-                </button>
-              </>
+              <Button
+                type="button"
+                onClick={handleSendVerificationCode}
+                disabled={isLoading}
+                className="h-12 w-full rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 font-semibold text-white"
+              >
+                {isLoading
+                  ? "Sending Code..."
+                  : "Send Verification Code"}
+              </Button>
             ) : (
               <>
-                {/* =================================================
-                    OTP
-                    NATIVE INPUT
-                    NOT SHADCN INPUT
-                ================================================= */}
+                <FormField
+                  control={verifyForm.control}
+                  name="otp"
+                  render={({ field }) => (
+                    <FormItem className="space-y-2">
+                      <label className="text-xs font-medium text-white/70">
+                        Verification Code
+                      </label>
 
-                <div className="space-y-1.5">
-                  <div className="relative">
-                    <KeyRound
-                      className="
-                        pointer-events-none
-                        absolute
-                        left-4
-                        top-1/2
-                        z-10
-                        h-4
-                        w-4
-                        -translate-y-1/2
-                        text-white/40
-                      "
-                    />
+                      <FormControl>
+                        <Input
+                          {...field}
+                          type="text"
+                          inputMode="numeric"
+                          maxLength={6}
+                          autoComplete="one-time-code"
+                          placeholder="000000"
+                          className={`${inputClass} text-center text-xl tracking-[0.5em]`}
+                        />
+                      </FormControl>
 
-                    <input
-                      {...verifyForm.register(
-                        "otp"
-                      )}
-                      type="text"
-                      inputMode="numeric"
-                      maxLength={6}
-                      autoComplete="one-time-code"
-                      placeholder="6-digit code"
-                      className="
-                        h-12
-                        w-full
-                        rounded-xl
-                        border
-                        border-white/20
-                        bg-white/5
-                        pl-11
-                        pr-4
-                        text-center
-                        text-base
-                        font-medium
-                        text-white
-                        caret-white
-                        placeholder:text-white/50
-                        outline-none
-                        transition-all
-                        duration-200
-                        focus:border-white/40
-                        focus:ring-2
-                        focus:ring-white/20
-                      "
-                    />
-                  </div>
-
-                  {verifyForm.formState.errors.otp && (
-                    <p className="text-xs text-red-400">
-                      {
-                        verifyForm
-                          .formState
-                          .errors
-                          .otp
-                          .message
-                      }
-                    </p>
+                      <FormMessage className="text-xs text-red-400" />
+                    </FormItem>
                   )}
-                </div>
-
-                {/* =================================================
-                    VERIFY BUTTON
-                ================================================= */}
+                />
 
                 <Button
                   type="submit"
                   disabled={isLoading}
-                  className="
-                    h-12
-                    w-full
-                    rounded-2xl
-                    bg-white
-                    font-semibold
-                    text-black
-                    hover:bg-white/90
-                  "
+                  className="h-12 w-full rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 font-semibold text-white"
                 >
-                  {isLoading
-                    ? "Verifying..."
-                    : "Verify Email"}
+                  {isLoading ? "Verifying..." : "Verify Email"}
                 </Button>
-
-                {/* =================================================
-                    RESEND
-                ================================================= */}
 
                 <button
                   type="button"
                   onClick={handleResend}
                   disabled={isLoading}
-                  className="
-                    w-full
-                    text-center
-                    text-xs
-                    text-white/50
-                    transition-colors
-                    hover:text-white
-                    disabled:opacity-50
-                  "
+                  className="w-full text-xs text-blue-300 hover:text-blue-200 disabled:opacity-50"
                 >
-                  Didn&apos;t get the code?{" "}
-                  <span
-                    className="
-                      font-medium
-                      underline
-                      underline-offset-2
-                    "
-                  >
-                    Resend
-                  </span>
-                </button>
-
-                {/* =================================================
-                    BACK TO LOGIN
-                ================================================= */}
-
-                <button
-                  type="button"
-                  onClick={
-                    handleBackToLogin
-                  }
-                  disabled={isLoading}
-                  className="
-                    w-full
-                    text-center
-                    text-xs
-                    text-white/50
-                    transition-colors
-                    hover:text-white
-                    disabled:opacity-50
-                  "
-                >
-                  Back to Login
+                  Didn't receive the code? Resend
                 </button>
               </>
             )}
+
+            <button
+              type="button"
+              onClick={handleBackToLogin}
+              disabled={isLoading}
+              className="w-full text-xs text-white/45 transition hover:text-white"
+            >
+              Back to Login
+            </button>
+
           </form>
         </Form>
       )}
 
-      {step === "login" && <OAuthLoginButtons />}
-
-      {/* =================================================
-          REGISTER LINK
-      ================================================= */}
+      {/* OAuth */}
 
       {step === "login" && (
-        <div className="mt-6 text-center">
-          <p
-            className="
-              text-[12px]
-              text-white/40
-            "
-          >
-            Don&apos;t have an account?{" "}
+        <OAuthLoginButtons />
+      )}
 
+      {/* Register link */}
+
+      {step === "login" && (
+        <div className="mt-7 border-t border-white/10 pt-6 text-center">
+          <p className="text-xs text-white/45">
+            Don't have an account?{" "}
             <Link
               href="/register"
-              className="
-                font-bold
-                text-blue-400
-                transition-colors
-                hover:text-blue-300
-              "
+              className="font-semibold text-blue-300 transition hover:text-blue-200"
             >
-              Sign Up
+              Create Account
             </Link>
           </p>
         </div>
       )}
+
     </div>
   );
 }

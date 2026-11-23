@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from "react";
@@ -5,15 +6,22 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Eye, EyeOff, Mail, KeyRound } from "lucide-react";
+
+import {
+  Eye,
+  EyeOff,
+  UserRound,
+  Mail,
+  LockKeyhole,
+  ShieldCheck,
+  ArrowRight,
+  KeyRound,
+} from "lucide-react";
+
 import { toast } from "react-hot-toast";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-
-
-
-
 
 import {
   registerSchema,
@@ -22,17 +30,27 @@ import {
   VerifyEmailFormData,
 } from "@/lib/validation";
 
-
 import {
+  Form,
+  FormControl,
   FormField,
   FormItem,
-  FormControl,
   FormMessage,
-  Form,
 } from "@/components/ui/form";
-import Turnstile from "@/lib/turnstile";
-import { registerUser, resendVerification, verifyEmail } from "@/service/auth.service";
 
+import Turnstile from "@/lib/turnstile";
+
+import {
+  registerUser,
+  resendVerification,
+  verifyEmail,
+} from "@/service/auth.service";
+
+const inputClass =
+  "h-12 rounded-xl border border-white/10 bg-white/[0.045] pl-11 pr-4 text-sm text-white shadow-none placeholder:text-white/30 transition-all focus-visible:border-blue-400/60 focus-visible:bg-white/[0.07] focus-visible:ring-2 focus-visible:ring-blue-500/20";
+
+const iconClass =
+  "absolute left-4 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-white/35";
 
 export default function RegisterForm() {
   const router = useRouter();
@@ -42,6 +60,7 @@ export default function RegisterForm() {
   );
 
   const [email, setEmail] = useState("");
+
   const [isLoading, setIsLoading] = useState(false);
 
   const [showPassword, setShowPassword] = useState(false);
@@ -49,9 +68,9 @@ export default function RegisterForm() {
 
   const [turnstileToken, setTurnstileToken] = useState("");
 
-  // =====================================================
+  // =========================
   // REGISTER FORM
-  // =====================================================
+  // =========================
 
   const registerForm = useForm<RegisterFormData>({
     resolver: zodResolver(registerSchema),
@@ -64,9 +83,9 @@ export default function RegisterForm() {
     },
   });
 
-  // =====================================================
-  // VERIFY EMAIL FORM
-  // =====================================================
+  // =========================
+  // VERIFY FORM
+  // =========================
 
   const verifyForm = useForm<VerifyEmailFormData>({
     resolver: zodResolver(verifyEmailSchema),
@@ -77,13 +96,16 @@ export default function RegisterForm() {
     },
   });
 
-  // =====================================================
+  // =========================
   // REGISTER
-  // =====================================================
+  // =========================
 
-  const handleRegister = async (
-    data: RegisterFormData
-  ) => {
+  const handleRegister = async (data: RegisterFormData) => {
+    if (!turnstileToken) {
+      toast.error("Please complete the security verification.");
+      return;
+    }
+
     setIsLoading(true);
 
     try {
@@ -96,40 +118,40 @@ export default function RegisterForm() {
 
       if (!result.ok) {
         toast.error(
-          result.data?.message || "Registration failed"
+          result.data?.message || "Registration failed."
         );
 
         setTurnstileToken("");
         window.turnstile?.reset();
+
         return;
       }
 
-      toast.success(
-        "Verification code sent to your email!"
-      );
+      toast.success("Verification code sent to your email!");
 
       setEmail(data.email);
 
-      verifyForm.setValue(
-        "email",
-        data.email
-      );
+      verifyForm.setValue("email", data.email);
+      verifyForm.setValue("otp", "");
 
       setStep("verify");
 
       setTurnstileToken("");
-    } catch (err) {
+
+    } catch {
       setTurnstileToken("");
       window.turnstile?.reset();
+
       toast.error("Something went wrong.");
+
     } finally {
       setIsLoading(false);
     }
   };
 
-  // =====================================================
+  // =========================
   // VERIFY EMAIL
-  // =====================================================
+  // =========================
 
   const handleVerify = async (
     data: VerifyEmailFormData
@@ -144,152 +166,123 @@ export default function RegisterForm() {
 
       if (!result?.success) {
         toast.error(
-          result?.message || "Verification failed"
+          result?.message || "Verification failed."
         );
 
         return;
       }
 
-      toast.success(
-        "Email verified! Please login."
-      );
+      toast.success("Email verified! Please login.");
 
       router.push("/login");
-    } catch (err: any) {
-      toast.error(
-        err?.message || "Something went wrong."
-      );
+
+    } catch {
+      toast.error("Something went wrong.");
+
     } finally {
       setIsLoading(false);
     }
   };
 
-  // =====================================================
+  // =========================
   // RESEND OTP
-  // =====================================================
+  // =========================
 
   const handleResend = async () => {
+    if (!email) return;
+
     setIsLoading(true);
 
     try {
       const result = await resendVerification(email);
 
       if (result?.success) {
-        toast.success("New code sent!");
+        toast.success("New verification code sent!");
 
-        // পুরনো OTP clear
         verifyForm.setValue("otp", "");
       } else {
         toast.error(
-          result?.message || "Failed to resend"
+          result?.message || "Failed to resend code."
         );
       }
+
     } catch {
       toast.error("Something went wrong.");
+
     } finally {
       setIsLoading(false);
     }
   };
 
-  // =====================================================
+  // =========================
   // UI
-  // =====================================================
+  // =========================
 
   return (
-    <div
-      className="
-        relative
-        mx-auto
-        max-w-md
-        rounded-[40px]
-        border
-        border-white/20
-        bg-white/10
-        p-8
-        backdrop-blur-2xl
-        sm:p-10
-      "
-    >
-      {/* =================================================
-          ICON
-      ================================================= */}
+    <div className="relative">
 
-      <div className="mb-5 flex justify-center">
-        <div
-          className="
-            flex
-            h-11
-            w-11
-            items-center
-            justify-center
-            rounded-2xl
-            border
-            border-white/20
-            bg-white/10
-            text-white/70
-            shadow-[0_8px_25px_rgba(0,0,0,0.3)]
-          "
-        >
+      {/* Heading */}
+
+      <div className="mb-7">
+
+        <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl border border-blue-400/20 bg-blue-500/10 text-blue-300 shadow-lg shadow-blue-500/10">
           {step === "register" ? (
-            <Mail className="h-5 w-5" />
+            <UserRound className="h-5 w-5" />
           ) : (
-            <KeyRound className="h-5 w-5" />
+            <ShieldCheck className="h-5 w-5" />
           )}
         </div>
+
+        <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.25em] text-blue-300">
+          {step === "register"
+            ? "CREATE YOUR ACCOUNT"
+            : "SECURE VERIFICATION"}
+        </p>
+
+        <h2 className="text-3xl font-semibold tracking-tight text-white sm:text-4xl">
+          {step === "register"
+            ? "Create account."
+            : "Verify your email."}
+        </h2>
+
+        <p className="mt-3 text-sm leading-6 text-white/45">
+          {step === "register"
+            ? "Join us and discover a better shopping experience."
+            : `Enter the 6-digit verification code sent to ${email}.`}
+        </p>
       </div>
 
-      {/* =================================================
-          TITLE
-      ================================================= */}
+      {/* REGISTER FORM */}
 
-      <h2 className="mb-2 text-center text-3xl font-bold text-white">
-        {step === "register"
-          ? "Create Account"
-          : "Verify Email"}
-      </h2>
-
-      {/* =================================================
-          DESCRIPTION
-      ================================================= */}
-
-      <p className="mb-6 text-center text-sm text-white/55">
-        {step === "register"
-          ? "Enter your details to create an account"
-          : `Enter the 6-digit code sent to ${email}`}
-      </p>
-
-      {/* =================================================
-          REGISTER STEP
-      ================================================= */}
-
-      {step === "register" ? (
+      {step === "register" && (
         <Form {...registerForm}>
           <form
-            onSubmit={registerForm.handleSubmit(
-              handleRegister
-            )}
-            className="space-y-5"
+            onSubmit={registerForm.handleSubmit(handleRegister)}
+            className="space-y-4"
           >
-            {/* =================================================
-                NAME
-            ================================================= */}
+
+            {/* Full Name */}
 
             <FormField
               control={registerForm.control}
               name="name"
               render={({ field }) => (
-                <FormItem>
+                <FormItem className="space-y-2">
+                  <label className="text-xs font-medium text-white/70">
+                    Full Name
+                  </label>
+
                   <FormControl>
-                    <Input
-                      {...field}
-                      placeholder="Full Name"
-                      className="
-                        border-white/20
-                        text-white
-                        placeholder:text-white/40
-                        focus-visible:ring-white
-                      "
-                    />
+                    <div className="relative">
+                      <UserRound className={iconClass} />
+
+                      <Input
+                        {...field}
+                        placeholder="Enter your full name"
+                        autoComplete="name"
+                        className={inputClass}
+                      />
+                    </div>
                   </FormControl>
 
                   <FormMessage className="text-xs text-red-400" />
@@ -297,27 +290,29 @@ export default function RegisterForm() {
               )}
             />
 
-            {/* =================================================
-                EMAIL
-            ================================================= */}
+            {/* Email */}
 
             <FormField
               control={registerForm.control}
               name="email"
               render={({ field }) => (
-                <FormItem>
+                <FormItem className="space-y-2">
+                  <label className="text-xs font-medium text-white/70">
+                    Email Address
+                  </label>
+
                   <FormControl>
-                    <Input
-                      {...field}
-                      type="email"
-                      placeholder="Email"
-                      className="
-                        border-white/20
-                        text-white
-                        placeholder:text-white/40
-                        focus-visible:ring-white
-                      "
-                    />
+                    <div className="relative">
+                      <Mail className={iconClass} />
+
+                      <Input
+                        {...field}
+                        type="email"
+                        placeholder="you@example.com"
+                        autoComplete="email"
+                        className={inputClass}
+                      />
+                    </div>
                   </FormControl>
 
                   <FormMessage className="text-xs text-red-400" />
@@ -325,61 +320,52 @@ export default function RegisterForm() {
               )}
             />
 
-            {/* =================================================
-                PASSWORD
-            ================================================= */}
+            {/* Password */}
 
             <FormField
               control={registerForm.control}
               name="password"
               render={({ field }) => (
-                <FormItem>
+                <FormItem className="space-y-2">
+                  <label className="text-xs font-medium text-white/70">
+                    Password
+                  </label>
+
                   <FormControl>
                     <div className="relative">
+                      <LockKeyhole className={iconClass} />
+
                       <Input
                         {...field}
-                        type={
-                          showPassword
-                            ? "text"
-                            : "password"
-                        }
-                        placeholder="Password (min 8 characters)"
-                        className="
-                          border-white/20
-                          pr-10
-                          text-white
-                          placeholder:text-white/40
-                          focus-visible:ring-white
-                        "
+                        type={showPassword ? "text" : "password"}
+                        placeholder="Create a password"
+                        autoComplete="new-password"
+                        className={`${inputClass} pr-12`}
                       />
 
                       <button
                         type="button"
-                        className="
-                          absolute
-                          right-3
-                          top-1/2
-                          -translate-y-1/2
-                          text-white/40
-                          hover:text-white/80
-                        "
                         onClick={() =>
-                          setShowPassword(
-                            (p) => !p
-                          )
+                          setShowPassword((prev) => !prev)
+                        }
+                        className="absolute right-4 top-1/2 -translate-y-1/2 text-white/40 transition hover:text-white"
+                        aria-label={
+                          showPassword
+                            ? "Hide password"
+                            : "Show password"
                         }
                       >
                         {showPassword ? (
-                          <EyeOff size={16} />
+                          <EyeOff size={17} />
                         ) : (
-                          <Eye size={16} />
+                          <Eye size={17} />
                         )}
                       </button>
                     </div>
                   </FormControl>
 
-                  <p className="ml-1 mt-1 text-xs text-white/40">
-                    Must be at least 8 characters long
+                  <p className="ml-1 text-[10px] text-white/35">
+                    Use at least 8 characters.
                   </p>
 
                   <FormMessage className="text-xs text-red-400" />
@@ -387,54 +373,45 @@ export default function RegisterForm() {
               )}
             />
 
-            {/* =================================================
-                CONFIRM PASSWORD
-            ================================================= */}
+            {/* Confirm Password */}
 
             <FormField
               control={registerForm.control}
               name="confirmPassword"
               render={({ field }) => (
-                <FormItem>
+                <FormItem className="space-y-2">
+                  <label className="text-xs font-medium text-white/70">
+                    Confirm Password
+                  </label>
+
                   <FormControl>
                     <div className="relative">
+                      <LockKeyhole className={iconClass} />
+
                       <Input
                         {...field}
-                        type={
-                          showConfirm
-                            ? "text"
-                            : "password"
-                        }
-                        placeholder="Confirm Password"
-                        className="
-                          border-white/20
-                          pr-10
-                          text-white
-                          placeholder:text-white/40
-                          focus-visible:ring-white
-                        "
+                        type={showConfirm ? "text" : "password"}
+                        placeholder="Confirm your password"
+                        autoComplete="new-password"
+                        className={`${inputClass} pr-12`}
                       />
 
                       <button
                         type="button"
-                        className="
-                          absolute
-                          right-3
-                          top-1/2
-                          -translate-y-1/2
-                          text-white/40
-                          hover:text-white/80
-                        "
                         onClick={() =>
-                          setShowConfirm(
-                            (p) => !p
-                          )
+                          setShowConfirm((prev) => !prev)
+                        }
+                        className="absolute right-4 top-1/2 -translate-y-1/2 text-white/40 transition hover:text-white"
+                        aria-label={
+                          showConfirm
+                            ? "Hide confirm password"
+                            : "Show confirm password"
                         }
                       >
                         {showConfirm ? (
-                          <EyeOff size={16} />
+                          <EyeOff size={17} />
                         ) : (
-                          <Eye size={16} />
+                          <Eye size={17} />
                         )}
                       </button>
                     </div>
@@ -445,218 +422,149 @@ export default function RegisterForm() {
               )}
             />
 
-            {/* =================================================
-                TURNSTILE
-            ================================================= */}
+            {/* Cloudflare Turnstile */}
 
-            <Turnstile
-              onVerify={setTurnstileToken}
-              onExpire={() =>
-                setTurnstileToken("")
-              }
-            />
+            <div className="overflow-hidden rounded-xl border border-white/10 bg-white/[0.025] p-3">
+              <p className="mb-3 flex items-center gap-2 text-[10px] font-medium text-white/50">
+                <ShieldCheck className="h-4 w-4 text-blue-300" />
+                Security Verification
+              </p>
 
-            {/* =================================================
-                REGISTER BUTTON
-            ================================================= */}
+              <Turnstile
+                onVerify={setTurnstileToken}
+                onExpire={() => setTurnstileToken("")}
+              />
+            </div>
+
+            {/* Submit */}
 
             <Button
               type="submit"
-              disabled={
-                isLoading ||
-                !turnstileToken
-              }
-              className="
-                w-full
-                bg-white
-                font-semibold
-                text-black
-                hover:bg-white/90
-              "
+              disabled={isLoading || !turnstileToken}
+              className="group h-12 w-full rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-sm font-semibold text-white shadow-lg shadow-blue-600/20 transition-all hover:from-blue-500 hover:to-indigo-500 hover:shadow-blue-500/30 active:scale-[0.98]"
             >
-              {isLoading
-                ? "Creating..."
-                : "Register"}
+              {isLoading ? (
+                "Creating Account..."
+              ) : (
+                <>
+                  Create Account
+                  <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
+                </>
+              )}
             </Button>
+
           </form>
         </Form>
-      ) : (
-        /* =================================================
-           VERIFY STEP
-        ================================================= */
+      )}
 
+      {/* EMAIL VERIFICATION */}
+
+      {step === "verify" && (
         <Form {...verifyForm}>
           <form
-            onSubmit={verifyForm.handleSubmit(
-              handleVerify
-            )}
+            onSubmit={verifyForm.handleSubmit(handleVerify)}
             className="space-y-5"
           >
-            {/* =================================================
-                OTP
-                Native input + register()
-                এখানে Shadcn FormField ব্যবহার করছি না
-            ================================================= */}
 
-            <div className="space-y-1.5">
-              <div className="relative">
-                <KeyRound
-                  className="
-                    pointer-events-none
-                    absolute
-                    left-4
-                    top-1/2
-                    z-10
-                    h-4
-                    w-4
-                    -translate-y-1/2
-                    text-white/40
-                  "
-                />
+            <div className="rounded-xl border border-blue-400/15 bg-blue-500/[0.07] p-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-500/10 text-blue-300">
+                  <Mail className="h-5 w-5" />
+                </div>
 
-                <input
-                  {...verifyForm.register("otp")}
-                  type="text"
-                  inputMode="numeric"
-                  maxLength={6}
-                  autoComplete="one-time-code"
-                  placeholder="6-digit code"
-                  className="
-                    h-12
-                    w-full
-                    rounded-xl
-                    border
-                    border-white/20
-                    bg-white/5
-                    pl-11
-                    pr-4
-                    text-center
-                    text-base
-                    font-medium
-                    text-white
-                    caret-white
-                    placeholder:text-white/50
-                    outline-none
-                    transition-all
-                    duration-200
-                    focus:border-white/40
-                    focus:ring-2
-                    focus:ring-white/20
-                  "
-                />
+                <div className="min-w-0">
+                  <p className="text-xs text-white/45">
+                    Verification email sent to
+                  </p>
+
+                  <p className="truncate text-sm font-medium text-white">
+                    {email}
+                  </p>
+                </div>
               </div>
-
-              {verifyForm.formState.errors.otp && (
-                <p className="text-xs text-red-400">
-                  {
-                    verifyForm.formState.errors
-                      .otp.message
-                  }
-                </p>
-              )}
             </div>
 
-            {/* =================================================
-                VERIFY BUTTON
-            ================================================= */}
+            <FormField
+              control={verifyForm.control}
+              name="otp"
+              render={({ field }) => (
+                <FormItem className="space-y-2">
+                  <label className="text-xs font-medium text-white/70">
+                    6-Digit Verification Code
+                  </label>
+
+                  <FormControl>
+                    <div className="relative">
+                      <KeyRound className={iconClass} />
+
+                      <Input
+                        {...field}
+                        type="text"
+                        inputMode="numeric"
+                        maxLength={6}
+                        autoComplete="one-time-code"
+                        placeholder="000000"
+                        className={`${inputClass} text-center text-xl tracking-[0.5em]`}
+                      />
+                    </div>
+                  </FormControl>
+
+                  <FormMessage className="text-xs text-red-400" />
+                </FormItem>
+              )}
+            />
 
             <Button
               type="submit"
               disabled={isLoading}
-              className="
-                w-full
-                bg-white
-                font-semibold
-                text-black
-                hover:bg-white/90
-              "
+              className="h-12 w-full rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 font-semibold text-white"
             >
-              {isLoading
-                ? "Verifying..."
-                : "Verify Email"}
+              {isLoading ? "Verifying..." : "Verify Email"}
             </Button>
 
-            {/* =================================================
-                RESEND + GO BACK
-            ================================================= */}
+            <button
+              type="button"
+              onClick={handleResend}
+              disabled={isLoading}
+              className="w-full text-xs text-blue-300 transition hover:text-blue-200 disabled:opacity-50"
+            >
+              Didn't receive the code? Resend
+            </button>
 
-            <div className="flex flex-col gap-2 pt-2">
-              {/* RESEND */}
+            <button
+              type="button"
+              onClick={() => {
+                setStep("register");
+                verifyForm.reset();
+                registerForm.reset();
+                setEmail("");
+              }}
+              disabled={isLoading}
+              className="w-full text-xs text-white/40 transition hover:text-white"
+            >
+              Wrong email? Go back
+            </button>
 
-              <button
-                type="button"
-                onClick={handleResend}
-                disabled={isLoading}
-                className="
-                  w-full
-                  text-center
-                  text-xs
-                  text-white/50
-                  transition-colors
-                  hover:text-white
-                  disabled:opacity-50
-                "
-              >
-                Didn&apos;t get the code?{" "}
-                <span className="font-medium underline underline-offset-2">
-                  Resend
-                </span>
-              </button>
-
-              {/* GO BACK */}
-
-              <button
-                type="button"
-                onClick={() => {
-                  setStep("register");
-
-                  verifyForm.reset();
-
-                  registerForm.reset();
-
-                  setEmail("");
-                }}
-                className="
-                  w-full
-                  text-center
-                  text-xs
-                  text-white/50
-                  transition-colors
-                  hover:text-white
-                "
-              >
-                Wrong email?{" "}
-                <span className="font-medium underline underline-offset-2">
-                  Go back
-                </span>
-              </button>
-            </div>
           </form>
         </Form>
       )}
 
-      {/* =================================================
-          LOGIN LINK
-      ================================================= */}
+      {/* Login link */}
 
       {step === "register" && (
-        <p className="mt-6 text-center text-sm text-white/70">
-          Already have account?{" "}
-
-          <Link
-            href="/login"
-            className="
-              font-medium
-              text-white
-              underline
-              underline-offset-2
-              hover:opacity-70
-            "
-          >
-            Login
-          </Link>
-        </p>
+        <div className="mt-7 border-t border-white/10 pt-6 text-center">
+          <p className="text-xs text-white/45">
+            Already have an account?{" "}
+            <Link
+              href="/login"
+              className="font-semibold text-blue-300 transition hover:text-blue-200"
+            >
+              Sign In
+            </Link>
+          </p>
+        </div>
       )}
+
     </div>
   );
 }

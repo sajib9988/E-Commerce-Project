@@ -1,25 +1,11 @@
-"use client";
-import RegisterForm from '@/components/form/registerForm';
-import { motion } from 'framer-motion';
 
-const RegisterPage = () => {
+import AuthShell from "@/components/auth/auth-shell";
+import RegisterForm from "@/components/form/registerForm";
+
+export default function RegisterPage() {
   return (
-    <div 
-      className="min-h-screen w-full flex items-center justify-center bg-[#091921] overflow-hidden relative"
-      suppressHydrationWarning   // ← এটা যোগ করো (extra safety)
-    >
-
-
-      <motion.div 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6 }}
-        className="relative z-10 w-full max-w-[400px] px-4"
-      >
-        <RegisterForm /> 
-      </motion.div>
-    </div>
+    <AuthShell variant="register">
+      <RegisterForm />
+    </AuthShell>
   );
-};
-
-export default RegisterPage;
+}
