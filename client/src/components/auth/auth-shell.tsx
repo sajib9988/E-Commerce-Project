@@ -1,5 +1,5 @@
-
 import type { ReactNode } from "react";
+import Link from "next/link";
 import { ArrowUpRight, Sparkles } from "lucide-react";
 
 type AuthShellProps = {
@@ -14,97 +14,98 @@ export default function AuthShell({
   const isLogin = variant === "login";
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[#080D18] px-4 py-5 text-white sm:px-6 lg:px-10 lg:py-8">
+ <main className="flex min-h-screen items-center justify-center bg-[#080d19] px-4 py-8">
+     <div className="grid w-full max-w-[860px] overflow-hidden rounded-2xl border border-white/10 bg-[#0d1424] shadow-2xl shadow-black/30 lg:min-h-[520px] lg:grid-cols-[0.9fr_1.1fr]">
 
-      {/* Background glow */}
-      <div className="pointer-events-none absolute -left-40 -top-40 h-96 w-96 rounded-full bg-blue-600/20 blur-[120px]" />
+        {/* Left: Fashion Image */}
+        <section className="relative flex min-h-[280px] flex-col justify-between overflow-hidden bg-[#063b46] p-7 sm:min-h-[360px] sm:p-10 lg:min-h-[780px]">
+          {/* Background Image */}
+          <div
+            className="absolute inset-0 bg-cover bg-center"
+            style={{
+              backgroundImage:
+                "url('https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&w=1400&q=85')",
+            }}
+          />
 
-      <div className="pointer-events-none absolute -bottom-40 -right-40 h-96 w-96 rounded-full bg-violet-600/20 blur-[120px]" />
-
-      {/* Main container */}
-      <div className="relative mx-auto grid min-h-[calc(100svh-40px)] max-w-[1400px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.025] shadow-2xl lg:min-h-[calc(100svh-64px)] lg:grid-cols-2 lg:rounded-[36px]">
-
-        {/* LEFT: Fashion editorial */}
-        <section
-          className="relative flex min-h-[230px] flex-col justify-between overflow-hidden bg-cover bg-center p-6 sm:min-h-[300px] sm:p-9 lg:min-h-[720px] lg:p-12"
-          style={{
-            backgroundImage: `
-              linear-gradient(
-                180deg,
-                rgba(5,10,20,0.15),
-                rgba(5,10,20,0.85)
-              ),
-              url("https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&w=1400&q=85")
-            `,
-          }}
-        >
-
-          {/* Image overlay */}
-          <div className="absolute inset-0 bg-gradient-to-br from-blue-950/30 via-transparent to-black/60" />
+          {/* Dark Overlay */}
+          <div className="absolute inset-0 bg-gradient-to-b from-[#003e4b]/80 via-[#003e4b]/35 to-[#05070d]/95" />
 
           {/* Brand */}
           <div className="relative z-10 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/30 bg-white/10 backdrop-blur-xl">
-                <Sparkles className="h-4 w-4" />
-              </div>
+            <Link href="/" className="flex items-center gap-3">
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/30 bg-white/10 backdrop-blur-md">
+                <Sparkles className="h-5 w-5 text-white" />
+              </span>
 
-              <span className="text-sm font-bold tracking-[0.2em]">
+              <span className="text-sm font-bold tracking-[0.18em] text-white">
                 YOUR BRAND
               </span>
-            </div>
+            </Link>
 
-            <span className="rounded-full border border-white/20 bg-black/20 px-3 py-1.5 text-[10px] tracking-widest text-white/80 backdrop-blur-xl">
+            <span className="rounded-full border border-white/20 bg-black/10 px-3 py-2 text-[10px] font-semibold tracking-wider text-white/80 backdrop-blur-md">
               PREMIUM COLLECTION
             </span>
           </div>
 
-          {/* Editorial content */}
-          <div className="relative z-10 max-w-lg">
-            <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.3em] text-blue-200 sm:text-xs">
-              {isLogin
-                ? "WELCOME BACK"
-                : "JOIN THE COMMUNITY"}
+          {/* Editorial Content */}
+          <div className="relative z-10 max-w-lg py-12 lg:py-0">
+            <p className="mb-4 text-xs font-bold tracking-[0.3em] text-sky-300">
+              {isLogin ? "WELCOME BACK" : "JOIN THE COMMUNITY"}
             </p>
 
-            <h1 className="max-w-md text-3xl font-semibold leading-tight tracking-tight sm:text-4xl lg:text-6xl">
-              {isLogin
-                ? "Style that speaks for you."
-                : "Your style. Your identity."}
+            <h1 className="text-4xl font-bold leading-tight tracking-tight text-white sm:text-5xl lg:text-6xl">
+              {isLogin ? (
+                <>
+                  Style that
+                  <br />
+                  speaks for
+                  <br />
+                  you.
+                </>
+              ) : (
+                <>
+                  Your style.
+                  <br />
+                  Your identity.
+                </>
+              )}
             </h1>
 
-            <p className="mt-4 max-w-sm text-xs leading-6 text-white/70 sm:text-sm">
+            <p className="mt-5 max-w-sm text-sm leading-6 text-white/75">
               {isLogin
-                ? "Discover your favorites, explore new collections and enjoy a seamless shopping experience."
+                ? "Sign in to explore your collection and enjoy a better shopping experience."
                 : "Create your account and discover a collection designed around your unique style."}
             </p>
 
-            <div className="mt-6 hidden items-center gap-2 text-xs font-medium text-white/80 sm:flex">
+            <Link
+              href="/"
+              className="mt-7 inline-flex items-center gap-2 text-xs font-semibold text-white transition hover:text-sky-300"
+            >
               Explore the collection
               <ArrowUpRight className="h-4 w-4" />
-            </div>
+            </Link>
           </div>
 
-          {/* Bottom information */}
-          <div className="relative z-10 hidden items-center justify-between border-t border-white/20 pt-5 text-[10px] tracking-widest text-white/60 lg:flex">
-            <span>DESIGNED FOR EVERYDAY STYLE</span>
-            <span>EST. 2026</span>
+          {/* Footer */}
+          <div className="relative z-10 flex items-center justify-between border-t border-white/20 pt-5">
+            <span className="text-[9px] tracking-wider text-white/65">
+              DESIGNED FOR EVERYDAY STYLE
+            </span>
+
+            <span className="text-[9px] tracking-wider text-white/65">
+              EST. 2026
+            </span>
           </div>
         </section>
 
-        {/* RIGHT: Authentication */}
-        <section className="relative flex items-center justify-center bg-[#0B1220]/90 px-4 py-10 sm:px-8 lg:px-12 xl:px-16">
+        {/* Right: Form */}
+        <section className="flex items-center justify-center px-6 py-10 sm:px-10 lg:px-12 lg:py-14">
+          <div className="w-full max-w-[440px]">
 
-          {/* Inner glow */}
-          <div className="pointer-events-none absolute right-0 top-1/4 h-64 w-64 rounded-full bg-indigo-500/10 blur-[100px]" />
-
-          <div className="relative z-10 w-full max-w-[440px]">
-
+            {/* Form Content */}
             {children}
 
-            <p className="mt-8 text-center text-[10px] tracking-wide text-white/35">
-              © 2026 YOUR BRAND. ALL RIGHTS RESERVED.
-            </p>
           </div>
         </section>
       </div>
