@@ -128,3 +128,144 @@
     @apply font-sans;
   }
 }
+
+/* -------------------------------------------------------------------------- */
+/* Dashboard glassmorphism themes                                             */
+/* Scoped to dashboard shells so storefront and authentication remain intact. */
+/* -------------------------------------------------------------------------- */
+
+.admin-theme {
+  --dashboard-accent: 99 102 241;
+  background:
+    radial-gradient(ellipse at 12% 0%, rgb(199 210 254 / 42%), transparent 34%),
+    radial-gradient(ellipse at 94% 12%, rgb(221 214 254 / 42%), transparent 30%),
+    #f4f5fb;
+}
+
+.admin-theme [class*="bg-white"] {
+  background-color: rgb(255 255 255 / 76%) !important;
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+}
+
+.admin-theme [class~="bg-slate-50"],
+.admin-theme [class~="bg-slate-100"] {
+  background-color: rgb(238 242 255 / 72%) !important;
+}
+
+.admin-theme [class~="bg-slate-900"] {
+  background-image: linear-gradient(115deg, #4f46e5, #7c3aed) !important;
+  background-color: #5b50df !important;
+}
+
+.admin-theme [class~="hover:bg-slate-100"]:hover,
+.admin-theme [class~="hover:bg-slate-50"]:hover {
+  background-color: rgb(224 231 255 / 82%) !important;
+}
+
+.admin-theme [class*="border-slate-200"],
+.admin-theme [class*="border-slate-100"] {
+  border-color: rgb(199 210 254 / 58%) !important;
+}
+
+.admin-theme [class*="shadow-slate"] {
+  --tw-shadow-color: rgb(79 70 229 / 9%) !important;
+}
+
+.admin-theme input,
+.admin-theme select,
+.admin-theme textarea {
+  border-color: rgb(199 210 254 / 75%);
+  background-color: rgb(255 255 255 / 82%);
+  border-radius: 0.8rem;
+}
+
+.admin-theme input:focus,
+.admin-theme select:focus,
+.admin-theme textarea:focus {
+  border-color: #818cf8;
+  outline: 2px solid rgb(129 140 248 / 18%);
+  outline-offset: 1px;
+}
+
+.admin-theme table thead {
+  background-color: rgb(238 242 255 / 75%);
+}
+
+.admin-theme table tbody tr {
+  border-color: rgb(224 231 255 / 75%);
+}
+
+.customer-theme {
+  --dashboard-accent: 13 148 136;
+  background:
+    radial-gradient(ellipse at 8% 0%, rgb(153 246 228 / 38%), transparent 34%),
+    radial-gradient(ellipse at 96% 18%, rgb(204 251 241 / 55%), transparent 32%),
+    #effaf8;
+}
+
+.customer-theme [class*="bg-white"] {
+  background-color: rgb(255 255 255 / 78%) !important;
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+}
+
+.customer-theme [class~="bg-stone-50"],
+.customer-theme [class~="bg-stone-100"] {
+  background-color: rgb(240 253 250 / 78%) !important;
+}
+
+.customer-theme [class~="bg-stone-900"] {
+  background-image: linear-gradient(115deg, #0f766e, #0d9488) !important;
+  background-color: #0f766e !important;
+}
+
+.customer-theme [class~="hover:bg-stone-100"]:hover,
+.customer-theme [class~="hover:bg-stone-50"]:hover {
+  background-color: rgb(204 251 241 / 80%) !important;
+}
+
+.customer-theme [class*="border-stone-200"],
+.customer-theme [class*="border-stone-100"] {
+  border-color: rgb(153 246 228 / 62%) !important;
+}
+
+.customer-theme [class*="shadow-stone"] {
+  --tw-shadow-color: rgb(13 148 136 / 9%) !important;
+}
+
+.customer-theme input,
+.customer-theme select,
+.customer-theme textarea {
+  border-color: rgb(153 246 228 / 75%);
+  background-color: rgb(255 255 255 / 86%);
+  border-radius: 0.8rem;
+}
+
+.customer-theme input:focus,
+.customer-theme select:focus,
+.customer-theme textarea:focus {
+  border-color: #2dd4bf;
+  outline: 2px solid rgb(45 212 191 / 18%);
+  outline-offset: 1px;
+}
+
+.customer-theme table thead {
+  background-color: rgb(240 253 250 / 85%);
+}
+
+.customer-theme table tbody tr {
+  border-color: rgb(204 251 241 / 78%);
+}
+
+@media (max-width: 640px) {
+  .admin-theme main,
+  .customer-theme main {
+    min-width: 0;
+  }
+
+  .admin-theme table,
+  .customer-theme table {
+    min-width: 620px;
+  }
+}
