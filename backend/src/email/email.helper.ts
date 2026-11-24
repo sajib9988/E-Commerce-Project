@@ -41,6 +41,12 @@ function createEmailTransport(): EmailTransport | null {
           clientSecret: GMAIL_CLIENT_SECRET,
           refreshToken: GMAIL_REFRESH_TOKEN,
         },
+         connectionTimeout: 20000,
+  greetingTimeout: 20000,
+  socketTimeout: 30000,
+
+  logger: true,
+  debug: true,
       }),
       fromAddress: GMAIL_FROM || GMAIL_USER,
     };

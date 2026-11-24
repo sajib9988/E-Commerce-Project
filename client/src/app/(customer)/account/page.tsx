@@ -1,3 +1,4 @@
+export const instant = false;
 import Link from "next/link";
 import { getMyCustomerProfile } from "@/service/customer.service";
 import { getMyOrders } from "@/service/order.service";
