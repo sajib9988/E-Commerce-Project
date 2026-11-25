@@ -9,13 +9,13 @@ import { AdminResourcePage, getAdminRows, getAdminTotal } from "@/components/adm
 
 function Metric({ title, value, icon: Icon, href }: { title: string; value: string; icon: typeof Package; href: string }) {
   return (
-    <Link href={href} className="group rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-200/30 transition hover:-translate-y-0.5 hover:shadow-md">
+    <Link href={href} className="group rounded-2xl border border-indigo-100/80 bg-white/80 p-5 shadow-lg shadow-indigo-100/40 backdrop-blur-xl transition hover:-translate-y-0.5 hover:shadow-md">
       <div className="flex items-center justify-between">
         <span className="text-sm font-medium text-slate-500">{title}</span>
-        <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-slate-700"><Icon size={19}/></span>
+        <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-indigo-700"><Icon size={19}/></span>
       </div>
       <p className="mt-5 text-3xl font-bold tracking-tight text-slate-950">{value}</p>
-      <span className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-slate-500 group-hover:text-slate-900">Open section <ArrowRight size={13}/></span>
+      <span className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 group-hover:text-indigo-800">Open section <ArrowRight size={13}/></span>
     </Link>
   );
 }
@@ -44,7 +44,7 @@ export default async function AdminDashboardPage() {
           <h1 className="text-3xl font-bold tracking-tight text-slate-950">Dashboard overview</h1>
           <p className="mt-2 text-sm text-slate-500">Live summaries loaded from your NestJS services.</p>
         </div>
-        <Link href="/admin/orders" className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-700">Manage orders <ArrowRight size={15}/></Link>
+        <Link href="/admin/orders" className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-indigo-500/20 transition hover:bg-indigo-700">Manage orders <ArrowRight size={15}/></Link>
       </header>
 
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 2xl:grid-cols-5">

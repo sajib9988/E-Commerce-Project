@@ -19,7 +19,7 @@ export default async function CustomerAccountPage() {
   const latest = orders.slice(0, 4);
 
   return <div className="space-y-7">
-    <header className="rounded-2xl bg-stone-900 px-6 py-7 text-white sm:px-8">
+    <header className="rounded-3xl border border-teal-100/60 bg-stone-900 px-6 py-7 text-white shadow-xl shadow-teal-900/10 sm:px-8">
       <p className="text-sm text-stone-300">Customer account</p>
       <h1 className="mt-2 text-3xl font-semibold tracking-tight">Welcome back{profile?.name ? `, ${profile.name.split(" ")[0]}` : ""}.</h1>
       <p className="mt-2 max-w-xl text-sm leading-6 text-stone-300">Your orders, payments and delivery updates — all in one place.</p>
@@ -28,26 +28,26 @@ export default async function CustomerAccountPage() {
 
     <section className="grid gap-4 sm:grid-cols-3">
       {[["Recent orders", String(orders.length), "Latest five orders"], ["Paid orders", String(paidCount), "Among recent orders"], ["Refund requests", String(refunds.length), "All submitted requests"]].map(([label,value,help]) =>
-        <article key={label} className="rounded-2xl border border-stone-200 bg-white p-5">
+        <article key={label} className="rounded-2xl border border-teal-100/80 bg-white/80 shadow-lg shadow-teal-100/30 backdrop-blur-xl p-5">
           <p className="text-sm text-stone-500">{label}</p><p className="mt-2 text-3xl font-semibold">{value}</p><p className="mt-1 text-xs text-stone-400">{help}</p>
         </article>)}
     </section>
 
-    <section className="rounded-2xl border border-stone-200 bg-white">
+    <section className="rounded-2xl border border-teal-100/80 bg-white/80 shadow-lg shadow-teal-100/30 backdrop-blur-xl">
       <div className="flex items-center justify-between border-b border-stone-100 px-5 py-4">
         <div><h2 className="font-semibold">Recent orders</h2><p className="mt-1 text-xs text-stone-500">Your latest purchases and fulfillment progress</p></div>
-        <Link href="/account/orders" className="text-sm font-semibold text-stone-700 hover:text-black">View all</Link>
+        <Link href="/account/orders" className="text-sm font-semibold text-teal-700 hover:text-teal-900">View all</Link>
       </div>
       {orderError ? <p role="alert" className="p-5 text-sm text-rose-700">Could not load orders: {orderError}</p> :
-        latest.length ? <div className="divide-y divide-stone-100">{latest.map((order) => <Link key={order.id} href={`/account/orders/${order.id}`} className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 hover:bg-stone-50">
+        latest.length ? <div className="divide-y divide-stone-100">{latest.map((order) => <Link key={order.id} href={`/account/orders/${order.id}`} className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 hover:bg-teal-50/70">
           <div><p className="text-sm font-semibold">{order.orderNumber ?? order.id}</p><p className="mt-1 text-xs text-stone-500">{date(order.createdAt)} · {order.items?.length ?? 0} item(s)</p></div>
           <div className="text-right"><p className="text-sm font-semibold">{money(order.totalAmount, order.currency ?? "USD")}</p><p className="mt-1 text-xs text-stone-500">{order.status?.replaceAll("_"," ")}</p></div>
         </Link>)}</div> : <div className="px-5 py-12 text-center"><p className="font-medium">No orders yet</p><p className="mt-1 text-sm text-stone-500">Your purchases will appear here.</p><Link href="/products" className="mt-4 inline-flex text-sm font-semibold underline">Browse products</Link></div>}
     </section>
 
     <section className="grid gap-4 sm:grid-cols-2">
-      <Link href="/account/payments" className="rounded-2xl border border-stone-200 bg-white p-5 hover:border-stone-400"><h2 className="font-semibold">Payment history</h2><p className="mt-2 text-sm leading-6 text-stone-500">Review payment attempts and confirmed payment status attached to each order.</p><span className="mt-4 inline-block text-sm font-semibold">View payments →</span></Link>
-      <Link href="/account/refunds" className="rounded-2xl border border-stone-200 bg-white p-5 hover:border-stone-400"><h2 className="font-semibold">Refund requests</h2><p className="mt-2 text-sm leading-6 text-stone-500">Track submitted refund requests and see their latest status.</p><span className="mt-4 inline-block text-sm font-semibold">View refunds →</span></Link>
+      <Link href="/account/payments" className="rounded-2xl border border-teal-100/80 bg-white/80 shadow-lg shadow-teal-100/30 backdrop-blur-xl p-5 hover:border-stone-400"><h2 className="font-semibold">Payment history</h2><p className="mt-2 text-sm leading-6 text-stone-500">Review payment attempts and confirmed payment status attached to each order.</p><span className="mt-4 inline-block text-sm font-semibold">View payments →</span></Link>
+      <Link href="/account/refunds" className="rounded-2xl border border-teal-100/80 bg-white/80 shadow-lg shadow-teal-100/30 backdrop-blur-xl p-5 hover:border-stone-400"><h2 className="font-semibold">Refund requests</h2><p className="mt-2 text-sm leading-6 text-stone-500">Track submitted refund requests and see their latest status.</p><span className="mt-4 inline-block text-sm font-semibold">View refunds →</span></Link>
     </section>
   </div>;
 }
