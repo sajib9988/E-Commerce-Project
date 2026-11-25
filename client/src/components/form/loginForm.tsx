@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, type FormEvent } from "react";
@@ -12,7 +11,6 @@ import {
   EyeOff,
   Mail,
   LockKeyhole,
-  KeyRound,
   ArrowRight,
   ShieldCheck,
 } from "lucide-react";
@@ -48,7 +46,7 @@ import {
 } from "@/components/ui/form";
 
 const inputClass =
-  "h-10 rounded-lg border border-white/10 bg-white/[0.045] pl-11 pr-4 text-sm text-white shadow-none placeholder:text-white/30 transition-all focus-visible:border-blue-400/60 focus-visible:bg-white/[0.07] focus-visible:ring-2 focus-visible:ring-blue-500/20";
+  "h-10 w-full rounded-lg border border-white/10 bg-white/[0.045] pl-11 pr-4 text-sm text-white shadow-none placeholder:text-white/30 transition-all focus-visible:border-blue-400/60 focus-visible:bg-white/[0.07] focus-visible:ring-2 focus-visible:ring-blue-500/20";
 
 const iconClass =
   "absolute left-4 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-white/35";
@@ -56,9 +54,7 @@ const iconClass =
 export default function LoginForm() {
   const router = useRouter();
 
-  const [step, setStep] = useState<
-    "login" | "verify" | "admin-otp"
-  >("login");
+  const [step, setStep] = useState<"login" | "verify" | "admin-otp">("login");
 
   const [email, setEmail] = useState("");
   const [challengeToken, setChallengeToken] = useState("");
@@ -98,17 +94,11 @@ export default function LoginForm() {
       const result = await loginUser(data);
 
       if (!result.ok) {
-        const message =
-          result.data?.message || "Login failed";
-
+        const message = result.data?.message || "Login failed";
         const normalized = message.toLowerCase();
 
-        if (
-          normalized.includes("verify") &&
-          normalized.includes("email")
-        ) {
+        if (normalized.includes("verify") && normalized.includes("email")) {
           setEmail(data.email);
-
           toast.error("Your email is not verified.");
           return;
         }
@@ -118,17 +108,12 @@ export default function LoginForm() {
         return;
       }
 
-      if (
-        result.data?.requiresOtp &&
-        result.data?.challengeToken
-      ) {
+      if (result.data?.requiresOtp && result.data?.challengeToken) {
         setChallengeToken(result.data.challengeToken);
         setAdminOtp("");
         setStep("admin-otp");
 
-        toast.success(
-          "A login code has been sent to your email."
-        );
+        toast.success("A login code has been sent to your email.");
 
         return;
       }
@@ -137,8 +122,9 @@ export default function LoginForm() {
 
       const role = result.data?.user?.role;
 
-      const requestedPath =
-        new URLSearchParams(window.location.search).get("next");
+      const requestedPath = new URLSearchParams(window.location.search).get(
+        "next",
+      );
 
       const safeNextPath =
         requestedPath &&
@@ -157,10 +143,8 @@ export default function LoginForm() {
 
         router.refresh();
       }, 1200);
-
     } catch {
       setError("Something went wrong.");
-
       toast.error("Something went wrong. Please try again.");
     } finally {
       setIsLoading(false);
@@ -171,9 +155,7 @@ export default function LoginForm() {
   // ADMIN OTP
   // =========================
 
-  const handleAdminOtp = async (
-    event: FormEvent<HTMLFormElement>
-  ) => {
+  const handleAdminOtp = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     if (!challengeToken || !/^\d{6}$/.test(adminOtp)) {
@@ -184,16 +166,10 @@ export default function LoginForm() {
     setIsLoading(true);
 
     try {
-      const result = await verifyLoginOtp(
-        challengeToken,
-        adminOtp
-      );
+      const result = await verifyLoginOtp(challengeToken, adminOtp);
 
       if (!result.ok) {
-        toast.error(
-          result.data?.message ||
-          "Could not verify login code."
-        );
+        toast.error(result.data?.message || "Could not verify login code.");
         return;
       }
 
@@ -201,7 +177,6 @@ export default function LoginForm() {
 
       router.replace("/admin");
       router.refresh();
-
     } catch {
       toast.error("Something went wrong.");
     } finally {
@@ -218,15 +193,12 @@ export default function LoginForm() {
       const result = await resendLoginOtp(challengeToken);
 
       if (!result?.success) {
-        toast.error(
-          result?.message || "Could not resend login code."
-        );
+        toast.error(result?.message || "Could not resend login code.");
         return;
       }
 
       setAdminOtp("");
       toast.success("A new login code has been sent.");
-
     } catch {
       toast.error("Could not resend login code.");
     } finally {
@@ -270,9 +242,7 @@ export default function LoginForm() {
       const result = await resendVerification(email);
 
       if (!result?.success) {
-        toast.error(
-          result?.message || "Failed to send verification code."
-        );
+        toast.error(result?.message || "Failed to send verification code.");
         return;
       }
 
@@ -280,7 +250,6 @@ export default function LoginForm() {
 
       setShowOtp(true);
       verifyForm.setValue("otp", "");
-
     } catch {
       toast.error("Something went wrong.");
     } finally {
@@ -288,9 +257,7 @@ export default function LoginForm() {
     }
   };
 
-  const handleVerify = async (
-    data: VerifyEmailFormData
-  ) => {
+  const handleVerify = async (data: VerifyEmailFormData) => {
     setIsLoading(true);
 
     try {
@@ -300,9 +267,7 @@ export default function LoginForm() {
       });
 
       if (!result?.success) {
-        toast.error(
-          result?.message || "Verification failed."
-        );
+        toast.error(result?.message || "Verification failed.");
         return;
       }
 
@@ -319,7 +284,6 @@ export default function LoginForm() {
         email: data.email,
         otp: "",
       });
-
     } catch {
       toast.error("Something went wrong.");
     } finally {
@@ -339,11 +303,8 @@ export default function LoginForm() {
         toast.success("New verification code sent!");
         verifyForm.setValue("otp", "");
       } else {
-        toast.error(
-          result?.message || "Failed to resend verification code."
-        );
+        toast.error(result?.message || "Failed to resend verification code.");
       }
-
     } catch {
       toast.error("Something went wrong.");
     } finally {
@@ -369,27 +330,22 @@ export default function LoginForm() {
   // =========================
 
   return (
-    <div className="relative">
-
+    <div className="relative w-full">
       {/* Heading */}
-
-      <div className="mb-5">
-
-        <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-2xl border border-blue-400/20 bg-blue-500/10 text-blue-300 shadow-lg shadow-blue-500/10">
+      <div className="mb-4">
+        <div className="mb-2.5 flex h-9 w-9 items-center justify-center rounded-xl border border-blue-400/20 bg-blue-500/10 text-blue-300 shadow-lg shadow-blue-500/10">
           {step === "login" ? (
-            <LockKeyhole className="h-5 w-5" />
+            <LockKeyhole className="h-4 w-4" />
           ) : (
-            <ShieldCheck className="h-5 w-5" />
+            <ShieldCheck className="h-4 w-4" />
           )}
         </div>
 
-        <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.25em] text-blue-300">
-          {step === "login"
-            ? "ACCOUNT ACCESS"
-            : "SECURE VERIFICATION"}
+        <p className="mb-1.5 text-[9px] font-semibold uppercase tracking-[0.25em] text-blue-300">
+          {step === "login" ? "ACCOUNT ACCESS" : "SECURE VERIFICATION"}
         </p>
 
-        <h2 className="text-2xl font-semibold tracking-tight text-white sm:text-3xl">
+        <h2 className="text-2xl font-semibold tracking-tight text-white">
           {step === "login"
             ? "Welcome back."
             : step === "admin-otp"
@@ -397,7 +353,7 @@ export default function LoginForm() {
               : "Verify your email."}
         </h2>
 
-        <p className="mt-2 text-sm leading-5 text-white/45">
+        <p className="mt-1.5 text-xs leading-5 text-white/45">
           {step === "login"
             ? "Sign in to continue your shopping experience."
             : step === "admin-otp"
@@ -409,28 +365,25 @@ export default function LoginForm() {
       </div>
 
       {/* LOGIN FORM */}
-
       {step === "login" && (
         <Form {...loginForm}>
           <form
             onSubmit={loginForm.handleSubmit(handleLogin)}
-            className="space-y-4"
+            className="space-y-3"
           >
-
             {error && (
-              <div className="rounded-xl border border-red-400/20 bg-red-500/10 p-3 text-xs text-red-300">
+              <div className="rounded-lg border border-red-400/20 bg-red-500/10 p-2.5 text-xs text-red-300">
                 {error}
               </div>
             )}
 
             {/* Email */}
-
             <FormField
               control={loginForm.control}
               name="email"
               render={({ field }) => (
-                <FormItem className="space-y-1.5">
-                  <label className="text-xs font-medium text-white/70">
+                <FormItem className="space-y-1">
+                  <label className="text-[11px] font-medium text-white/70">
                     Email Address
                   </label>
 
@@ -454,13 +407,12 @@ export default function LoginForm() {
             />
 
             {/* Password */}
-
             <FormField
               control={loginForm.control}
               name="password"
               render={({ field }) => (
-                <FormItem className="space-y-1.5">
-                  <label className="text-xs font-medium text-white/70">
+                <FormItem className="space-y-1">
+                  <label className="text-[11px] font-medium text-white/70">
                     Password
                   </label>
 
@@ -478,20 +430,16 @@ export default function LoginForm() {
 
                       <button
                         type="button"
-                        onClick={() =>
-                          setShowPassword((prev) => !prev)
-                        }
+                        onClick={() => setShowPassword((prev) => !prev)}
                         className="absolute right-4 top-1/2 -translate-y-1/2 text-white/40 transition hover:text-white"
                         aria-label={
-                          showPassword
-                            ? "Hide password"
-                            : "Show password"
+                          showPassword ? "Hide password" : "Show password"
                         }
                       >
                         {showPassword ? (
-                          <EyeOff size={17} />
+                          <EyeOff size={16} />
                         ) : (
-                          <Eye size={17} />
+                          <Eye size={16} />
                         )}
                       </button>
                     </div>
@@ -503,35 +451,32 @@ export default function LoginForm() {
             />
 
             {/* Forgot Password */}
-
-            <div className="flex justify-end">
+            <div className="flex justify-end -mt-1">
               <Link
                 href="/forgot-password"
-                className="text-xs font-medium text-blue-300 transition hover:text-blue-200"
+                className="text-[11px] font-medium text-blue-300 transition hover:text-blue-200"
               >
                 Forgot password?
               </Link>
             </div>
 
-            {/* Verify email */}
-
+            {/* Verify Email */}
             {email && (
               <button
                 type="button"
                 onClick={handleOpenVerify}
                 disabled={isLoading}
-                className="w-full rounded-xl border border-blue-400/20 bg-blue-500/10 p-3 text-xs font-medium text-blue-300 transition hover:bg-blue-500/20 disabled:opacity-50"
+                className="w-full rounded-lg border border-blue-400/20 bg-blue-500/10 p-2.5 text-xs font-medium text-blue-300 transition hover:bg-blue-500/20 disabled:opacity-50"
               >
                 Your email is not verified? Verify Email First
               </button>
             )}
 
-            {/* Login button */}
-
+            {/* Login Button */}
             <Button
               type="submit"
               disabled={isLoading}
-              className="group h-10 w-full rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-sm font-semibold text-white shadow-lg shadow-blue-600/20 transition-all hover:from-blue-500 hover:to-indigo-500 hover:shadow-blue-500/30 active:scale-[0.98]"
+              className="group h-10 w-full rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 text-sm font-semibold text-white shadow-lg shadow-blue-600/20 transition-all hover:from-blue-500 hover:to-indigo-500 hover:shadow-blue-500/30 active:scale-[0.98]"
             >
               {isLoading ? (
                 "Signing in..."
@@ -542,18 +487,13 @@ export default function LoginForm() {
                 </>
               )}
             </Button>
-
           </form>
         </Form>
       )}
 
       {/* ADMIN OTP */}
-
       {step === "admin-otp" && (
-        <form
-          onSubmit={handleAdminOtp}
-          className="space-y-4"
-        >
+        <form onSubmit={handleAdminOtp} className="space-y-3">
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-white/70">
               6-Digit Login Code
@@ -562,9 +502,7 @@ export default function LoginForm() {
             <Input
               value={adminOtp}
               onChange={(event) =>
-                setAdminOtp(
-                  event.target.value.replace(/\D/g, "").slice(0, 6)
-                )
+                setAdminOtp(event.target.value.replace(/\D/g, "").slice(0, 6))
               }
               inputMode="numeric"
               autoComplete="one-time-code"
@@ -576,7 +514,7 @@ export default function LoginForm() {
           <Button
             type="submit"
             disabled={isLoading || adminOtp.length !== 6}
-            className="h-10 w-full rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 font-semibold text-white"
+            className="h-10 w-full rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 font-semibold text-white"
           >
             {isLoading ? "Verifying..." : "Verify & Login"}
           </Button>
@@ -606,19 +544,17 @@ export default function LoginForm() {
       )}
 
       {/* EMAIL VERIFICATION */}
-
       {step === "verify" && (
         <Form {...verifyForm}>
           <form
             onSubmit={verifyForm.handleSubmit(handleVerify)}
-            className="space-y-4"
+            className="space-y-3"
           >
-
             <FormField
               control={verifyForm.control}
               name="email"
               render={({ field }) => (
-                <FormItem className="space-y-1.5">
+                <FormItem className="space-y-1">
                   <label className="text-xs font-medium text-white/70">
                     Email Address
                   </label>
@@ -642,11 +578,9 @@ export default function LoginForm() {
                 type="button"
                 onClick={handleSendVerificationCode}
                 disabled={isLoading}
-                className="h-10 w-full rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 font-semibold text-white"
+                className="h-10 w-full rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 font-semibold text-white"
               >
-                {isLoading
-                  ? "Sending Code..."
-                  : "Send Verification Code"}
+                {isLoading ? "Sending Code..." : "Send Verification Code"}
               </Button>
             ) : (
               <>
@@ -654,7 +588,7 @@ export default function LoginForm() {
                   control={verifyForm.control}
                   name="otp"
                   render={({ field }) => (
-                    <FormItem className="space-y-1.5">
+                    <FormItem className="space-y-1">
                       <label className="text-xs font-medium text-white/70">
                         Verification Code
                       </label>
@@ -679,7 +613,7 @@ export default function LoginForm() {
                 <Button
                   type="submit"
                   disabled={isLoading}
-                  className="h-10 w-full rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 font-semibold text-white"
+                  className="h-10 w-full rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 font-semibold text-white"
                 >
                   {isLoading ? "Verifying..." : "Verify Email"}
                 </Button>
@@ -703,22 +637,21 @@ export default function LoginForm() {
             >
               Back to Login
             </button>
-
           </form>
         </Form>
       )}
 
       {/* OAuth */}
-
       {step === "login" && (
-        <OAuthLoginButtons />
+        <div className="mt-3">
+          <OAuthLoginButtons />
+        </div>
       )}
 
-      {/* Register link */}
-
+      {/* Register Link */}
       {step === "login" && (
-        <div className="mt-5 border-t border-white/10 pt-4 text-center">
-          <p className="text-xs text-white/45">
+        <div className="mt-4 border-t border-white/10 pt-3 text-center">
+          <p className="text-[11px] text-white/45">
             Don't have an account?{" "}
             <Link
               href="/register"
@@ -729,7 +662,6 @@ export default function LoginForm() {
           </p>
         </div>
       )}
-
     </div>
   );
 }

@@ -29,7 +29,8 @@ import {
   Mail,
   MessageSquareText,
   LogOut,
-  UserRound,
+  Store,
+  ExternalLink,
 } from "lucide-react";
 
 import { logoutUser } from "@/service/auth.service";
@@ -67,6 +68,7 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
     <>
       {navigation.map((item) => {
         const Icon = item.icon;
+
         const active =
           item.href === "/admin"
             ? pathname === item.href
@@ -159,14 +161,29 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           <p className="px-3 pb-2 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">
             Workspace
           </p>
+
           <NavLinks />
         </nav>
 
+        {/* View Store - Desktop */}
+        <Link
+          href="/"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-3 flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-blue-50 hover:text-blue-600"
+        >
+          <Store size={18} />
+          <span>View Store</span>
+          <ExternalLink size={14} className="ml-auto" />
+        </Link>
+
+        {/* Store Overview */}
         <div className="mt-4 rounded-2xl bg-slate-50 p-3">
           <div className="flex items-center gap-2">
             <Activity size={16} className="text-emerald-600" />
             <span className="text-xs font-semibold">Store overview</span>
           </div>
+
           <p className="mt-1 text-xs leading-5 text-slate-500">
             Live store data is loaded from the NestJS APIs.
           </p>
@@ -213,6 +230,21 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             <nav className="flex-1 overflow-y-auto">
               <NavLinks onNavigate={() => setMobileOpen(false)} />
             </nav>
+
+            {/* View Store - Mobile */}
+            <div className="mt-3 border-t border-slate-200 pt-3">
+              <Link
+                href="/"
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => setMobileOpen(false)}
+                className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-blue-50 hover:text-blue-600"
+              >
+                <Store size={18} />
+                <span>View Store</span>
+                <ExternalLink size={14} className="ml-auto" />
+              </Link>
+            </div>
           </aside>
         </div>
       )}
@@ -241,6 +273,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                 size={16}
                 className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
               />
+
               <input
                 aria-label="Search dashboard"
                 placeholder="Search anything..."
