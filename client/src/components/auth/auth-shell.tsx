@@ -7,18 +7,14 @@ type AuthShellProps = {
   variant: "login" | "register";
 };
 
-export default function AuthShell({
-  children,
-  variant,
-}: AuthShellProps) {
+export default function AuthShell({ children, variant }: AuthShellProps) {
   const isLogin = variant === "login";
 
   return (
- <main className="flex min-h-screen items-center justify-center bg-[#080d19] px-4 py-8">
-     <div className="grid w-full max-w-[860px] overflow-hidden rounded-2xl border border-white/10 bg-[#0d1424] shadow-2xl shadow-black/30 lg:min-h-0 lg:grid-cols-[0.9fr_1.1fr]">
-
+    <main className="flex min-h-screen items-center justify-center bg-[#080d19] px-4 py-4">
+      <div className="grid w-full max-w-[860px] overflow-hidden rounded-2xl border border-white/10 bg-[#0d1424] shadow-2xl shadow-black/30 lg:min-h-0 lg:grid-cols-[0.9fr_1.1fr]">
         {/* Left: Fashion Image */}
-        <section className="relative flex min-h-[210px] flex-col justify-between overflow-hidden bg-[#063b46] p-7 sm:min-h-[240px] sm:p-10 lg:min-h-[520px]">
+        <section className="flex items-center justify-center px-5 py-5 sm:px-8 sm:py-6 lg:px-8 lg:py-5">
           {/* Background Image */}
           <div
             className="absolute inset-0 bg-cover bg-center"
@@ -102,10 +98,8 @@ export default function AuthShell({
         {/* Right: Form */}
         <section className="flex items-center justify-center px-6 py-7 sm:px-8 lg:px-10 lg:py-8">
           <div className="w-full max-w-[440px]">
-
             {/* Form Content */}
             {children}
-
           </div>
         </section>
       </div>
