@@ -15,10 +15,10 @@ export default function AuthShell({
 
   return (
  <main className="flex min-h-screen items-center justify-center bg-[#080d19] px-4 py-8">
-     <div className="grid w-full max-w-[860px] overflow-hidden rounded-2xl border border-white/10 bg-[#0d1424] shadow-2xl shadow-black/30 lg:min-h-[520px] lg:grid-cols-[0.9fr_1.1fr]">
+     <div className="grid w-full max-w-[860px] overflow-hidden rounded-2xl border border-white/10 bg-[#0d1424] shadow-2xl shadow-black/30 lg:min-h-0 lg:grid-cols-[0.9fr_1.1fr]">
 
         {/* Left: Fashion Image */}
-        <section className="relative flex min-h-[280px] flex-col justify-between overflow-hidden bg-[#063b46] p-7 sm:min-h-[360px] sm:p-10 lg:min-h-[780px]">
+        <section className="relative flex min-h-[210px] flex-col justify-between overflow-hidden bg-[#063b46] p-7 sm:min-h-[240px] sm:p-10 lg:min-h-[520px]">
           {/* Background Image */}
           <div
             className="absolute inset-0 bg-cover bg-center"
@@ -49,12 +49,12 @@ export default function AuthShell({
           </div>
 
           {/* Editorial Content */}
-          <div className="relative z-10 max-w-lg py-12 lg:py-0">
+          <div className="relative z-10 max-w-lg py-7 lg:py-0">
             <p className="mb-4 text-xs font-bold tracking-[0.3em] text-sky-300">
               {isLogin ? "WELCOME BACK" : "JOIN THE COMMUNITY"}
             </p>
 
-            <h1 className="text-4xl font-bold leading-tight tracking-tight text-white sm:text-5xl lg:text-6xl">
+            <h1 className="text-3xl font-bold leading-tight tracking-tight text-white sm:text-4xl lg:text-5xl">
               {isLogin ? (
                 <>
                   Style that
@@ -72,7 +72,7 @@ export default function AuthShell({
               )}
             </h1>
 
-            <p className="mt-5 max-w-sm text-sm leading-6 text-white/75">
+            <p className="mt-4 max-w-sm text-sm leading-6 text-white/75">
               {isLogin
                 ? "Sign in to explore your collection and enjoy a better shopping experience."
                 : "Create your account and discover a collection designed around your unique style."}
@@ -80,7 +80,7 @@ export default function AuthShell({
 
             <Link
               href="/"
-              className="mt-7 inline-flex items-center gap-2 text-xs font-semibold text-white transition hover:text-sky-300"
+              className="mt-5 inline-flex items-center gap-2 text-xs font-semibold text-white transition hover:text-sky-300"
             >
               Explore the collection
               <ArrowUpRight className="h-4 w-4" />
@@ -88,7 +88,7 @@ export default function AuthShell({
           </div>
 
           {/* Footer */}
-          <div className="relative z-10 flex items-center justify-between border-t border-white/20 pt-5">
+          <div className="relative z-10 flex items-center justify-between border-t border-white/20 pt-4">
             <span className="text-[9px] tracking-wider text-white/65">
               DESIGNED FOR EVERYDAY STYLE
             </span>
@@ -100,7 +100,7 @@ export default function AuthShell({
         </section>
 
         {/* Right: Form */}
-        <section className="flex items-center justify-center px-6 py-10 sm:px-10 lg:px-12 lg:py-14">
+        <section className="flex items-center justify-center px-6 py-7 sm:px-8 lg:px-10 lg:py-8">
           <div className="w-full max-w-[440px]">
 
             {/* Form Content */}
