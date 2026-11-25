@@ -90,19 +90,19 @@ export function AdminResourcePage({
           {isRecord(result) && typeof result.statusCode === "number" ? ` (HTTP ${result.statusCode})` : ""}
         </div>
       ) : rows.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-slate-300 bg-white p-10 text-center">
+        <div className="rounded-xl border border-dashed border-indigo-200 bg-white/75 p-10 text-center">
           <p className="font-medium text-slate-700">{emptyMessage}</p>
           <p className="mt-1 text-xs text-slate-400">This page is connected to the existing backend service.</p>
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm shadow-slate-200/30">
+        <div className="overflow-x-auto rounded-2xl border border-indigo-100/80 bg-white/80 shadow-lg shadow-indigo-100/30 backdrop-blur-xl">
           <table className="w-full min-w-[720px] text-left text-sm">
-            <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+            <thead className="border-b border-indigo-100/80 bg-indigo-50/70 text-xs uppercase tracking-wide text-slate-500">
               <tr>{columns.map((column) => <th key={column.key} className="px-5 py-3.5 font-semibold">{column.label}</th>)}</tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {rows.map((row, index) => (
-                <tr key={String(row.id ?? row.orderNumber ?? row.code ?? index)} className="transition hover:bg-slate-50/70">
+                <tr key={String(row.id ?? row.orderNumber ?? row.code ?? index)} className="transition hover:bg-indigo-50/70">
                   {columns.map((column) => (
                     <td key={column.key} className="max-w-[280px] truncate px-5 py-4 text-slate-700">
                       {displayValue(readPath(row, column.key), column.key)}

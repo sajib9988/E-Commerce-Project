@@ -76,7 +76,7 @@ export function CustomerReviewsClient({ initialReviews }: { initialReviews: MyRe
           <a href="/products" className="mt-5 inline-flex rounded-lg bg-stone-900 px-4 py-2.5 text-sm font-semibold text-white">Browse products</a>
         </div>
       ) : reviews.map((review) => (
-        <article key={review.id} className="rounded-2xl border border-stone-200 bg-white p-5">
+        <article key={review.id} className="rounded-2xl border border-teal-100 bg-white p-5">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h2 className="font-semibold">{review.product?.name ?? "Product review"}</h2>
@@ -110,7 +110,7 @@ export function CustomerReviewsClient({ initialReviews }: { initialReviews: MyRe
               <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
                 <p className="text-xs text-stone-400">Submitted {formatDate(review.createdAt)}{review.updatedAt !== review.createdAt ? " · Updated " + formatDate(review.updatedAt) : ""}</p>
                 <div className="flex gap-2">
-                  {review.status !== "REJECTED" && <button type="button" disabled={pending} onClick={() => beginEdit(review)} className="rounded-lg border border-stone-300 px-3 py-2 text-xs font-semibold hover:bg-stone-50">Edit</button>}
+                  {review.status !== "REJECTED" && <button type="button" disabled={pending} onClick={() => beginEdit(review)} className="rounded-lg border border-stone-300 px-3 py-2 text-xs font-semibold hover:bg-teal-50/70">Edit</button>}
                   <button type="button" disabled={pending} onClick={() => removeReview(review)} className="rounded-lg border border-rose-200 px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-50">Delete</button>
                 </div>
               </div>

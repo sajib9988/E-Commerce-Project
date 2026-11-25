@@ -43,7 +43,7 @@ export default async function CustomerAccountPage() {
 
   return (
     <div className="space-y-7">
-      <header className="rounded-2xl bg-stone-900 px-6 py-7 text-white sm:px-8">
+      <header className="rounded-3xl border border-teal-100/60 bg-stone-900 px-6 py-7 text-white shadow-xl shadow-teal-900/10 sm:px-8">
         <p className="text-sm text-stone-300">Customer account</p>
         <h1 className="mt-2 text-3xl font-semibold tracking-tight">
           Welcome back{profile?.name ? `, ${profile.name.split(" ")[0]}` : ""}.
@@ -67,7 +67,7 @@ export default async function CustomerAccountPage() {
         ].map(([label, value, help]) => (
           <article
             key={label}
-            className="rounded-2xl border border-stone-200 bg-white p-5"
+            className="rounded-2xl border border-teal-100/80 bg-white/80 shadow-lg shadow-teal-100/30 backdrop-blur-xl p-5"
           >
             <p className="text-sm text-stone-500">{label}</p>
             <p className="mt-2 text-3xl font-semibold">{value}</p>
@@ -76,7 +76,7 @@ export default async function CustomerAccountPage() {
         ))}
       </section>
 
-      <section className="rounded-2xl border border-stone-200 bg-white">
+      <section className="rounded-2xl border border-teal-100/80 bg-white/80 shadow-lg shadow-teal-100/30 backdrop-blur-xl">
         <div className="flex items-center justify-between border-b border-stone-100 px-5 py-4">
           <div>
             <h2 className="font-semibold">Recent orders</h2>
@@ -86,7 +86,7 @@ export default async function CustomerAccountPage() {
           </div>
           <Link
             href="/account/orders"
-            className="text-sm font-semibold text-stone-700 hover:text-black"
+            className="text-sm font-semibold text-teal-700 hover:text-teal-900"
           >
             View all
           </Link>
@@ -101,7 +101,7 @@ export default async function CustomerAccountPage() {
               <Link
                 key={order.id}
                 href={`/account/orders/${order.id}`}
-                className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 hover:bg-stone-50"
+                className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 hover:bg-teal-50/70"
               >
                 <div>
                   <p className="text-sm font-semibold">
@@ -141,7 +141,7 @@ export default async function CustomerAccountPage() {
       <section className="grid gap-4 sm:grid-cols-2">
         <Link
           href="/account/payments"
-          className="rounded-2xl border border-stone-200 bg-white p-5 hover:border-stone-400"
+          className="rounded-2xl border border-teal-100/80 bg-white/80 shadow-lg shadow-teal-100/30 backdrop-blur-xl p-5 hover:border-stone-400"
         >
           <h2 className="font-semibold">Payment history</h2>
           <p className="mt-2 text-sm leading-6 text-stone-500">
@@ -154,7 +154,7 @@ export default async function CustomerAccountPage() {
         </Link>
         <Link
           href="/account/refunds"
-          className="rounded-2xl border border-stone-200 bg-white p-5 hover:border-stone-400"
+          className="rounded-2xl border border-teal-100/80 bg-white/80 shadow-lg shadow-teal-100/30 backdrop-blur-xl p-5 hover:border-stone-400"
         >
           <h2 className="font-semibold">Refund requests</h2>
           <p className="mt-2 text-sm leading-6 text-stone-500">

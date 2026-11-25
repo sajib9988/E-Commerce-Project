@@ -67,7 +67,7 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
 export function AdminShell({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   return (
-    <div className="min-h-screen bg-[#f7f8fa] text-slate-900">
+    <div className="admin-theme min-h-screen bg-[#f4f5fb] text-slate-900">
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-[252px] flex-col border-r border-slate-200 bg-white px-4 py-5 lg:flex">
         <Link href="/admin" className="mb-8 flex items-center gap-3 px-2">
           <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-900 text-white"><ShoppingBag size={21}/></span>
