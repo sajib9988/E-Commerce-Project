@@ -43,15 +43,22 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   private async finishOAuthCallback(req: Request, res: Response) {
-    const frontendUrl = (process.env.FRONTEND_URL || 'http://localhost:3000').replace(/\/$/, '');
-    const oauthUser = req.user as { id: string; requiresEmailVerification?: boolean };
+    const frontendUrl = (
+      process.env.FRONTEND_URL || 'http://localhost:3000'
+    ).replace(/\/$/, '');
+    const oauthUser = req.user as {
+      id: string;
+      requiresEmailVerification?: boolean;
+    };
     if (oauthUser.requiresEmailVerification) {
       res.redirect(frontendUrl + '/login?oauth=verification-required');
       return;
     }
     try {
       const code = await this.authService.createOAuthHandoff(oauthUser.id);
-      res.redirect(frontendUrl + '/auth/oauth/callback?code=' + encodeURIComponent(code));
+      res.redirect(
+        frontendUrl + '/auth/oauth/callback?code=' + encodeURIComponent(code),
+      );
     } catch {
       res.redirect(frontendUrl + '/login?oauth=failed');
     }
@@ -181,7 +188,10 @@ export class AuthController {
   }
 
   @Patch('auth/me')
-  updateMyProfile(@CurrentUser() currentUser: AuthTokenPayload, @Body() dto: UpdateMyProfileDto) {
+  updateMyProfile(
+    @CurrentUser() currentUser: AuthTokenPayload,
+    @Body() dto: UpdateMyProfileDto,
+  ) {
     return this.authService.updateMyProfile(currentUser.sub, dto.name);
   }
 
@@ -193,8 +203,16 @@ export class AuthController {
   // User administration now belongs to AuthModule too; SUPER_ADMIN only.
   @Roles('SUPER_ADMIN')
   @Get('users')
-  findAllUsers(@Query('search') search?: string, @Query('page') page?: string, @Query('limit') limit?: string) {
-    return this.authService.findAllUsers({ search, page: Number(page) || 1, limit: Number(limit) || 10 });
+  findAllUsers(
+    @Query('search') search?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.authService.findAllUsers({
+      search,
+      page: Number(page) || 1,
+      limit: Number(limit) || 10,
+    });
   }
 
   @Roles('SUPER_ADMIN')
