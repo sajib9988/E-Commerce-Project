@@ -17,6 +17,9 @@ interface TurnstileApi {
       sitekey: string;
       callback: (token: string) => void;
       "expired-callback": () => void;
+      theme: "light" | "dark" | "auto";
+      size: "normal" | "flexible" | "compact";
+      appearance: "always" | "execute" | "interaction-only";
     },
   ) => string;
 
@@ -64,6 +67,9 @@ export default function Turnstile({
         "expired-callback": () => {
           callbacksRef.current.onExpire?.();
         },
+        theme: "dark",
+        size: "normal",
+        appearance: "always",
       },
     );
   }, []);
@@ -99,7 +105,7 @@ export default function Turnstile({
         onLoad={renderWidget}
       />
 
-      <div ref={containerRef} />
+      <div ref={containerRef} className="flex min-h-[65px] w-full items-center justify-center" />
     </>
   );
 }
