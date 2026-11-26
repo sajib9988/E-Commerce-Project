@@ -367,13 +367,11 @@ export default function RegisterForm() {
             </div>
 
             {/* Cloudflare Turnstile (small) */}
-            <div className="flex h-[46px] items-center overflow-hidden rounded-lg border border-white/10 bg-white/[0.025] px-2">
-              <div className="origin-left scale-[0.7]">
-                <Turnstile
-                  onVerify={setTurnstileToken}
-                  onExpire={() => setTurnstileToken("")}
-                />
-              </div>
+            <div className="flex min-h-[65px] items-center justify-center rounded-lg border border-white/10 bg-white/[0.025] px-3 py-2">
+              <Turnstile
+                onVerify={setTurnstileToken}
+                onExpire={() => setTurnstileToken("")}
+              />
             </div>
 
             {/* Submit */}

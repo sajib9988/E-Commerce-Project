@@ -12,7 +12,7 @@ export default function AuthShell({ children, variant }: AuthShellProps) {
 
   return (
     <main className="flex min-h-dvh items-center justify-center bg-[#080d19] px-3 py-4 sm:px-5 lg:p-4">
-      <div className="grid w-full max-w-[1160px] grid-cols-1 overflow-hidden rounded-2xl border border-white/10 bg-[#0d1424] shadow-2xl shadow-black/30 lg:h-[390px] lg:max-h-[calc(100dvh-2rem)] lg:grid-cols-[0.95fr_1.15fr]">
+      <div className="grid w-full max-w-[1160px] grid-cols-1 overflow-hidden rounded-2xl border border-white/10 bg-[#0d1424] shadow-2xl shadow-black/30 lg:h-[420px] lg:max-h-[calc(100dvh-2rem)] lg:grid-cols-[0.95fr_1.15fr]">
         <section className="relative isolate flex min-h-[260px] flex-col justify-between overflow-hidden px-5 py-5 sm:px-8 sm:py-6 lg:min-h-0 lg:px-7 lg:py-5">
           <div
             className="absolute inset-0 -z-20 bg-cover bg-center"

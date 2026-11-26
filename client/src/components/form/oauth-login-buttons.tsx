@@ -43,7 +43,7 @@ const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
 const FACEBOOK_APP_ID = process.env.NEXT_PUBLIC_FACEBOOK_APP_ID;
 
 const GoogleIcon = () => (
-  <svg viewBox="0 0 48 48" className="h-[18px] w-[18px]" aria-hidden>
+  <svg viewBox="0 0 48 48" className="block h-[18px] w-[18px] shrink-0" aria-hidden>
     <path
       fill="#FFC107"
       d="M43.6 20.1H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 8 3l5.7-5.7C34 6.1 29.3 4 24 4 13 4 4 13 4 24s9 20 20 20 20-9 20-20c0-1.3-.1-2.6-.4-3.9z"
@@ -64,10 +64,10 @@ const GoogleIcon = () => (
 );
 
 const FacebookIcon = () => (
-  <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" aria-hidden>
+  <svg viewBox="0 0 24 24" className="block h-[18px] w-[18px] shrink-0" aria-hidden>
     <path
       fill="#1877F2"
-      d="M24 12.07C24 5.4 18.63 0 12 0S0 5.4 0 12.07C0 18.1 4.39 23.1 10.13 24v-8.44H7.08v-3.49h3.05V9.41c0-3.02 1.79-4.69 4.53-4.69 1.31 0 2.69.24 2.69.24v2.97h-1.51c-1.49 0-1.96.93-1.96 1.88v2.26h3.33l-.53 3.49h-2.8V24C19.61 23.1 24 18.1 24 12.07z"
+      d="M13.5 21v-8h2.7l.4-3h-3.1V8.1c0-.9.3-1.5 1.6-1.5h1.7V3.9c-.3 0-1.3-.1-2.5-.1-2.5 0-4.2 1.5-4.2 4.3V10H7.3v3h2.8v8h3.4z"
     />
   </svg>
 );
