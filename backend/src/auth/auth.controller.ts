@@ -8,8 +8,14 @@ import {
   Patch,
   Post,
   Query,
+  Get,
+  Req,
+  Res,
+  UseGuards,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
+import { AuthGuard } from '@nestjs/passport';
+import type { Request, Response } from 'express';
 import { Public } from '../common/decorators/public.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -29,13 +35,28 @@ import { UpdateUserRoleDto } from './dto/update-user-role.dto';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateMyProfileDto } from './dto/update-my-profile.dto';
-import { OAuthLoginDto } from './dto/oauth-login.dto';
+import { OAuthExchangeDto } from './dto/oauth-exchange.dto';
 
 const AUTH_THROTTLE = { default: { limit: 5, ttl: 60_000 } };
 
 @Controller()
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
+
+  private async finishOAuthCallback(req: Request, res: Response) {
+    const frontendUrl = (process.env.FRONTEND_URL || 'http://localhost:3000').replace(/\/$/, '');
+    const oauthUser = req.user as { id: string; requiresEmailVerification?: boolean };
+    if (oauthUser.requiresEmailVerification) {
+      res.redirect(frontendUrl + '/login?oauth=verification-required');
+      return;
+    }
+    try {
+      const code = await this.authService.createOAuthHandoff(oauthUser.id);
+      res.redirect(frontendUrl + '/auth/oauth/callback?code=' + encodeURIComponent(code));
+    } catch {
+      res.redirect(frontendUrl + '/login?oauth=failed');
+    }
+  }
 
   @Public()
   @Throttle(AUTH_THROTTLE)
@@ -46,11 +67,39 @@ export class AuthController {
   }
 
   @Public()
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Get('auth/google')
+  @UseGuards(AuthGuard('google'))
+  googleAuth() {}
+
+  @Public()
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Get('auth/google/callback')
+  @UseGuards(AuthGuard('google'))
+  async googleAuthCallback(@Req() req: Request, @Res() res: Response) {
+    await this.finishOAuthCallback(req, res);
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Get('auth/facebook')
+  @UseGuards(AuthGuard('facebook'))
+  facebookAuth() {}
+
+  @Public()
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Get('auth/facebook/callback')
+  @UseGuards(AuthGuard('facebook'))
+  async facebookAuthCallback(@Req() req: Request, @Res() res: Response) {
+    await this.finishOAuthCallback(req, res);
+  }
+
+  @Public()
   @Throttle(AUTH_THROTTLE)
   @HttpCode(200)
-  @Post('auth/oauth/:provider')
-  oauthLogin(@Param('provider') provider: string, @Body() dto: OAuthLoginDto) {
-    return this.authService.oauthLogin(provider, dto);
+  @Post('auth/oauth/exchange')
+  exchangeOAuthCode(@Body() dto: OAuthExchangeDto) {
+    return this.authService.exchangeOAuthCode(dto.code);
   }
 
   @Public()

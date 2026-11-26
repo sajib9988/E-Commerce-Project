@@ -17,6 +17,7 @@ import { verifyTurnstileToken } from '../common/utils/turnstile.util';
 import type { AuthTokenPayload } from '../common/types/auth-token-payload';
 import type { LoginDto } from './dto/login.dto';
 import type { RegisterDto } from './dto/register.dto';
+import type { OAuthProfile } from './oauth.types';
 import type { VerifyOtpDto } from './dto/verify-otp.dto';
 import type { RefreshDto } from './dto/refresh.dto';
 import type { ResendOtpDto } from './dto/resend-otp.dto';
