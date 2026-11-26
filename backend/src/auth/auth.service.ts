@@ -4,6 +4,7 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
@@ -17,6 +18,7 @@ import { verifyTurnstileToken } from '../common/utils/turnstile.util';
 import type { AuthTokenPayload } from '../common/types/auth-token-payload';
 import type { LoginDto } from './dto/login.dto';
 import type { RegisterDto } from './dto/register.dto';
+import type { OAuthProfile } from './oauth.types';
 import type { VerifyOtpDto } from './dto/verify-otp.dto';
 import type { RefreshDto } from './dto/refresh.dto';
 import type { ResendOtpDto } from './dto/resend-otp.dto';
@@ -27,7 +29,6 @@ import type { ChangePasswordDto } from './dto/change-password.dto';
 import type { CreateUserDto } from './dto/create-user.dto';
 import type { UpdateUserDto } from './dto/update-user.dto';
 import { createHash, randomBytes } from 'node:crypto';
-import type { OAuthLoginDto } from './dto/oauth-login.dto';
 import { RedisService } from '../redis/redis.service';
 
 export const ACCESS_TOKEN_TTL_SECONDS = 30 * 60;
@@ -190,86 +191,38 @@ export class AuthService {
     return this.issueSessionTokens(user);
   }
 
-  async oauthLogin(providerInput: string, dto: OAuthLoginDto) {
-    const provider = providerInput.toLowerCase();
-    if (provider !== 'google' && provider !== 'facebook') {
-      throw new BadRequestException('OAuth provider must be google or facebook');
-    }
-
-    let profile: { id: string; email: string; name: string; emailVerified: boolean };
-    let verifiedFacebookUserId: string | undefined;
-    try {
-      if (provider === 'google') {
-        const clientId = process.env.GOOGLE_CLIENT_ID;
-        if (!clientId) throw new Error('GOOGLE_CLIENT_ID is not configured');
-        const tokenInfoUrl = new URL('https://oauth2.googleapis.com/tokeninfo');
-        tokenInfoUrl.searchParams.set('access_token', dto.accessToken);
-        const tokenInfoResponse = await fetch(tokenInfoUrl, { signal: AbortSignal.timeout(8_000) });
-        const tokenInfo = await tokenInfoResponse.json() as Record<string, unknown>;
-        if (!tokenInfoResponse.ok || tokenInfo.aud !== clientId || tokenInfo.email_verified !== 'true' && tokenInfo.email_verified !== true) {
-          throw new Error('Google access token audience or email verification is invalid');
-        }
-      } else {
-        const appId = process.env.FACEBOOK_APP_ID;
-        const appSecret = process.env.FACEBOOK_APP_SECRET;
-        if (!appId || !appSecret) throw new Error('Facebook OAuth credentials are not configured');
-        const debugUrl = new URL('https://graph.facebook.com/debug_token');
-        debugUrl.searchParams.set('input_token', dto.accessToken);
-        debugUrl.searchParams.set('access_token', `${appId}|${appSecret}`);
-        const debugResponse = await fetch(debugUrl, { signal: AbortSignal.timeout(8_000) });
-        const debugPayload = await debugResponse.json() as { data?: { is_valid?: boolean; app_id?: string; user_id?: string } };
-        if (!debugResponse.ok || !debugPayload.data?.is_valid || debugPayload.data.app_id !== appId || !debugPayload.data.user_id) {
-          throw new Error('Facebook access token is invalid for this application');
-        }
-        verifiedFacebookUserId = debugPayload.data.user_id;
-      }
-
-      const endpoint = provider === 'google'
-        ? 'https://openidconnect.googleapis.com/v1/userinfo'
-        : 'https://graph.facebook.com/me?fields=id,name,email';
-      const response = await fetch(endpoint, {
-        headers: { Authorization: `Bearer ${dto.accessToken}` },
-        signal: AbortSignal.timeout(8_000),
-      });
-      if (!response.ok) throw new Error('Provider rejected access token');
-      const data = await response.json() as Record<string, unknown>;
-      const id = typeof data.sub === 'string' ? data.sub : typeof data.id === 'string' ? data.id : '';
-      const email = typeof data.email === 'string' ? data.email.trim().toLowerCase() : '';
-      const name = typeof data.name === 'string' ? data.name.trim() : '';
-      const emailVerified = provider === 'google' && data.email_verified === true;
-      if (!id || !email || !name || (provider === 'google' && !emailVerified) || (provider === 'facebook' && id !== verifiedFacebookUserId)) {
-        throw new Error('Provider profile is incomplete, unverified, or does not match the validated token');
-      }
-      profile = { id, email, name, emailVerified };
-    } catch {
-      throw new UnauthorizedException('OAuth access token is invalid or provider profile is unavailable');
+  async authenticateOAuthProfile(profile: OAuthProfile) {
+    const provider = profile.provider;
+    const email = profile.email.trim().toLowerCase();
+    if (!email || !profile.providerAccountId || (provider === 'google' && !profile.emailVerified)) {
+      throw new UnauthorizedException('The provider did not return a verified email and account identifier');
     }
 
     const linked = await this.prisma.oAuthAccount.findFirst({
-      where: { provider, providerAccountId: profile.id },
+      where: { provider, providerAccountId: profile.providerAccountId },
       include: { user: true },
     });
     if (linked) {
       if (!linked.user.emailVerified) {
-        throw new ForbiddenException('Verify the email address associated with this OAuth account before signing in');
+        await this.issueAndSendOtp(linked.user.id, linked.user.email, 'verify-email');
+        return { requiresEmailVerification: true as const, email: linked.user.email };
       }
-      return this.issueSessionTokens(linked.user);
+      return { id: linked.user.id, name: linked.user.name, email: linked.user.email, role: linked.user.role };
     }
 
-    let user = await this.prisma.user.findUnique({ where: { email: profile.email } });
+    let user = await this.prisma.user.findUnique({ where: { email } });
     if (user && !user.emailVerified) {
-      throw new ConflictException('Verify this email with the existing account before linking OAuth');
+      throw new ConflictException('Verify this email with your existing account before connecting social sign-in');
     }
-    // Facebook's Graph profile does not provide a trustworthy email-verification
-    // claim. Never attach it to an existing account or mark its email verified.
-    if (user && !profile.emailVerified) {
-      throw new ConflictException('Facebook cannot be safely auto-linked to an existing account. Sign in using your existing method');
+    if (user && (provider !== 'google' || !profile.emailVerified)) {
+      throw new ConflictException('Sign in with your existing method before connecting this social account');
     }
+
     if (!user) {
       user = await this.prisma.user.create({
         data: {
-          name: profile.name,
-          email: profile.email,
+          name: profile.name.trim() || email.split('@')[0],
+          email,
           password: await hashPassword(randomBytes(48).toString('base64url')),
           role: UserRole.USER,
           emailVerified: profile.emailVerified,
@@ -279,26 +232,68 @@ export class AuthService {
 
     try {
       await this.prisma.oAuthAccount.create({
-        data: { userId: user.id, provider, providerAccountId: profile.id },
+        data: { userId: user.id, provider, providerAccountId: profile.providerAccountId },
       });
     } catch (error) {
       if (!(error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002')) throw error;
       const concurrentLink = await this.prisma.oAuthAccount.findFirst({
-        where: { provider, providerAccountId: profile.id }, include: { user: true },
+        where: { provider, providerAccountId: profile.providerAccountId },
+        include: { user: true },
       });
-      if (!concurrentLink) throw new ConflictException('This OAuth account is already linked to another user');
+      if (!concurrentLink) throw new ConflictException('This social account is already linked to another user');
       user = concurrentLink.user;
     }
 
     if (!user.emailVerified) {
       await this.issueAndSendOtp(user.id, user.email, 'verify-email');
-      return {
-        success: true,
-        requiresEmailVerification: true,
-        message: 'Check your email for a verification code before signing in.',
-      };
+      return { requiresEmailVerification: true as const, email: user.email };
     }
-    return this.issueSessionTokens(user);
+    return { id: user.id, name: user.name, email: user.email, role: user.role };
+  }
+
+  async createOAuthHandoff(userId: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user || !user.emailVerified) throw new UnauthorizedException('OAuth account is not ready for sign-in');
+
+    const session = await this.issueSessionTokens(user);
+    const code = randomBytes(32).toString('base64url');
+    try {
+      const stored = await this.redis.client.set(
+        'oauth:handoff:' + this.hashToken(code),
+        JSON.stringify(session),
+        'EX',
+        60,
+        'NX',
+      );
+      if (stored !== 'OK') throw new Error('Could not reserve OAuth handoff code');
+    } catch {
+      throw new ServiceUnavailableException('Could not complete social sign-in');
+    }
+    return code;
+  }
+
+  async exchangeOAuthCode(code: string) {
+    if (!/^[A-Za-z0-9_-]{40,60}$/.test(code)) {
+      throw new UnauthorizedException('OAuth sign-in code is invalid or expired');
+    }
+    let payload: unknown;
+    try {
+      payload = await this.redis.client.call('GETDEL', 'oauth:handoff:' + this.hashToken(code));
+    } catch {
+      throw new ServiceUnavailableException('Could not complete social sign-in');
+    }
+    if (typeof payload !== 'string') {
+      throw new UnauthorizedException('OAuth sign-in code is invalid or expired');
+    }
+    try {
+      return JSON.parse(payload) as {
+        accessToken: string;
+        refreshToken: string;
+        user: { id: string; name: string; email: string; role: UserRole };
+      };
+    } catch {
+      throw new UnauthorizedException('OAuth sign-in code is invalid or expired');
+    }
   }
 
   async forgetPassword(emailInput: string, turnstileToken?: string) {
