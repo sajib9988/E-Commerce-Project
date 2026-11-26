@@ -43,7 +43,7 @@ const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
 const FACEBOOK_APP_ID = process.env.NEXT_PUBLIC_FACEBOOK_APP_ID;
 
 const GoogleIcon = () => (
-  <svg viewBox="0 0 48 48" className="block h-[18px] w-[18px] shrink-0" aria-hidden>
+  <svg viewBox="0 0 48 48" className="block h-5 w-5 shrink-0" aria-hidden="true" focusable="false" shapeRendering="geometricPrecision">
     <path
       fill="#FFC107"
       d="M43.6 20.1H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 8 3l5.7-5.7C34 6.1 29.3 4 24 4 13 4 4 13 4 24s9 20 20 20 20-9 20-20c0-1.3-.1-2.6-.4-3.9z"
@@ -64,7 +64,7 @@ const GoogleIcon = () => (
 );
 
 const FacebookIcon = () => (
-  <svg viewBox="0 0 24 24" className="block h-[18px] w-[18px] shrink-0" aria-hidden>
+  <svg viewBox="6.5 3.5 11.5 18" className="block h-5 w-5 shrink-0" aria-hidden="true" focusable="false" shapeRendering="geometricPrecision">
     <path
       fill="#1877F2"
       d="M13.5 21v-8h2.7l.4-3h-3.1V8.1c0-.9.3-1.5 1.6-1.5h1.7V3.9c-.3 0-1.3-.1-2.5-.1-2.5 0-4.2 1.5-4.2 4.3V10H7.3v3h2.8v8h3.4z"
@@ -73,7 +73,7 @@ const FacebookIcon = () => (
 );
 
 const btnClass =
-  "flex h-8 items-center justify-center gap-2 rounded-lg border border-white/15 bg-white/[0.045] text-sm font-medium text-white/85 transition hover:border-white/25 hover:bg-white/[0.09] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50";
+  "flex h-9 items-center justify-center gap-2 rounded-lg border border-white/15 bg-white/[0.045] text-sm font-medium text-white/85 transition hover:border-white/25 hover:bg-white/[0.09] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50";
 
 export function OAuthLoginButtons() {
   const router = useRouter();
