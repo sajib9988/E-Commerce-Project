@@ -22,8 +22,18 @@ declare global {
       };
     };
     FB?: {
-      init: (options: { appId: string; cookie: boolean; xfbml: boolean; version: string }) => void;
-      login: (callback: (response: { authResponse?: { accessToken?: string } }) => void, options: { scope: string }) => void;
+      init: (options: {
+        appId: string;
+        cookie: boolean;
+        xfbml: boolean;
+        version: string;
+      }) => void;
+      login: (
+        callback: (response: {
+          authResponse?: { accessToken?: string };
+        }) => void,
+        options: { scope: string },
+      ) => void;
     };
     fbAsyncInit?: () => void;
   }
@@ -31,6 +41,39 @@ declare global {
 
 const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
 const FACEBOOK_APP_ID = process.env.NEXT_PUBLIC_FACEBOOK_APP_ID;
+
+const GoogleIcon = () => (
+  <svg viewBox="0 0 48 48" className="h-[18px] w-[18px]" aria-hidden>
+    <path
+      fill="#FFC107"
+      d="M43.6 20.1H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 8 3l5.7-5.7C34 6.1 29.3 4 24 4 13 4 4 13 4 24s9 20 20 20 20-9 20-20c0-1.3-.1-2.6-.4-3.9z"
+    />
+    <path
+      fill="#FF3D00"
+      d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 8 3l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"
+    />
+    <path
+      fill="#4CAF50"
+      d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"
+    />
+    <path
+      fill="#1976D2"
+      d="M43.6 20.1H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.6-.4-3.9z"
+    />
+  </svg>
+);
+
+const FacebookIcon = () => (
+  <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" aria-hidden>
+    <path
+      fill="#1877F2"
+      d="M24 12.07C24 5.4 18.63 0 12 0S0 5.4 0 12.07C0 18.1 4.39 23.1 10.13 24v-8.44H7.08v-3.49h3.05V9.41c0-3.02 1.79-4.69 4.53-4.69 1.31 0 2.69.24 2.69.24v2.97h-1.51c-1.49 0-1.96.93-1.96 1.88v2.26h3.33l-.53 3.49h-2.8V24C19.61 23.1 24 18.1 24 12.07z"
+    />
+  </svg>
+);
+
+const btnClass =
+  "flex h-9 items-center justify-center gap-2 rounded-lg border border-white/15 bg-white/[0.045] text-sm font-medium text-white/85 transition hover:border-white/25 hover:bg-white/[0.09] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50";
 
 export function OAuthLoginButtons() {
   const router = useRouter();
@@ -52,7 +95,12 @@ export function OAuthLoginButtons() {
 
     if (FACEBOOK_APP_ID && !window.FB) {
       window.fbAsyncInit = () => {
-        window.FB?.init({ appId: FACEBOOK_APP_ID, cookie: true, xfbml: false, version: "v21.0" });
+        window.FB?.init({
+          appId: FACEBOOK_APP_ID,
+          cookie: true,
+          xfbml: false,
+          version: "v21.0",
+        });
         setFacebookReady(Boolean(window.FB));
       };
       if (!document.getElementById("facebook-jssdk")) {
@@ -72,17 +120,27 @@ export function OAuthLoginButtons() {
     setLoading(provider);
     try {
       const result = await oauthLogin(provider, accessToken);
-      const data = result.data as { message?: string; requiresEmailVerification?: boolean; user?: { role?: string } } | null;
+      const data = result.data as {
+        message?: string;
+        requiresEmailVerification?: boolean;
+        user?: { role?: string };
+      } | null;
       if (!result.ok) {
         toast.error(data?.message || "Could not sign in with this provider.");
         return;
       }
       if (data?.requiresEmailVerification) {
-        toast.success(data.message || "Check your email to verify your account.");
+        toast.success(
+          data.message || "Check your email to verify your account.",
+        );
         return;
       }
       toast.success("Signed in successfully.");
-      router.replace(data?.user?.role === "ADMIN" || data?.user?.role === "SUPER_ADMIN" ? "/admin" : "/");
+      router.replace(
+        data?.user?.role === "ADMIN" || data?.user?.role === "SUPER_ADMIN"
+          ? "/admin"
+          : "/",
+      );
       router.refresh();
     } catch {
       toast.error("OAuth sign-in failed. Please try again.");
@@ -100,7 +158,8 @@ export function OAuthLoginButtons() {
       client_id: GOOGLE_CLIENT_ID,
       scope: "openid email profile",
       callback: (response) => {
-        if (response.access_token) void completeLogin("google", response.access_token);
+        if (response.access_token)
+          void completeLogin("google", response.access_token);
         else toast.error(response.error || "Google sign-in was cancelled.");
       },
     });
@@ -112,29 +171,57 @@ export function OAuthLoginButtons() {
       toast.error("Facebook sign-in is not configured.");
       return;
     }
-    window.FB.login((response) => {
-      const token = response.authResponse?.accessToken;
-      if (token) void completeLogin("facebook", token);
-      else toast.error("Facebook sign-in was cancelled.");
-    }, { scope: "public_profile,email" });
+    window.FB.login(
+      (response) => {
+        const token = response.authResponse?.accessToken;
+        if (token) void completeLogin("facebook", token);
+        else toast.error("Facebook sign-in was cancelled.");
+      },
+      { scope: "public_profile,email" },
+    );
   }
 
   return (
-    <div className="mt-5 space-y-3">
+    <div className="mt-3 space-y-2.5">
       <div className="relative flex items-center">
         <span className="h-px flex-1 bg-white/15" />
-        <span className="px-3 text-[10px] uppercase tracking-[.16em] text-white/40">or continue with</span>
+        <span className="px-3 text-[10px] uppercase tracking-[.16em] text-white/40">
+          or continue with
+        </span>
         <span className="h-px flex-1 bg-white/15" />
       </div>
+
       <div className="grid grid-cols-2 gap-3">
-        <button type="button" onClick={signInWithGoogle} disabled={loading !== null || !googleReady} className="h-11 rounded-xl border border-white/20 bg-white/5 text-sm font-medium text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50">
+        <button
+          type="button"
+          onClick={signInWithGoogle}
+          disabled={loading !== null || !googleReady}
+          aria-label="Continue with Google"
+          className={btnClass}
+        >
+          <GoogleIcon />
           {loading === "google" ? "Connecting..." : "Google"}
         </button>
-        <button type="button" onClick={signInWithFacebook} disabled={loading !== null || !facebookReady} className="h-11 rounded-xl border border-white/20 bg-white/5 text-sm font-medium text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50">
+
+        <button
+          type="button"
+          onClick={signInWithFacebook}
+          disabled={loading !== null || !facebookReady}
+          aria-label="Continue with Facebook"
+          className={btnClass}
+        >
+          <FacebookIcon />
           {loading === "facebook" ? "Connecting..." : "Facebook"}
         </button>
       </div>
-      {(!GOOGLE_CLIENT_ID || !FACEBOOK_APP_ID) && <p className="text-center text-[10px] text-white/40">Configure the public Google and Facebook app IDs to enable social sign-in.</p>}
+
+      {process.env.NODE_ENV === "development" &&
+        (!GOOGLE_CLIENT_ID || !FACEBOOK_APP_ID) && (
+          <p className="text-center text-[10px] text-white/40">
+            Configure the public Google and Facebook app IDs to enable social
+            sign-in.
+          </p>
+        )}
     </div>
   );
 }

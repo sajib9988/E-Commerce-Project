@@ -11,10 +11,10 @@ export default function AuthShell({ children, variant }: AuthShellProps) {
   const isLogin = variant === "login";
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[#080d19] px-4 py-6">
-      <div className="grid w-full max-w-[810px] grid-cols-1 overflow-hidden rounded-2xl border border-white/10 bg-[#0d1424] shadow-2xl shadow-black/30 lg:min-h-[408px] lg:grid-cols-[0.9fr_1.1fr]">
+    <main className="flex min-h-dvh items-center justify-center bg-[#080d19] p-3 sm:p-4">
+      <div className="grid w-full max-w-[1124px] grid-cols-1 overflow-hidden rounded-2xl border border-white/10 bg-[#0d1424] shadow-2xl shadow-black/30 lg:h-[480px] lg:max-h-[calc(100dvh-1.5rem)] lg:grid-cols-[0.9fr_1.1fr]">
         {/* Left: Fashion Image */}
-        <section className="relative isolate flex min-h-[280px] flex-col justify-between overflow-hidden px-5 py-5 sm:px-8 sm:py-6 lg:min-h-0 lg:px-5 lg:py-5">
+        <section className="relative isolate flex min-h-[280px] flex-col justify-between overflow-hidden px-5 py-5 sm:px-8 sm:py-6 lg:min-h-0 lg:px-8 lg:py-6">
           {/* Background Image */}
           <div
             className="absolute inset-0 -z-20 bg-cover bg-center"
@@ -50,7 +50,7 @@ export default function AuthShell({ children, variant }: AuthShellProps) {
               {isLogin ? "WELCOME BACK" : "JOIN THE COMMUNITY"}
             </p>
 
-            <h1 className="text-3xl font-bold leading-tight tracking-tight text-white sm:text-4xl lg:text-[32px]">
+            <h1 className="text-3xl font-bold leading-tight tracking-tight text-white sm:text-4xl lg:text-[36px]">
               {isLogin ? (
                 <>
                   Style that
@@ -68,7 +68,7 @@ export default function AuthShell({ children, variant }: AuthShellProps) {
               )}
             </h1>
 
-            <p className="mt-3 max-w-sm text-xs leading-5 text-white/75">
+            <p className="mt-3 max-w-sm text-xs leading-5 text-white/75 sm:text-sm">
               {isLogin
                 ? "Sign in to explore your collection and enjoy a better shopping experience."
                 : "Create your account and discover a collection designed around your unique style."}
@@ -96,8 +96,8 @@ export default function AuthShell({ children, variant }: AuthShellProps) {
         </section>
 
         {/* Right: Form */}
-        <section className="flex items-center justify-center px-5 py-7 sm:px-8 lg:px-6 lg:py-6">
-          <div className="w-full max-w-[320px]">{children}</div>
+        <section className="flex overflow-y-auto px-5 py-5 sm:px-8 lg:px-10 lg:py-4">
+          <div className="m-auto w-full max-w-[520px]">{children}</div>
         </section>
       </div>
     </main>

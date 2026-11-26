@@ -47,7 +47,7 @@ import {
 } from "@/service/auth.service";
 
 const inputClass =
-  "h-10 w-full rounded-lg border border-white/10 bg-white/[0.045] pl-11 pr-4 text-sm text-white shadow-none placeholder:text-white/30 transition-all focus-visible:border-blue-400/60 focus-visible:bg-white/[0.07] focus-visible:ring-2 focus-visible:ring-blue-500/20";
+  "h-9 w-full rounded-lg border border-white/10 bg-white/[0.045] pl-11 pr-4 text-sm text-white shadow-none placeholder:text-white/30 transition-all focus-visible:border-blue-400/60 focus-visible:bg-white/[0.07] focus-visible:ring-2 focus-visible:ring-blue-500/20";
 
 const iconClass =
   "absolute left-4 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-white/35";
@@ -178,8 +178,8 @@ export default function RegisterForm() {
   return (
     <div className="relative w-full">
       {/* Heading */}
-      <div className="mb-4">
-        <div className="mb-2.5 flex h-9 w-9 items-center justify-center rounded-xl border border-blue-400/20 bg-blue-500/10 text-blue-300 shadow-lg shadow-blue-500/10">
+      <div className="mb-3">
+        <div className="mb-2 flex h-9 w-9 items-center justify-center rounded-xl border border-blue-400/20 bg-blue-500/10 text-blue-300 shadow-lg shadow-blue-500/10">
           {step === "register" ? (
             <UserRound className="h-5 w-5" />
           ) : (
@@ -187,15 +187,15 @@ export default function RegisterForm() {
           )}
         </div>
 
-        <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.25em] text-blue-300">
+        <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.25em] text-blue-300">
           {step === "register" ? "CREATE YOUR ACCOUNT" : "SECURE VERIFICATION"}
         </p>
 
-        <h2 className="text-2xl font-semibold tracking-tight text-white sm:text-3xl">
+        <h2 className="text-lg font-semibold tracking-tight text-white sm:text-xl">
           {step === "register" ? "Create account." : "Verify your email."}
         </h2>
 
-        <p className="mt-1.5 text-xs leading-5 text-white/45 sm:text-sm">
+        <p className="mt-1 text-xs leading-5 text-white/45 sm:text-sm">
           {step === "register"
             ? "Join us and discover a better shopping experience."
             : `Enter the 6-digit verification code sent to ${email}.`}
@@ -207,10 +207,10 @@ export default function RegisterForm() {
         <Form {...registerForm}>
           <form
             onSubmit={registerForm.handleSubmit(handleRegister)}
-            className="space-y-2.5"
+            className="space-y-2"
           >
             {/* Name + Email */}
-            <div className="grid grid-cols-1 gap-x-3 gap-y-2.5 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-x-3 gap-y-2 sm:grid-cols-2">
               {/* Full Name */}
               <FormField
                 control={registerForm.control}
@@ -270,7 +270,7 @@ export default function RegisterForm() {
             </div>
 
             {/* Password + Confirm Password */}
-            <div className="grid grid-cols-1 gap-x-3 gap-y-2.5 sm:grid-cols-2">
+            <div className="grid grid-cols-1 items-start gap-x-3 gap-y-2 sm:grid-cols-2">
               {/* Password */}
               <FormField
                 control={registerForm.control}
@@ -366,24 +366,21 @@ export default function RegisterForm() {
               />
             </div>
 
-            {/* Cloudflare Turnstile */}
-            <div className="overflow-hidden rounded-lg border border-white/10 bg-white/[0.025] p-2">
-              <p className="mb-1.5 flex items-center gap-2 text-[10px] font-medium text-white/50">
-                <ShieldCheck className="h-4 w-4 text-blue-300" />
-                Security Verification
-              </p>
-
-              <Turnstile
-                onVerify={setTurnstileToken}
-                onExpire={() => setTurnstileToken("")}
-              />
+            {/* Cloudflare Turnstile (small) */}
+            <div className="flex h-[50px] items-center overflow-hidden rounded-lg border border-white/10 bg-white/[0.025] px-2">
+              <div className="origin-left scale-[0.75]">
+                <Turnstile
+                  onVerify={setTurnstileToken}
+                  onExpire={() => setTurnstileToken("")}
+                />
+              </div>
             </div>
 
             {/* Submit */}
             <Button
               type="submit"
               disabled={isLoading || !turnstileToken}
-              className="group h-10 w-full rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-sm font-semibold text-white shadow-lg shadow-blue-600/20 transition-all hover:from-blue-500 hover:to-indigo-500 hover:shadow-blue-500/30 active:scale-[0.98]"
+              className="group h-9 w-full rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-sm font-semibold text-white shadow-lg shadow-blue-600/20 transition-all hover:from-blue-500 hover:to-indigo-500 hover:shadow-blue-500/30 active:scale-[0.98]"
             >
               {isLoading ? (
                 "Creating Account..."
