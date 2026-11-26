@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useState } from "react";
-import { Menu, Search, ShoppingBag, UserRound, X } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { LogOut, Menu, Search, ShoppingBag, UserRound, X } from "lucide-react";
+import { logoutUser, getMe } from "@/service/auth.service";
 import { useCartStore } from "@/providers/cart-store-provider";
 import { selectCartItemCount } from "@/store/cart.store";
 
@@ -22,9 +23,45 @@ function isActivePath(pathname: string, href: string) {
 
 export function StorefrontNavbar() {
   const pathname = usePathname();
+  const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const cartItemCount = useCartStore(selectCartItemCount);
   const cartHasHydrated = useCartStore((state) => state.hasHydrated);
+
+  useEffect(() => {
+    let active = true;
+
+    getMe()
+      .then((user) => {
+        if (active) setIsAuthenticated(Boolean(user));
+      })
+      .catch(() => {
+        if (active) setIsAuthenticated(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const handleLogout = async () => {
+    if (isLoggingOut) return;
+
+    setIsLoggingOut(true);
+    try {
+      await logoutUser();
+      setIsAuthenticated(false);
+      setMobileOpen(false);
+      router.replace("/");
+      router.refresh();
+    } catch (error) {
+      console.error("Storefront logout failed:", error);
+    } finally {
+      setIsLoggingOut(false);
+    }
+  };
 
   if (pathname === "/admin" || pathname.startsWith("/admin/")) return null;
 
@@ -90,6 +127,18 @@ export function StorefrontNavbar() {
           <Link href="/account" aria-label="Your account" className="inline-flex size-10 items-center justify-center rounded-full transition hover:bg-stone-100">
             <UserRound size={20} strokeWidth={1.7} />
           </Link>
+
+          {isAuthenticated && (
+            <button
+              type="button"
+              onClick={handleLogout}
+              disabled={isLoggingOut}
+              className="hidden items-center gap-2 rounded-full border border-stone-300 px-4 py-2 text-sm font-medium text-stone-700 transition hover:border-rose-300 hover:bg-rose-50 hover:text-rose-700 disabled:cursor-not-allowed disabled:opacity-50 md:inline-flex"
+            >
+              <LogOut size={16} />
+              {isLoggingOut ? "Logging out..." : "Logout"}
+            </button>
+          )}
         </div>
       </div>
 
@@ -112,6 +161,17 @@ export function StorefrontNavbar() {
                 </Link>
               );
             })}
+            {isAuthenticated && (
+              <button
+                type="button"
+                onClick={handleLogout}
+                disabled={isLoggingOut}
+                className="mt-2 flex items-center gap-2 rounded-xl px-3 py-3 text-left text-sm font-medium text-rose-600 transition hover:bg-rose-50 disabled:opacity-50"
+              >
+                <LogOut size={17} />
+                {isLoggingOut ? "Logging out..." : "Logout"}
+              </button>
+            )}
             <form action="/products" role="search" className="mt-3 flex items-center gap-2 rounded-xl border border-stone-200 px-3 py-3">
               <Search aria-hidden="true" size={17} className="text-stone-500" />
               <input aria-label="Search products" name="q" placeholder="Search products" className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-stone-400" />

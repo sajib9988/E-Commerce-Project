@@ -76,9 +76,12 @@ export async function deleteAdminUser(id: string) {
 export async function getCategories() {
   return request("/categories");
 }
+export async function getAdminCategories() {
+  return request("/categories/admin/list");
+}
 export async function createCategory(data: Record<string, unknown>) {
   const result = await request("/categories", { method: "POST", body: JSON.stringify(data) });
-  if (!isApiError(result)) revalidatePath("/admin/products");
+  if (!isApiError(result)) { revalidatePath("/admin/categories"); revalidatePath("/admin/products"); revalidatePath("/admin/products/new"); }
   return result;
 }
 export async function updateCategory(id: string, data: Record<string, unknown>) {

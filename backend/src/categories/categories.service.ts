@@ -20,6 +20,16 @@ export class CategoriesService {
     });
   }
 
+  async findAllForAdmin() {
+    return this.prisma.category.findMany({
+      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+      include: {
+        subcategories: { orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }] },
+        _count: { select: { products: true, subcategories: true } },
+      },
+    });
+  }
+
   private async uniqueError(error: unknown): Promise<never> {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
       throw new ConflictException('A category or subcategory with this slug already exists');
