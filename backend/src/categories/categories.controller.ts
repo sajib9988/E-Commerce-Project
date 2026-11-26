@@ -9,6 +9,12 @@ import { CreateCategoryDto, CreateSubcategoryDto, UpdateCategoryDto } from './dt
 export class CategoriesController {
   constructor(private readonly categories: CategoriesService) {}
 
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @Get("admin/list")
+  findAllForAdmin() {
+    return this.categories.findAllForAdmin();
+  }
+
   @Public()
   @Get()
   findAll() {

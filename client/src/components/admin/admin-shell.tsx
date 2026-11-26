@@ -39,6 +39,7 @@ const navigation = [
   { label: "Overview", href: "/admin", icon: LayoutDashboard },
   { label: "Analytics", href: "/admin/analytics", icon: BarChart3 },
   { label: "Products", href: "/admin/products", icon: Package },
+  { label: "Categories", href: "/admin/categories", icon: Tag },
   { label: "Variants", href: "/admin/variants", icon: Ruler },
   { label: "Collections", href: "/admin/collections", icon: ShoppingBag },
   { label: "Orders", href: "/admin/orders", icon: ShoppingCart },
@@ -138,6 +139,12 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
     });
   };
 
+  const logoutFromNavigation = () => {
+    setMobileOpen(false);
+    setProfileOpen(false);
+    handleLogout();
+  };
+
   return (
     <div className="admin-theme min-h-screen bg-[#f4f5fb] text-slate-900">
       {/* Desktop Sidebar */}
@@ -176,6 +183,16 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           <span>View Store</span>
           <ExternalLink size={14} className="ml-auto" />
         </Link>
+
+        <button
+          type="button"
+          onClick={logoutFromNavigation}
+          disabled={isPending}
+          className="mt-2 flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-rose-600 transition hover:bg-rose-50 disabled:opacity-50"
+        >
+          <LogOut size={18} />
+          {isPending ? "Logging out..." : "Logout"}
+        </button>
 
         {/* Store Overview */}
         <div className="mt-4 rounded-2xl bg-slate-50 p-3">
@@ -244,6 +261,15 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                 <span>View Store</span>
                 <ExternalLink size={14} className="ml-auto" />
               </Link>
+              <button
+                type="button"
+                onClick={logoutFromNavigation}
+                disabled={isPending}
+                className="mt-2 flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-rose-600 transition hover:bg-rose-50 disabled:opacity-50"
+              >
+                <LogOut size={18} />
+                {isPending ? "Logging out..." : "Logout"}
+              </button>
             </div>
           </aside>
         </div>

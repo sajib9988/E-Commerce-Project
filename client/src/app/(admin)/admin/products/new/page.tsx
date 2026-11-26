@@ -5,6 +5,8 @@ import { getAdminCollections } from "@/service/collection.service";
 import { getAdminRows } from "@/components/admin/admin-resource-page";
 import { ProductForm } from "@/components/admin/product-form";
 
+export const instant = false;
+
 export default async function NewAdminProductPage() {
   const [categoryResult, collectionResult] = await Promise.all([
     getCategories(),
