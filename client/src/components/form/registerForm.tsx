@@ -63,6 +63,7 @@ export default function RegisterForm() {
   const [showConfirm, setShowConfirm] = useState(false);
 
   const [turnstileToken, setTurnstileToken] = useState("");
+  const [turnstileError, setTurnstileError] = useState(false);
 
   // Register form
   const registerForm = useForm<RegisterFormData>({
@@ -371,8 +372,18 @@ export default function RegisterForm() {
               <Turnstile
                 onVerify={setTurnstileToken}
                 onExpire={() => setTurnstileToken("")}
+                onError={() => {
+                  setTurnstileToken("");
+                  setTurnstileError(true);
+                }}
               />
             </div>
+
+            {turnstileError && (
+              <p role="alert" className="text-center text-xs text-red-300">
+                Security verification failed to load. Check the Turnstile site key and network, then refresh this page.
+              </p>
+            )}
 
             {/* Submit */}
             <Button
@@ -389,6 +400,11 @@ export default function RegisterForm() {
                 </>
               )}
             </Button>
+            {!turnstileToken && !turnstileError && (
+              <p className="text-center text-[10px] leading-4 text-white/40">
+                Complete the security check above to enable account creation.
+              </p>
+            )}
           </form>
         </Form>
       )}
