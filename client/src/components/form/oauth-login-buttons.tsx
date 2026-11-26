@@ -73,7 +73,7 @@ const FacebookIcon = () => (
 );
 
 const btnClass =
-  "flex h-9 items-center justify-center gap-2 rounded-lg border border-white/15 bg-white/[0.045] text-sm font-medium text-white/85 transition hover:border-white/25 hover:bg-white/[0.09] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50";
+  "flex h-8 items-center justify-center gap-2 rounded-lg border border-white/15 bg-white/[0.045] text-sm font-medium text-white/85 transition hover:border-white/25 hover:bg-white/[0.09] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50";
 
 export function OAuthLoginButtons() {
   const router = useRouter();
@@ -182,7 +182,7 @@ export function OAuthLoginButtons() {
   }
 
   return (
-    <div className="mt-3 space-y-2.5">
+    <div className="mt-2 space-y-2">
       <div className="relative flex items-center">
         <span className="h-px flex-1 bg-white/15" />
         <span className="px-3 text-[10px] uppercase tracking-[.16em] text-white/40">
@@ -191,7 +191,7 @@ export function OAuthLoginButtons() {
         <span className="h-px flex-1 bg-white/15" />
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-2">
         <button
           type="button"
           onClick={signInWithGoogle}
