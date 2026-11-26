@@ -78,7 +78,6 @@ const btnClass =
 export function OAuthLoginButtons() {
   const router = useRouter();
   const [loading, setLoading] = useState<Provider | null>(null);
-  const [googleReady, setGoogleReady] = useState(false);
   const [facebookReady, setFacebookReady] = useState(false);
 
   useEffect(() => {
@@ -87,10 +86,10 @@ export function OAuthLoginButtons() {
       script.src = "https://accounts.google.com/gsi/client";
       script.async = true;
       script.defer = true;
-      script.onload = () => setGoogleReady(Boolean(window.google));
+      script.onerror = () => {
+        toast.error("Google sign-in could not load. Check your network or content blocker.");
+      };
       document.head.appendChild(script);
-    } else if (window.google) {
-      setGoogleReady(true);
     }
 
     if (FACEBOOK_APP_ID && !window.FB) {
@@ -150,8 +149,12 @@ export function OAuthLoginButtons() {
   }
 
   function signInWithGoogle() {
-    if (!GOOGLE_CLIENT_ID || !window.google) {
-      toast.error("Google sign-in is not configured.");
+    if (!GOOGLE_CLIENT_ID) {
+      toast.error("Google sign-in is not configured. Check NEXT_PUBLIC_GOOGLE_CLIENT_ID.");
+      return;
+    }
+    if (!window.google) {
+      toast.error("Google sign-in is still loading. Please try again in a moment.");
       return;
     }
     const client = window.google.accounts.oauth2.initTokenClient({
@@ -195,7 +198,7 @@ export function OAuthLoginButtons() {
         <button
           type="button"
           onClick={signInWithGoogle}
-          disabled={loading !== null || !googleReady}
+          disabled={loading !== null || !GOOGLE_CLIENT_ID}
           aria-label="Continue with Google"
           className={btnClass}
         >
