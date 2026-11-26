@@ -5,7 +5,7 @@ import helmet from 'helmet';
 import { AppModule } from './app.module';
 import session from 'express-session';
 import passport from 'passport';
-import { RedisStore } from 'connect-redis';
+import RedisStore from 'connect-redis';
 import { RedisService } from './redis/redis.service';
 
 async function bootstrap() {
