@@ -8,7 +8,6 @@ import {
   Patch,
   Post,
   Query,
-  Get,
   Req,
   Res,
   UseGuards,
