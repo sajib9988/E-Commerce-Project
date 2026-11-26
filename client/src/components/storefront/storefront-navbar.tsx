@@ -3,7 +3,16 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { LogOut, Menu, Search, ShoppingBag, UserRound, X } from "lucide-react";
+import {
+  ChevronDown,
+  LayoutDashboard,
+  LogOut,
+  Menu,
+  Search,
+  ShoppingBag,
+  UserRound,
+  X,
+} from "lucide-react";
 import { logoutUser, getMe } from "@/service/auth.service";
 import { useCartStore } from "@/providers/cart-store-provider";
 import { selectCartItemCount } from "@/store/cart.store";
@@ -21,12 +30,26 @@ function isActivePath(pathname: string, href: string) {
     : pathname === href || pathname.startsWith(href + "/");
 }
 
+function getUserRole(user: unknown) {
+  if (!user || typeof user !== "object") return "";
+  const value = user as Record<string, any>;
+  return String(
+    value.role ??
+      value.data?.role ??
+      value.user?.role ??
+      value.data?.user?.role ??
+      "",
+  ).toUpperCase();
+}
+
 export function StorefrontNavbar() {
   const pathname = usePathname();
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
+  const [dashboardHref, setDashboardHref] = useState("/dashboard");
   const cartItemCount = useCartStore(selectCartItemCount);
   const cartHasHydrated = useCartStore((state) => state.hasHydrated);
 
@@ -35,7 +58,13 @@ export function StorefrontNavbar() {
 
     getMe()
       .then((user) => {
-        if (active) setIsAuthenticated(Boolean(user));
+        if (!active) return;
+        const authenticated = Boolean(user);
+        const role = getUserRole(user);
+        setIsAuthenticated(authenticated);
+        setDashboardHref(
+          role === "ADMIN" || role === "SUPER_ADMIN" ? "/admin" : "/dashboard",
+        );
       })
       .catch(() => {
         if (active) setIsAuthenticated(false);
@@ -53,6 +82,7 @@ export function StorefrontNavbar() {
     try {
       await logoutUser();
       setIsAuthenticated(false);
+      setAccountOpen(false);
       setMobileOpen(false);
       router.replace("/");
       router.refresh();
@@ -124,20 +154,52 @@ export function StorefrontNavbar() {
             )}
           </Link>
 
-          <Link href="/account" aria-label="Your account" className="inline-flex size-10 items-center justify-center rounded-full transition hover:bg-stone-100">
-            <UserRound size={20} strokeWidth={1.7} />
-          </Link>
-
-          {isAuthenticated && (
-            <button
-              type="button"
-              onClick={handleLogout}
-              disabled={isLoggingOut}
-              className="hidden items-center gap-2 rounded-full border border-stone-300 px-4 py-2 text-sm font-medium text-stone-700 transition hover:border-rose-300 hover:bg-rose-50 hover:text-rose-700 disabled:cursor-not-allowed disabled:opacity-50 md:inline-flex"
+          {isAuthenticated ? (
+            <div className="relative hidden md:block">
+              <button
+                type="button"
+                aria-label="Account menu"
+                aria-haspopup="menu"
+                aria-expanded={accountOpen}
+                onClick={() => setAccountOpen((open) => !open)}
+                className="inline-flex h-10 items-center gap-2 rounded-full border border-stone-200 px-3 text-sm font-medium transition hover:bg-stone-100"
+              >
+                <UserRound size={19} strokeWidth={1.7} />
+                <span>Account</span>
+                <ChevronDown size={15} className={accountOpen ? "rotate-180 transition-transform" : "transition-transform"} />
+              </button>
+              {accountOpen && (
+                <div role="menu" className="absolute right-0 top-12 z-50 w-52 rounded-xl border border-stone-200 bg-white p-2 shadow-xl">
+                  <Link
+                    role="menuitem"
+                    href={dashboardHref}
+                    onClick={() => setAccountOpen(false)}
+                    className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm text-stone-700 transition hover:bg-stone-100"
+                  >
+                    <LayoutDashboard size={17} />
+                    {dashboardHref === "/admin" ? "Admin Dashboard" : "Dashboard"}
+                  </Link>
+                  <button
+                    role="menuitem"
+                    type="button"
+                    onClick={handleLogout}
+                    disabled={isLoggingOut}
+                    className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-rose-600 transition hover:bg-rose-50 disabled:opacity-50"
+                  >
+                    <LogOut size={17} />
+                    {isLoggingOut ? "Logging out..." : "Logout"}
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <Link
+              href="/account"
+              aria-label="Login to your account"
+              className="inline-flex size-10 items-center justify-center rounded-full transition hover:bg-stone-100"
             >
-              <LogOut size={16} />
-              {isLoggingOut ? "Logging out..." : "Logout"}
-            </button>
+              <UserRound size={20} strokeWidth={1.7} />
+            </Link>
           )}
         </div>
       </div>
@@ -161,17 +223,51 @@ export function StorefrontNavbar() {
                 </Link>
               );
             })}
-            {isAuthenticated && (
-              <button
-                type="button"
-                onClick={handleLogout}
-                disabled={isLoggingOut}
-                className="mt-2 flex items-center gap-2 rounded-xl px-3 py-3 text-left text-sm font-medium text-rose-600 transition hover:bg-rose-50 disabled:opacity-50"
+
+            {isAuthenticated ? (
+              <div className="mt-2 rounded-xl border border-stone-200 p-2">
+                <button
+                  type="button"
+                  aria-expanded={accountOpen}
+                  onClick={() => setAccountOpen((open) => !open)}
+                  className="flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left text-sm font-medium text-stone-800 hover:bg-stone-50"
+                >
+                  <span className="flex items-center gap-2"><UserRound size={17} />Account</span>
+                  <ChevronDown size={16} className={accountOpen ? "rotate-180 transition-transform" : "transition-transform"} />
+                </button>
+                {accountOpen && (
+                  <div className="mt-1 border-t border-stone-100 pt-1">
+                    <Link
+                      href={dashboardHref}
+                      onClick={() => { setAccountOpen(false); setMobileOpen(false); }}
+                      className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm text-stone-700 hover:bg-stone-50"
+                    >
+                      <LayoutDashboard size={17} />
+                      {dashboardHref === "/admin" ? "Admin Dashboard" : "Dashboard"}
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={handleLogout}
+                      disabled={isLoggingOut}
+                      className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-rose-600 hover:bg-rose-50 disabled:opacity-50"
+                    >
+                      <LogOut size={17} />
+                      {isLoggingOut ? "Logging out..." : "Logout"}
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <Link
+                href="/account"
+                onClick={() => setMobileOpen(false)}
+                className="mt-2 flex items-center gap-2 rounded-xl px-3 py-3 text-sm font-medium text-stone-700 hover:bg-stone-50"
               >
-                <LogOut size={17} />
-                {isLoggingOut ? "Logging out..." : "Logout"}
-              </button>
+                <UserRound size={17} />
+                Account / Login
+              </Link>
             )}
+
             <form action="/products" role="search" className="mt-3 flex items-center gap-2 rounded-xl border border-stone-200 px-3 py-3">
               <Search aria-hidden="true" size={17} className="text-stone-500" />
               <input aria-label="Search products" name="q" placeholder="Search products" className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-stone-400" />
