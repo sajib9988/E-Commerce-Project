@@ -12,7 +12,8 @@ import { AuthService } from './auth.service';
 
 import { GoogleStrategy } from './strategies/google.strategy';
 import { FacebookStrategy } from './strategies/facebook.strategy';
-import { FacebookOAuthGuard } from './guards/facebook-oauth.guard';
+import { FacebookOAuthGuard } from './strategies/facebook-oauth.guard';
+
 
 @Module({
   imports: [

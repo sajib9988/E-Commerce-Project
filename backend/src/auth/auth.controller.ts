@@ -35,7 +35,8 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateMyProfileDto } from './dto/update-my-profile.dto';
 import { OAuthExchangeDto } from './dto/oauth-exchange.dto';
-import { FacebookOAuthGuard } from './guards/facebook-oauth.guard';
+import { FacebookOAuthGuard } from './strategies/facebook-oauth.guard';
+
 const AUTH_THROTTLE = { default: { limit: 5, ttl: 60_000 } };
 
 @Controller()
