@@ -35,7 +35,7 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateMyProfileDto } from './dto/update-my-profile.dto';
 import { OAuthExchangeDto } from './dto/oauth-exchange.dto';
-
+import { FacebookOAuthGuard } from './guards/facebook-oauth.guard';
 const AUTH_THROTTLE = { default: { limit: 5, ttl: 60_000 } };
 
 @Controller()
@@ -87,19 +87,18 @@ export class AuthController {
   }
 
   @Public()
-  @Throttle({ default: { limit: 10, ttl: 60_000 } })
-  @Get('auth/facebook')
-  @UseGuards(AuthGuard('facebook'))
-  facebookAuth() {}
+@Throttle({ default: { limit: 10, ttl: 60_000 } })
+@Get('auth/facebook')
+@UseGuards(FacebookOAuthGuard)
+facebookAuth() {}
 
-  @Public()
-  @Throttle({ default: { limit: 10, ttl: 60_000 } })
-  @Get('auth/facebook/callback')
-  @UseGuards(AuthGuard('facebook'))
-  async facebookAuthCallback(@Req() req: Request, @Res() res: Response) {
-    await this.finishOAuthCallback(req, res);
-  }
-
+@Public()
+@Throttle({ default: { limit: 10, ttl: 60_000 } })
+@Get('auth/facebook/callback')
+@UseGuards(FacebookOAuthGuard)
+async facebookAuthCallback(@Req() req: Request, @Res() res: Response) {
+  await this.finishOAuthCallback(req, res);
+}
   @Public()
   @Throttle(AUTH_THROTTLE)
   @HttpCode(200)
