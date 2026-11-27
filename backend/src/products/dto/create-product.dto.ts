@@ -54,5 +54,5 @@ export class CreateProductDto {
   categoryId!: string;
 
   @IsString() @IsNotEmpty()
-  subcategoryId!: string;
+  subcategoryId?: string;
 }

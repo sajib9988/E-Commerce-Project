@@ -45,14 +45,17 @@ model Product {
   apliiqDesignSku String?
   stockQuantity  Int           @default(0)
   isActive       Boolean       @default(true)
+
   categoryId     String
   category       Category      @relation(fields: [categoryId], references: [id], onDelete: Restrict)
-  subcategoryId  String
-  subcategory    Subcategory   @relation(fields: [subcategoryId], references: [id], onDelete: Restrict)
+
+  subcategoryId  String?
+  subcategory    Subcategory?  @relation(fields: [subcategoryId], references: [id], onDelete: SetNull)
+
   imageUrl       String
   imagePublicId  String?
   artworks       ProductArtwork[]
-  apliiqDesigns   ApliiqProductDesign[]
+  apliiqDesigns  ApliiqProductDesign[]
   orderItems     OrderItem[]
   reservationItems StockReservationItem[]
   variants       ProductVariant[]
