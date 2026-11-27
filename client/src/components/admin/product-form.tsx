@@ -270,10 +270,8 @@ export function ProductForm({
       formData.append(key, value);
     }
 
-    // Only send subcategoryId when a subcategory is selected.
-    if (values.subcategoryId) {
-      formData.append("subcategoryId", values.subcategoryId);
-    }
+    // Empty string explicitly clears the optional subcategory relation.
+    formData.append("subcategoryId", values.subcategoryId ?? "");
 
     if (imageFile) {
       formData.append("image", imageFile);

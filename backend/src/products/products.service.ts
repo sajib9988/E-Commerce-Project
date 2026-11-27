@@ -151,12 +151,16 @@ export class ProductsService {
     return product;
   }
 
-  private async validateCategory(categoryId: string, subcategoryId: string) {
+  private async validateCategory(categoryId: string, subcategoryId?: string | null) {
     const category = await this.prisma.category.findUnique({ where: { id: categoryId } });
     if (!category) throw new NotFoundException('Category not found');
+    if (!subcategoryId) return;
+
     const subcategory = await this.prisma.subcategory.findUnique({ where: { id: subcategoryId } });
     if (!subcategory) throw new NotFoundException('Subcategory not found');
-    if (subcategory.categoryId !== categoryId) throw new BadRequestException('Subcategory does not belong to this category');
+    if (subcategory.categoryId !== categoryId) {
+      throw new BadRequestException('Subcategory does not belong to the selected category');
+    }
   }
 
   private async validateCollections(ids?: string[]) {
@@ -190,7 +194,7 @@ export class ProductsService {
           brand: dto.brand, sizes: dto.sizes ?? [], sku: dto.sku?.trim() || null,
           apliiqDesignSku: dto.apliiqDesignSku?.trim() || null,
           stockQuantity: dto.stockQuantity ?? 0, isActive: dto.isActive ?? true,
-          categoryId: dto.categoryId, subcategoryId: dto.subcategoryId,
+          categoryId: dto.categoryId, subcategoryId: dto.subcategoryId ?? null,
           imageUrl: image.secure_url, imagePublicId: image.public_id,
           ...(dto.collectionIds?.length && { collections: { create: this.createCollectionLinks(dto.collectionIds) } }),
         },
@@ -205,7 +209,12 @@ export class ProductsService {
   async update(id: string, dto: UpdateProductDto, file?: Express.Multer.File) {
     const existing = await this.findOneForAdmin(id);
     const categoryId = dto.categoryId ?? existing.categoryId;
-    const subcategoryId = dto.subcategoryId ?? existing.subcategoryId;
+    const categoryChanged = dto.categoryId !== undefined && dto.categoryId !== existing.categoryId;
+    if (categoryChanged && dto.subcategoryId === undefined) {
+      throw new BadRequestException('Select a subcategory for the new category, or explicitly choose no subcategory');
+    }
+    // null explicitly clears the relation; undefined leaves it unchanged.
+    const subcategoryId = dto.subcategoryId !== undefined ? dto.subcategoryId : existing.subcategoryId;
     if (dto.regularPrice !== undefined || dto.salePrice !== undefined) {
       this.validatePrices(dto.regularPrice ?? Number(existing.regularPrice.toString()),
         dto.salePrice === undefined ? existing.salePrice?.toNumber() ?? null : dto.salePrice);

@@ -88,31 +88,31 @@ export async function updateCategory(id: string, data: Record<string, unknown>) 
   const result = await request(`/categories/${encodeURIComponent(id)}`, {
     method: "PATCH", body: JSON.stringify(data),
   });
-  if (!isApiError(result)) revalidatePath("/admin/products");
+  if (!isApiError(result)) { revalidatePath("/admin/categories"); revalidatePath("/admin/products"); revalidatePath("/admin/products/new"); }
   return result;
 }
 export async function deleteCategory(id: string) {
   const result = await request(`/categories/${encodeURIComponent(id)}`, { method: "DELETE" });
-  if (!isApiError(result)) revalidatePath("/admin/products");
+  if (!isApiError(result)) { revalidatePath("/admin/categories"); revalidatePath("/admin/products"); revalidatePath("/admin/products/new"); }
   return result;
 }
 export async function createSubcategory(categoryId: string, data: { name: string; slug?: string }) {
   const result = await request(`/categories/${encodeURIComponent(categoryId)}/subcategories`, {
     method: "POST", body: JSON.stringify(data),
   });
-  if (!isApiError(result)) revalidatePath("/admin/products");
+  if (!isApiError(result)) { revalidatePath("/admin/categories"); revalidatePath("/admin/products"); revalidatePath("/admin/products/new"); }
   return result;
 }
 export async function updateSubcategory(id: string, data: Record<string, unknown>) {
   const result = await request(`/categories/subcategories/${encodeURIComponent(id)}`, {
     method: "PATCH", body: JSON.stringify(data),
   });
-  if (!isApiError(result)) revalidatePath("/admin/products");
+  if (!isApiError(result)) { revalidatePath("/admin/categories"); revalidatePath("/admin/products"); revalidatePath("/admin/products/new"); }
   return result;
 }
 export async function deleteSubcategory(id: string) {
   const result = await request(`/categories/subcategories/${encodeURIComponent(id)}`, { method: "DELETE" });
-  if (!isApiError(result)) revalidatePath("/admin/products");
+  if (!isApiError(result)) { revalidatePath("/admin/categories"); revalidatePath("/admin/products"); revalidatePath("/admin/products/new"); }
   return result;
 }
 

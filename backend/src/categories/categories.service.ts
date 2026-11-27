@@ -64,10 +64,14 @@ export class CategoriesService {
   async remove(id: string) {
     const category = await this.prisma.category.findUnique({ where: { id }, include: { products: true, subcategories: true } });
     if (!category) throw new NotFoundException('Category not found');
-    if (category.products.length || category.subcategories.length) {
-      throw new BadRequestException('Category has products or subcategories; deactivate it instead');
+    if (category.products.length) {
+      throw new BadRequestException('Move or remove this category’s products before deleting the category');
     }
-    await this.prisma.category.delete({ where: { id } });
+    // Delete children explicitly because the existing Prisma relation is Restrict.
+    await this.prisma.$transaction(async (tx) => {
+      await tx.subcategory.deleteMany({ where: { categoryId: id } });
+      await tx.category.delete({ where: { id } });
+    });
     return { success: true, id };
   }
 
@@ -86,7 +90,27 @@ export class CategoriesService {
   async updateSubcategory(id: string, dto: UpdateCategoryDto) {
     const existing = await this.prisma.subcategory.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException('Subcategory not found');
+    const nextCategoryId = dto.categoryId ?? existing.categoryId;
+    const moving = nextCategoryId !== existing.categoryId;
+    if (moving) {
+      const target = await this.prisma.category.findUnique({ where: { id: nextCategoryId } });
+      if (!target) throw new NotFoundException('Target category not found');
+    }
     try {
+      if (moving) {
+        // Products follow their subcategory to keep category/subcategory consistent.
+        return await this.prisma.$transaction(async (tx) => {
+          await tx.product.updateMany({ where: { subcategoryId: id }, data: { categoryId: nextCategoryId } });
+          return tx.subcategory.update({ where: { id }, data: {
+            categoryId: nextCategoryId,
+            ...(dto.name !== undefined && { name: dto.name.trim() }),
+            ...(dto.slug !== undefined && { slug: dto.slug.trim().toLowerCase() }),
+            ...(dto.description !== undefined && { description: dto.description?.trim() || null }),
+            ...(dto.sortOrder !== undefined && { sortOrder: dto.sortOrder }),
+            ...(dto.isActive !== undefined && { isActive: dto.isActive }),
+          } });
+        });
+      }
       return await this.prisma.subcategory.update({ where: { id }, data: {
         ...(dto.name !== undefined && { name: dto.name.trim() }),
         ...(dto.slug !== undefined && { slug: dto.slug.trim().toLowerCase() }),
@@ -98,9 +122,9 @@ export class CategoriesService {
   }
 
   async removeSubcategory(id: string) {
-    const subcategory = await this.prisma.subcategory.findUnique({ where: { id }, include: { products: true } });
+    const subcategory = await this.prisma.subcategory.findUnique({ where: { id } });
     if (!subcategory) throw new NotFoundException('Subcategory not found');
-    if (subcategory.products.length) throw new BadRequestException('Subcategory has products; deactivate it instead');
+    // The existing nullable Product.subcategoryId relation uses SetNull.
     await this.prisma.subcategory.delete({ where: { id } });
     return { success: true, id };
   }

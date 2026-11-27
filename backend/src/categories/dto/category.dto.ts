@@ -21,6 +21,10 @@ export class CreateCategoryDto {
 export class CreateSubcategoryDto extends CreateCategoryDto {}
 
 export class UpdateCategoryDto {
+  // Used when moving a subcategory to another parent category.
+  @IsOptional() @IsString()
+  categoryId?: string;
+
   @IsOptional() @IsString() @MaxLength(120)
   name?: string;
 
