@@ -63,7 +63,7 @@ export function StorefrontNavbar() {
         const role = getUserRole(user);
         setIsAuthenticated(authenticated);
         setDashboardHref(
-          role === "ADMIN" || role === "SUPER_ADMIN" ? "/admin" : "/dashboard",
+          role === "ADMIN" || role === "SUPER_ADMIN" ? "/admin" :  "/account",
         );
       })
       .catch(() => {
