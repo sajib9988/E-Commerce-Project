@@ -26,7 +26,7 @@ export class VariantsService {
     ]);
     if (!product) throw new NotFoundException('Product not found');
     if (!size || !size.isActive || !size.template.isActive) throw new BadRequestException('An active size from an active template is required');
-    if (product.subcategory.sizeTemplateId && product.subcategory.sizeTemplateId !== size.templateId) {
+    if (product.subcategory?.sizeTemplateId && product.subcategory.sizeTemplateId !== size.templateId) {
       throw new BadRequestException('The selected size does not belong to the template assigned to this product subcategory');
     }
     return this.prisma.productVariant.create({
