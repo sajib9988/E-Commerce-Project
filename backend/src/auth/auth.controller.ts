@@ -11,9 +11,14 @@ import {
   Req,
   Res,
   UseGuards,
+  UploadedFile,
+  UseInterceptors,
+  BadRequestException,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { AuthGuard } from '@nestjs/passport';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
 import type { Request, Response } from 'express';
 import { Public } from '../common/decorators/public.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -185,6 +190,22 @@ async facebookAuthCallback(@Req() req: Request, @Res() res: Response) {
     @Body() dto: ChangePasswordDto,
   ) {
     return this.authService.changePassword(currentUser.sub, dto);
+  }
+
+  @Post('auth/me/avatar')
+  @UseInterceptors(FileInterceptor('file', {
+    storage: memoryStorage(),
+    limits: { fileSize: 5 * 1024 * 1024 },
+    fileFilter: (_req, file, callback) => {
+      if (!['image/jpeg', 'image/png', 'image/webp', 'image/avif'].includes(file.mimetype)) {
+        callback(new BadRequestException('Only JPEG, PNG, WEBP and AVIF images are allowed'), false);
+        return;
+      }
+      callback(null, true);
+    },
+  }))
+  uploadMyAvatar(@CurrentUser() user: AuthTokenPayload, @UploadedFile() file: Express.Multer.File) {
+    return this.authService.uploadAvatar(user.sub, file);
   }
 
   @Patch('auth/me')

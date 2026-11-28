@@ -30,3 +30,13 @@ export async function updateMyCustomerProfile(name: string) {
     return { success: false as const, message: "Unable to connect to the server" };
   }
 }
+
+export async function uploadMyAvatar(formData: FormData) {
+  if (!BASE_URL) return { success: false as const, message: "NEXT_PUBLIC_BASE_URL is not configured" };
+  try {
+    const response = await fetch(`${BASE_URL.replace(/\/+$/, "")}/auth/me/avatar`, { method: "POST", headers: await getAuthHeaders(), body: formData, cache: "no-store" });
+    const data = await safeJson<{ message?: string }>(response);
+    if (!response.ok) return { success: false as const, message: typeof data === "object" && data && "message" in data ? String(data.message) : `Request failed: ${response.status}` };
+    revalidatePath("/account"); revalidatePath("/account/profile"); return data;
+  } catch (error) { console.error("Customer avatar upload failed:", error); return { success: false as const, message: "Unable to connect to the server" }; }
+}

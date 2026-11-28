@@ -30,6 +30,7 @@ import type { CreateUserDto } from './dto/create-user.dto';
 import type { UpdateUserDto } from './dto/update-user.dto';
 import { createHash, randomBytes } from 'node:crypto';
 import { RedisService } from '../redis/redis.service';
+import { CloudinaryService } from '../cloudinary/cloudinary.service';
 
 export const ACCESS_TOKEN_TTL_SECONDS = 30 * 60;
 export const REFRESH_TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60;
@@ -45,6 +46,9 @@ const safeUserSelect = {
   email: true,
   role: true,
   emailVerified: true,
+  avatarUrl: true,
+  passwordEnabled: true,
+  oauthAccounts: { select: { provider: true } },
   createdAt: true,
   updatedAt: true,
 } satisfies Prisma.UserSelect;
@@ -56,6 +60,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly emailService: EmailService,
     private readonly redis: RedisService,
+    private readonly cloudinary: CloudinaryService,
   ) {}
 
   async register(dto: RegisterDto) {
@@ -207,7 +212,9 @@ export class AuthService {
         await this.issueAndSendOtp(linked.user.id, linked.user.email, 'verify-email');
         return { requiresEmailVerification: true as const, email: linked.user.email };
       }
-      return { id: linked.user.id, name: linked.user.name, email: linked.user.email, role: linked.user.role };
+      let linkedUser = linked.user;
+      if (provider === 'google' && profile.avatarUrl && !linkedUser.avatarPublicId) linkedUser = await this.prisma.user.update({ where: { id: linkedUser.id }, data: { avatarUrl: profile.avatarUrl } });
+      return { id: linkedUser.id, name: linkedUser.name, email: linkedUser.email, role: linkedUser.role };
     }
 
     let user = await this.prisma.user.findUnique({ where: { email } });
@@ -224,6 +231,8 @@ export class AuthService {
           name: profile.name.trim() || email.split('@')[0],
           email,
           password: await hashPassword(randomBytes(48).toString('base64url')),
+          passwordEnabled: false,
+          avatarUrl: provider === 'google' ? profile.avatarUrl ?? null : null,
           role: UserRole.USER,
           emailVerified: profile.emailVerified,
         },
@@ -244,6 +253,7 @@ export class AuthService {
       user = concurrentLink.user;
     }
 
+    if (provider === 'google' && profile.avatarUrl && !user.avatarPublicId && user.avatarUrl !== profile.avatarUrl) user = await this.prisma.user.update({ where: { id: user.id }, data: { avatarUrl: profile.avatarUrl } });
     if (!user.emailVerified) {
       await this.issueAndSendOtp(user.id, user.email, 'verify-email');
       return { requiresEmailVerification: true as const, email: user.email };
@@ -328,7 +338,7 @@ export class AuthService {
     await this.prisma.$transaction(async (tx) => {
       await tx.user.update({
         where: { id: user.id },
-        data: { password: passwordHash, resetToken: null, resetTokenExpiresAt: null,
+        data: { password: passwordHash, passwordEnabled: true, resetToken: null, resetTokenExpiresAt: null,
           verificationCode: null, verificationCodeExpiresAt: null },
       });
       await tx.refreshSession.updateMany({
@@ -349,7 +359,7 @@ export class AuthService {
     await this.prisma.$transaction(async (tx) => {
       await tx.user.update({
         where: { id: userId },
-        data: { password: passwordHash, resetToken: null, resetTokenExpiresAt: null },
+        data: { password: passwordHash, passwordEnabled: true, resetToken: null, resetTokenExpiresAt: null },
       });
       await tx.refreshSession.updateMany({
         where: { userId, revokedAt: null },
@@ -426,10 +436,28 @@ export class AuthService {
   async me(userId: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, name: true, email: true, role: true, emailVerified: true },
+      select: { id: true, name: true, email: true, role: true, emailVerified: true, avatarUrl: true, passwordEnabled: true, oauthAccounts: { select: { provider: true } } },
     });
     if (!user) throw new UnauthorizedException('Session expired or invalid');
     return user;
+  }
+
+  async uploadAvatar(userId: string, file: Express.Multer.File) {
+    if (!file?.buffer) throw new BadRequestException('Avatar image is required');
+    const allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/avif'];
+    if (!allowed.includes(file.mimetype) || file.size > 5 * 1024 * 1024) throw new BadRequestException('Use JPEG, PNG, WEBP or AVIF up to 5MB');
+    const current = await this.prisma.user.findUnique({ where: { id: userId }, select: { id: true, avatarPublicId: true } });
+    if (!current) throw new UnauthorizedException('Session expired or invalid');
+    const uploaded = await this.cloudinary.uploadImage(file, 'ecommerce/avatars');
+    let updated;
+    try {
+      updated = await this.prisma.user.update({ where: { id: userId }, data: { avatarUrl: uploaded.secure_url, avatarPublicId: uploaded.public_id }, select: { id: true, name: true, email: true, role: true, avatarUrl: true } });
+    } catch (error) {
+      await this.cloudinary.deleteImage(uploaded.public_id).catch(() => undefined);
+      throw error;
+    }
+    if (current.avatarPublicId && current.avatarPublicId !== uploaded.public_id) await this.cloudinary.deleteImage(current.avatarPublicId).catch(() => undefined);
+    return { success: true, data: updated };
   }
 
   async updateMyProfile(userId: string, name: string) {
@@ -493,7 +521,7 @@ export class AuthService {
           ...(dto.name !== undefined && { name: dto.name.trim() }),
           ...(dto.email !== undefined && { email: dto.email.trim().toLowerCase(), emailVerified: false }),
           ...(dto.role !== undefined && { role: dto.role }),
-          ...(passwordHash !== undefined && { password: passwordHash }),
+          ...(passwordHash !== undefined && { password: passwordHash, passwordEnabled: true }),
         },
         select: safeUserSelect,
       });

@@ -1,46 +1,18 @@
 "use client";
-
 import { useState, useTransition } from "react";
-import { updateMyCustomerProfile } from "@/service/profile.service";
-
-type Profile = { id: string; name: string; email: string; role: string; emailVerified: boolean };
-
-export function CustomerProfileForm({ profile }: { profile: Profile }) {
-  const [name, setName] = useState(profile.name ?? "");
-  const [message, setMessage] = useState("");
-  const [error, setError] = useState("");
-  const [pending, startTransition] = useTransition();
-
-  function submit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const value = name.trim();
-    if (value.length < 2 || value.length > 80) {
-      setError("Name must contain between 2 and 80 characters.");
-      return;
-    }
-    setError("");
-    setMessage("");
-    startTransition(async () => {
-      const result = await updateMyCustomerProfile(value);
-      if (result && typeof result === "object" && "success" in result && result.success === false) {
-        setError(String(result.message ?? "Could not update profile."));
-        return;
-      }
-      setMessage("Profile updated successfully.");
-    });
-  }
-
-  return (
-    <form onSubmit={submit} className="grid gap-4 rounded-2xl border border-teal-100 bg-white p-5 sm:grid-cols-2">
-      <label className="grid gap-1.5 text-sm font-medium">Full name
-        <input value={name} onChange={(event) => setName(event.target.value)} minLength={2} maxLength={80} required className="h-11 rounded-lg border border-stone-300 px-3 font-normal outline-none focus:border-stone-500" />
-      </label>
-      <div className="rounded-xl bg-teal-50/70 p-3"><p className="text-xs font-semibold uppercase tracking-wide text-stone-400">Email address</p><p className="mt-2 break-words text-sm font-medium">{profile.email}</p><p className="mt-1 text-xs text-stone-500">Email changes require a separate verification flow.</p></div>
-      <div className="rounded-xl bg-teal-50/70 p-3"><p className="text-xs font-semibold uppercase tracking-wide text-stone-400">Account role</p><p className="mt-2 text-sm font-medium">{profile.role}</p></div>
-      <div className="rounded-xl bg-teal-50/70 p-3"><p className="text-xs font-semibold uppercase tracking-wide text-stone-400">Email verification</p><p className="mt-2 text-sm font-medium">{profile.emailVerified ? "Verified" : "Not verified"}</p></div>
-      {error && <p role="alert" className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-800 sm:col-span-2">{error}</p>}
-      {message && <p role="status" className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800 sm:col-span-2">{message}</p>}
-      <div className="sm:col-span-2"><button type="submit" disabled={pending || name.trim() === profile.name} className="rounded-lg bg-stone-900 px-4 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">{pending ? "Saving…" : "Save profile"}</button></div>
-    </form>
-  );
+import { updateMyCustomerProfile, uploadMyAvatar } from "@/service/profile.service";
+type Profile={id:string;name:string;email:string;role:string;emailVerified:boolean;avatarUrl?:string|null};
+const allowedTypes=["image/jpeg","image/png","image/webp","image/avif"];
+export function CustomerProfileForm({profile}:{profile:Profile}){
+ const [name,setName]=useState(profile.name??"");const [avatar,setAvatar]=useState(profile.avatarUrl??"");const [preview,setPreview]=useState("");const [message,setMessage]=useState("");const [error,setError]=useState("");const [pending,startTransition]=useTransition();const [uploading,setUploading]=useState(false);
+ function submit(e:React.FormEvent<HTMLFormElement>){e.preventDefault();const value=name.trim();if(value.length<2||value.length>80){setError("Name must contain between 2 and 80 characters.");return;}setError("");setMessage("");startTransition(async()=>{const r=await updateMyCustomerProfile(value);if(r&&typeof r==="object"&&"success"in r&&r.success===false){setError(String(r.message??"Could not update profile."));return;}setMessage("Profile updated successfully.");});}
+ async function upload(e:React.ChangeEvent<HTMLInputElement>){const file=e.target.files?.[0];if(!file)return;setError("");setMessage("");if(!allowedTypes.includes(file.type)){setError("Choose a JPEG, PNG, WEBP or AVIF image.");e.target.value="";return;}if(file.size>5*1024*1024){setError("Avatar image must be 5MB or smaller.");e.target.value="";return;}setPreview(URL.createObjectURL(file));setUploading(true);const data=new FormData();data.append("file",file);const r=await uploadMyAvatar(data);setUploading(false);if(r&&typeof r==="object"&&"success"in r&&r.success===false){setError(String(r.message??"Avatar upload failed."));setPreview("");e.target.value="";return;}const payload=r&&typeof r==="object"&&"data"in r?r.data as {avatarUrl?:string}:r as {avatarUrl?:string};if(payload?.avatarUrl)setAvatar(payload.avatarUrl);setPreview("");setMessage("Profile photo updated successfully.");e.target.value="";}
+ const initials=profile.name.trim().split(/\s+/).slice(0,2).map(x=>x[0]).join("").toUpperCase();
+ return <form onSubmit={submit} className="grid gap-4 rounded-2xl border border-teal-100 bg-white p-5 sm:grid-cols-2">
+ <section className="flex items-center gap-4 sm:col-span-2"><div className="grid size-20 shrink-0 place-items-center overflow-hidden rounded-full bg-stone-100 text-xl font-semibold text-stone-600">{preview||avatar?<img src={preview||avatar} alt="Profile avatar" className="size-full object-cover"/>:initials}</div><div className="space-y-2"><p className="text-sm font-semibold">Profile photo</p><label className="inline-flex cursor-pointer items-center rounded-lg border border-stone-300 px-3 py-2 text-sm font-medium hover:bg-stone-50">{uploading?"Uploading…":"Choose photo"}<input type="file" accept="image/jpeg,image/png,image/webp,image/avif" onChange={upload} disabled={uploading} className="sr-only"/></label><p className="text-xs text-stone-500">JPEG, PNG, WEBP or AVIF · Maximum 5MB</p></div></section>
+ <label className="grid gap-1.5 text-sm font-medium">Full name<input value={name} onChange={e=>setName(e.target.value)} minLength={2} maxLength={80} required className="h-11 rounded-lg border border-stone-300 px-3 font-normal outline-none focus:border-stone-500"/></label>
+ <div className="rounded-xl bg-teal-50/70 p-3"><p className="text-xs font-semibold uppercase tracking-wide text-stone-400">Email address</p><p className="mt-2 break-words text-sm font-medium">{profile.email}</p><p className="mt-1 text-xs text-stone-500">Email changes require a separate verification flow.</p></div>
+ <div className="rounded-xl bg-teal-50/70 p-3"><p className="text-xs font-semibold uppercase tracking-wide text-stone-400">Account role</p><p className="mt-2 text-sm font-medium">{profile.role}</p></div><div className="rounded-xl bg-teal-50/70 p-3"><p className="text-xs font-semibold uppercase tracking-wide text-stone-400">Email verification</p><p className="mt-2 text-sm font-medium">{profile.emailVerified?"Verified":"Not verified"}</p></div>
+ {error&&<p role="alert" className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-800 sm:col-span-2">{error}</p>}{message&&<p role="status" className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800 sm:col-span-2">{message}</p>}
+ <div className="sm:col-span-2"><button type="submit" disabled={pending||name.trim()===profile.name} className="rounded-lg bg-stone-900 px-4 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">{pending?"Saving…":"Save profile"}</button></div></form>;
 }
