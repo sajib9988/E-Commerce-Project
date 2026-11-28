@@ -338,7 +338,7 @@ export class AuthService {
     await this.prisma.$transaction(async (tx) => {
       await tx.user.update({
         where: { id: user.id },
-        data: { password: passwordHash, resetToken: null, resetTokenExpiresAt: null,
+        data: { password: passwordHash, passwordEnabled: true, resetToken: null, resetTokenExpiresAt: null,
           verificationCode: null, verificationCodeExpiresAt: null },
       });
       await tx.refreshSession.updateMany({
@@ -359,7 +359,7 @@ export class AuthService {
     await this.prisma.$transaction(async (tx) => {
       await tx.user.update({
         where: { id: userId },
-        data: { password: passwordHash, resetToken: null, resetTokenExpiresAt: null },
+        data: { password: passwordHash, passwordEnabled: true, resetToken: null, resetTokenExpiresAt: null },
       });
       await tx.refreshSession.updateMany({
         where: { userId, revokedAt: null },
@@ -521,7 +521,7 @@ export class AuthService {
           ...(dto.name !== undefined && { name: dto.name.trim() }),
           ...(dto.email !== undefined && { email: dto.email.trim().toLowerCase(), emailVerified: false }),
           ...(dto.role !== undefined && { role: dto.role }),
-          ...(passwordHash !== undefined && { password: passwordHash }),
+          ...(passwordHash !== undefined && { password: passwordHash, passwordEnabled: true }),
         },
         select: safeUserSelect,
       });
