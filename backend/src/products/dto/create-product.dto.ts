@@ -53,6 +53,6 @@ export class CreateProductDto {
   @IsString() @IsNotEmpty()
   categoryId!: string;
 
-  @IsString() @IsNotEmpty()
-  subcategoryId?: string;
+  @IsOptional() @Transform(({ value }) => value === '' || value === 'null' ? null : value) @IsString() @IsNotEmpty()
+  subcategoryId?: string | null;
 }

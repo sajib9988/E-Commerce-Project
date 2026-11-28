@@ -61,7 +61,7 @@ export class ProductSearchService {
       stockQuantity: product.stockQuantity,
       imageUrl: product.imageUrl,
       category: product.category.name,
-      subcategory: product.subcategory.name,
+      subcategory: product.subcategory?.name ?? null,
       variants: product.variants.map((variant) => ({
         size: variant.size.label,
         color: variant.colorName,
