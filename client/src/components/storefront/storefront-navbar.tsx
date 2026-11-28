@@ -65,7 +65,7 @@ export function StorefrontNavbar() {
         const account = user && typeof user === "object" ? ((user as any).data ?? (user as any).user ?? user) : null;
         const role = getUserRole(user);
         setAvatarUrl(account?.avatarUrl ?? null);
-        setUserInitials(String(account?.name ?? "U").trim().split(/\\s+/).slice(0, 2).map((part: string) => part[0]).join("").toUpperCase() || "U");
+        setUserInitials(String(account?.name ?? "U").trim().split(/\s+/).slice(0, 2).map((part: string) => part[0]).join("").toUpperCase() || "U");
         setIsAuthenticated(authenticated);
         setDashboardHref(
           role === "ADMIN" || role === "SUPER_ADMIN" ? "/admin" :  "/account",
