@@ -6,6 +6,7 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaModule } from '../prisma/prisma.module';
 import { EmailModule } from '../email/email.module';
 import { RedisModule } from '../redis/redis.module';
+import { CloudinaryModule } from '../cloudinary/cloudinary.module';
 
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
@@ -21,6 +22,7 @@ import { FacebookOAuthGuard } from './strategies/facebook-oauth.guard';
     PrismaModule,
     EmailModule,
     RedisModule,
+    CloudinaryModule,
 
     JwtModule.register({
       secret: process.env.JWT_SECRET,

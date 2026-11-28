@@ -30,6 +30,7 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
       email,
       name: profile.displayName?.trim() || email.split('@')[0],
       emailVerified,
+      avatarUrl: profile.photos?.[0]?.value ?? null,
     };
     return this.authService.authenticateOAuthProfile(oauthProfile);
   }

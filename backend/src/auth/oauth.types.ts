@@ -6,4 +6,5 @@ export type OAuthProfile = {
   email: string;
   name: string;
   emailVerified: boolean;
+  avatarUrl?: string | null;
 };

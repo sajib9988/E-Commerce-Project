@@ -47,6 +47,8 @@ export function StorefrontNavbar() {
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [userInitials, setUserInitials] = useState("U");
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const [dashboardHref, setDashboardHref] = useState("/dashboard");
@@ -60,7 +62,10 @@ export function StorefrontNavbar() {
       .then((user) => {
         if (!active) return;
         const authenticated = Boolean(user);
+        const account = user && typeof user === "object" ? ((user as any).data ?? (user as any).user ?? user) : null;
         const role = getUserRole(user);
+        setAvatarUrl(account?.avatarUrl ?? null);
+        setUserInitials(String(account?.name ?? "U").trim().split(/\\s+/).slice(0, 2).map((part: string) => part[0]).join("").toUpperCase() || "U");
         setIsAuthenticated(authenticated);
         setDashboardHref(
           role === "ADMIN" || role === "SUPER_ADMIN" ? "/admin" :  "/account",
@@ -155,18 +160,16 @@ export function StorefrontNavbar() {
           </Link>
 
           {isAuthenticated ? (
-            <div className="relative hidden md:block">
+            <div className="relative">
               <button
                 type="button"
                 aria-label="Account menu"
                 aria-haspopup="menu"
                 aria-expanded={accountOpen}
                 onClick={() => setAccountOpen((open) => !open)}
-                className="inline-flex h-10 items-center gap-2 rounded-full border border-stone-200 px-3 text-sm font-medium transition hover:bg-stone-100"
+                className="inline-flex size-10 items-center justify-center overflow-hidden rounded-full border border-stone-200 bg-white text-xs font-semibold transition hover:bg-stone-100"
               >
-                <UserRound size={19} strokeWidth={1.7} />
-                <span>Account</span>
-                <ChevronDown size={15} className={accountOpen ? "rotate-180 transition-transform" : "transition-transform"} />
+                {avatarUrl ? <img src={avatarUrl} alt="" className="size-full object-cover" /> : <span>{userInitials}</span>}
               </button>
               {accountOpen && (
                 <div role="menu" className="absolute right-0 top-12 z-50 w-52 rounded-xl border border-stone-200 bg-white p-2 shadow-xl">
